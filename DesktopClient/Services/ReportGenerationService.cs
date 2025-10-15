@@ -1,0 +1,307 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.IO.Ports;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using MicroluxErgConnect.Models;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
+
+namespace MicroluxErgConnect.Services;
+
+public sealed class ReportGenerationService : IDisposable
+{
+    private readonly SettingsService _settings;
+    private readonly LogService _log;
+    private readonly object _sync = new();
+    private CancellationTokenSource? _cts;
+    private Task? _loopTask;
+    private string? _activePort;
+    private DeviceConnectionInfo? _lastDeviceInfo;
+
+    public event EventHandler<string>? ReportGenerated;
+    public event EventHandler<string>? SyncStateChanged;
+
+    static ReportGenerationService()
+    {
+        QuestPDF.Settings.License = LicenseType.Community;
+        QuestPDF.Settings.CheckIfAllTextGlyphsAreAvailable = false;
+    }
+
+    public ReportGenerationService(SettingsService settings, LogService log)
+    {
+        _settings = settings;
+        _log = log;
+    }
+
+    public void OnDeviceConnected(DeviceConnectionInfo info)
+    {
+        lock (_sync)
+        {
+            _lastDeviceInfo = info;
+            _activePort = info.PortName;
+            _log.Info($"[{info.PortName}] устройство подключено, запуск синхронизации данных.");
+            RestartLoop();
+        }
+    }
+
+    public void OnDeviceDisconnected()
+    {
+        lock (_sync)
+        {
+            _log.Info("Устройство отключено, фоновые задачи синхронизации остановлены.");
+            _activePort = null;
+            _lastDeviceInfo = null;
+            CancelLoop();
+        }
+    }
+
+    private void RestartLoop()
+    {
+        CancelLoop();
+        if (string.IsNullOrWhiteSpace(_activePort)) return;
+        _log.Debug($"[{_activePort}] запуск нового цикла синхронизации пациентов.");
+        _cts = new CancellationTokenSource();
+        _loopTask = Task.Run(() => SyncLoopAsync(_activePort!, _cts.Token));
+    }
+
+    private async Task SyncLoopAsync(string portName, CancellationToken ct)
+    {
+        _log.Info($"[{portName}] старт фоновой синхронизации пациентов.");
+        SyncStateChanged?.Invoke(this, $"Подключено к {portName}. Синхронизация данных...");
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await SyncOnceAsync(portName, ct);
+                SyncStateChanged?.Invoke(this, $"Ожидание {_settings.Current.BackgroundSyncInterval.TotalMinutes:F0} мин. до следующей проверки");
+                await Task.Delay(_settings.Current.BackgroundSyncInterval, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Ошибка синхронизации: {ex.Message}");
+                SyncStateChanged?.Invoke(this, "Ошибка синхронизации, повтор через 1 минуту");
+                await Task.Delay(TimeSpan.FromMinutes(1), ct);
+            }
+        }
+    }
+
+    private async Task SyncOnceAsync(string portName, CancellationToken ct)
+    {
+        var options = _settings.Current.Serial;
+        Directory.CreateDirectory(_settings.Current.ReportsDirectory);
+        using var port = SerialPortUtility.CreatePort(portName, options);
+        port.Open();
+        SerialPortUtility.ToggleLinesIfNeeded(port, options, _log);
+        port.DiscardInBuffer();
+        port.DiscardOutBuffer();
+
+        _log.Info($"[{portName}] запрос данных пациентов");
+        var patients = new List<(PatientInfo info, byte[] raw)>();
+        int maxPatients = Math.Max(1, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 1);
+
+        for (int index = 1; index <= maxPatients; index++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var cmd = ErgProtocol.BuildGetNext();
+            port.Write(cmd, 0, cmd.Length);
+            _log.Debug($"[{portName}] отправлен запрос 0xE5 (пациент #{index})");
+            var block = ReadPatientBlock(port, options);
+            if (block.Length == 0)
+            {
+                _log.Info("Передача пациентов завершена устройством.");
+                break;
+            }
+
+            if (!ErgProtocol.ValidateChecksum(block))
+            {
+                _log.Warn($"[{portName}] контрольная сумма пациента #{index} не совпала, запрос повтор");
+                var repeat = ErgProtocol.BuildRepeat();
+                port.Write(repeat, 0, repeat.Length);
+                block = ReadPatientBlock(port, options);
+                if (block.Length == 0 || !ErgProtocol.ValidateChecksum(block))
+                {
+                    _log.Error($"[{portName}] не удалось получить корректные данные пациента #{index}");
+                    continue;
+                }
+            }
+
+            if (!ErgParser.TryParsePatientBlock(block, out var patient, out var err))
+            {
+                _log.Warn($"[{portName}] получены данные пациента #{index}, но разбор завершился ошибкой: {err}");
+            }
+            else
+            {
+                _log.Info($"Получен пациент #{index}: ID={patient.PatientId}, тестов={patient.TotalNumTests}");
+                patients.Add((patient, block));
+            }
+
+            SendContinueAck(port, portName, $"подтверждение получения пациента #{index}");
+        }
+
+        if (patients.Count == 0)
+        {
+            _log.Info("Новых данных пациентов не обнаружено.");
+        }
+        else
+        {
+            GenerateReports(patients);
+            _log.Info($"Создано {patients.Count} отчет(ов).");
+        }
+
+        if (options.EnableRtcSynchronization)
+        {
+            var rtc = ErgProtocol.BuildRtcSet(DateTime.Now);
+            port.Write(rtc, 0, rtc.Length);
+            _log.Info("Часы прибора синхронизированы.");
+        }
+    }
+
+    private void SendContinueAck(SerialPort port, string portName, string context)
+    {
+        var ack = new byte[] { 0xE3 };
+        port.Write(ack, 0, ack.Length);
+        _log.Debug($"[{portName}] отправлено подтверждение 0xE3 ({context}).");
+    }
+
+    private byte[] ReadPatientBlock(SerialPort port, SerialCommunicationOptions options)
+    {
+        var start = Environment.TickCount;
+        var lastData = start;
+        using var ms = new MemoryStream();
+        var buffer = new byte[4096];
+        while (Environment.TickCount - start < options.MaxReadWindowMs)
+        {
+            var toRead = Math.Min(buffer.Length, port.BytesToRead);
+            if (toRead > 0)
+            {
+                var read = port.Read(buffer, 0, toRead);
+                if (read > 0)
+                {
+                    ms.Write(buffer, 0, read);
+                    lastData = Environment.TickCount;
+                    if (ms.Length > 0 && ms.Length % 2048 == 0)
+                    {
+                        SendContinueAck(port, port.PortName, "промежуточное подтверждение для разгрузки буфера");
+                    }
+                }
+            }
+            else
+            {
+                if (ms.Length >= options.MinPatientBlockSize && Environment.TickCount - lastData > options.QuietTimeMs)
+                    break;
+                Thread.Sleep(5);
+            }
+        }
+        var data = ms.ToArray();
+        var elapsed = Environment.TickCount - start;
+        _log.Debug($"[{port.PortName}] прием блока пациента завершен: {data.Length} байт за {elapsed} мс.");
+        return data;
+    }
+
+    private void GenerateReports(List<(PatientInfo info, byte[] raw)> patients)
+    {
+        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
+        var sessionDir = Path.Combine(_settings.Current.ReportsDirectory, timestamp);
+        Directory.CreateDirectory(sessionDir);
+        _log.Info($"Отчеты будут сохранены в каталоге {sessionDir}.");
+
+        for (int i = 0; i < patients.Count; i++)
+        {
+            var patient = patients[i];
+            var rawPath = Path.Combine(sessionDir, $"patient_{i + 1:000}.bin");
+            File.WriteAllBytes(rawPath, patient.raw);
+            _log.Debug($"Сырые данные пациента #{i + 1} сохранены: {rawPath}");
+
+            var pdfPath = Path.Combine(sessionDir, $"patient_{i + 1:000}.pdf");
+            BuildPdfReport(pdfPath, patient.info, rawPath);
+            _log.Info($"PDF-отчет для пациента #{i + 1} создан: {pdfPath}");
+            ReportGenerated?.Invoke(this, pdfPath);
+        }
+
+        try
+        {
+            System.Media.SystemSounds.Exclamation.Play();
+        }
+        catch
+        {
+            // ignore audio failures
+        }
+    }
+
+    private void BuildPdfReport(string pdfPath, PatientInfo patient, string rawPath)
+    {
+        var description = string.IsNullOrWhiteSpace(patient.Description) ? "Нет данных" : patient.Description;
+        var reportName = _lastDeviceInfo?.DeviceInfo.ReportName ?? "Микролюкс ERG-Connect";
+        Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Margin(20);
+                page.Size(PageSizes.A4);
+                page.PageColor(Colors.White);
+                page.DefaultTextStyle(x => x.FontSize(12));
+
+                page.Header().Row(row =>
+                {
+                    row.RelativeItem().Column(col =>
+                    {
+                        col.Item().Text(reportName).FontSize(16).SemiBold();
+                        col.Item().Text($"Отчет сформирован: {DateTime.Now:g}");
+                        col.Item().Text($"Пациент ID: {patient.PatientId}");
+                    });
+                    row.ConstantItem(120).Border(1).AlignCenter().Padding(4).Column(col =>
+                    {
+                        col.Item().Text("Животное").SemiBold();
+                        col.Item().Text(patient.AnimalType.ToString());
+                    });
+                });
+
+                page.Content().Column(col =>
+                {
+                    col.Spacing(10);
+                    col.Item().Text($"Дата/время исследования: {patient.TestDateTime}").Bold();
+                    col.Item().Text($"Количество тестов: {patient.TotalNumTests}");
+                    col.Item().Text("Автоматическое заключение:").Bold();
+                    col.Item().Text(description).FontSize(11);
+                    col.Item().Text($"Сырая выгрузка сохранена: {rawPath}").FontSize(10);
+                    col.Item().Text("Графические данные будут добавлены после интеграции с прибором.")
+                        .FontSize(10).Italic().FontColor(Colors.Grey.Darken2);
+                });
+
+                page.Footer().AlignCenter().Text(text =>
+                {
+                    text.CurrentPageNumber();
+                    text.Span(" / ");
+                    text.TotalPages();
+                });
+            });
+        }).GeneratePdf(pdfPath);
+    }
+
+    private void CancelLoop()
+    {
+        _cts?.Cancel();
+        try
+        {
+            _loopTask?.Wait(TimeSpan.FromSeconds(2));
+        }
+        catch (AggregateException) { }
+        _cts?.Dispose();
+        _cts = null;
+        _loopTask = null;
+    }
+
+    public void Dispose()
+    {
+        CancelLoop();
+    }
+}
