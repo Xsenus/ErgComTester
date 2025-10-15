@@ -6,8 +6,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using MicroluxErgConnect.Infrastructure;
 using MicroluxErgConnect.Models;
 using MicroluxErgConnect.Services;
@@ -21,7 +21,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly UpdateService _update;
     private readonly ReportGenerationService _reports;
     private readonly LogService _log;
-    private readonly Dispatcher _dispatcher;
+    private readonly SynchronizationContext _syncContext;
 
     private string _statusText = "Готово";
     private string _syncStatus = string.Empty;
@@ -47,25 +47,29 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _update = update;
         _reports = reports;
         _log = log;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _syncContext = SynchronizationContext.Current ?? new SynchronizationContext();
+        if (SynchronizationContext.Current == null)
+        {
+            _log.Warn("UI-синхронизация недоступна в текущем контексте. Используется резервный SynchronizationContext.");
+        }
 
         CheckUpdatesCommand = new RelayCommand(async () => await _update.CheckForUpdatesAsync(true));
         InstallUpdateCommand = new RelayCommand(() => _update.ApplyUpdate(), () => !string.IsNullOrWhiteSpace(_update.CurrentState.DownloadedFile));
         OpenReportsCommand = new RelayCommand(OpenReportsFolder);
         OpenLogsCommand = new RelayCommand(OpenLogsFolder);
-        ForceRescanCommand = new RelayCommand(ForceRescan);
+        ForceRescanCommand = new RelayCommand(async () => await ForceRescanAsync());
 
-        _monitor.StatusChanged += (_, status) => _dispatcher.Invoke(() => UpdateStatus(status));
-        _monitor.DeviceConnected += (_, info) => _dispatcher.Invoke(() => OnDeviceConnected(info));
-        _monitor.DeviceDisconnected += (_, __) => _dispatcher.Invoke(OnDeviceDisconnected);
-        _reports.SyncStateChanged += (_, state) => _dispatcher.Invoke(() => SyncStatus = state);
-        _reports.ReportGenerated += (_, path) => _dispatcher.Invoke(() => AddLog(new LogEntry(DateTime.Now, "REPORT", path)));
-        _update.StateChanged += (_, state) => _dispatcher.Invoke(() =>
+        _monitor.StatusChanged += (_, status) => _syncContext.Post(_ => HandleStatusUpdate(status), null);
+        _monitor.DeviceConnected += (_, info) => _syncContext.Post(_ => OnDeviceConnected(info), null);
+        _monitor.DeviceDisconnected += (_, __) => _syncContext.Post(_ => OnDeviceDisconnected(), null);
+        _reports.SyncStateChanged += (_, state) => _syncContext.Post(_ => SyncStatus = state, null);
+        _reports.ReportGenerated += (_, path) => _syncContext.Post(_ => AddLog(new LogEntry(DateTime.Now, "REPORT", path)), null);
+        _update.StateChanged += (_, state) => _syncContext.Post(_ =>
         {
             UpdateStatusText = state.StatusMessage;
             InstallUpdateCommand.RaiseCanExecuteChanged();
-        });
-        _log.LogAdded += (_, entry) => _dispatcher.Invoke(() => AddLog(entry));
+        }, null);
+        _log.LogAdded += (_, entry) => _syncContext.Post(_ => AddLog(entry), null);
 
         try
         {
@@ -79,11 +83,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            AddLog(new LogEntry(DateTime.Now, "WARN", $"Не удалось прочитать лог: {ex.Message}"));
+            var message = $"Не удалось прочитать лог: {ex.Message}";
+            AddLog(new LogEntry(DateTime.Now, "WARN", message));
+            _log.Warn($"{message}. Подробности: {ex}");
         }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void HandleStatusUpdate(DeviceStatus status)
+    {
+        UpdateStatus(status);
+        _log.Debug($"Статус устройства обновлен: connected={(status.IsConnected ? "да" : "нет")}, порт={status.CurrentPort ?? "<не указан>"}, сообщение='{status.Message}'");
+    }
 
     private void OnDeviceConnected(DeviceConnectionInfo info)
     {
@@ -93,12 +105,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ReportName = info.DeviceInfo.ReportName;
         SoftwareVersion = info.DeviceInfo.SoftwareRev;
         StatusText = $"Устройство обнаружено: {info.DeviceInfo.DeviceName} ({info.PortName})";
+        _log.Info($"Устройство подключено: {info.DeviceInfo.DeviceName} ({info.PortName}), ПО={info.DeviceInfo.SoftwareRev ?? "<неизвестно>"}, отчет={info.DeviceInfo.ReportName ?? "<нет данных>"}");
     }
 
     private void OnDeviceDisconnected()
     {
         IsDeviceConnected = false;
         StatusText = "Устройство отключено";
+        _log.Info("Устройство отключено.");
     }
 
     private void UpdateStatus(DeviceStatus status)
@@ -111,30 +125,42 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IsDeviceConnected = status.IsConnected;
     }
 
-    private void ForceRescan()
+    private async Task ForceRescanAsync()
     {
-        _ = _settings.UpdateAsync(s => s.PreferredPort = null);
-        _log.Info("Сброшен запомненный COM-порт. Повторный поиск устройства начнется автоматически.");
+        try
+        {
+            _log.Info("Запрошен сброс запомненного COM-порта пользователем.");
+            await _settings.UpdateAsync(s => s.PreferredPort = null);
+            _log.Info("Запомненный COM-порт успешно сброшен. Повторный поиск устройства начнется автоматически.");
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Ошибка при сбросе COM-порта: {ex}");
+            AddLog(new LogEntry(DateTime.Now, "ERROR", $"Ошибка при сбросе COM-порта: {ex.Message}"));
+        }
     }
 
-    private void OpenReportsFolder()
-    {
-        Directory.CreateDirectory(_settings.Current.ReportsDirectory);
-        Process.Start(new ProcessStartInfo
-        {
-            FileName = _settings.Current.ReportsDirectory,
-            UseShellExecute = true
-        });
-    }
+    private void OpenReportsFolder() => OpenFolderSafely(_settings.Current.ReportsDirectory, "отчеты");
 
-    private void OpenLogsFolder()
+    private void OpenLogsFolder() => OpenFolderSafely(_settings.Current.LogsDirectory, "логи");
+
+    private void OpenFolderSafely(string path, string purpose)
     {
-        Directory.CreateDirectory(_settings.Current.LogsDirectory);
-        Process.Start(new ProcessStartInfo
+        try
         {
-            FileName = _settings.Current.LogsDirectory,
-            UseShellExecute = true
-        });
+            Directory.CreateDirectory(path);
+            _log.Info($"Открытие каталога ({purpose}): {path}");
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Не удалось открыть каталог ({purpose}) '{path}': {ex}");
+            AddLog(new LogEntry(DateTime.Now, "ERROR", $"Ошибка открытия каталога {purpose}: {ex.Message}"));
+        }
     }
 
     private void AddLog(LogEntry entry)
@@ -197,65 +223,87 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public int DeviceScanIntervalSeconds
     {
         get => _settings.Current.DeviceScanIntervalSeconds;
-        set
-        {
-            if (value != _settings.Current.DeviceScanIntervalSeconds)
-            {
-                _ = _settings.UpdateAsync(s => s.DeviceScanIntervalSeconds = value);
-                OnPropertyChanged();
-            }
-        }
+        set => UpdateIntSetting(nameof(DeviceScanIntervalSeconds), value, 2, 60, s => s.DeviceScanIntervalSeconds, (s, v) => s.DeviceScanIntervalSeconds = v);
     }
 
     public int UpdateCheckIntervalMinutes
     {
         get => _settings.Current.UpdateCheckIntervalMinutes;
-        set
-        {
-            if (value != _settings.Current.UpdateCheckIntervalMinutes)
-            {
-                _ = _settings.UpdateAsync(s => s.UpdateCheckIntervalMinutes = value);
-                OnPropertyChanged();
-            }
-        }
+        set => UpdateIntSetting(nameof(UpdateCheckIntervalMinutes), value, 5, 24 * 60, s => s.UpdateCheckIntervalMinutes, (s, v) => s.UpdateCheckIntervalMinutes = v);
     }
 
     public int BackgroundSyncIntervalMinutes
     {
         get => _settings.Current.BackgroundSyncIntervalMinutes;
-        set
-        {
-            if (value != _settings.Current.BackgroundSyncIntervalMinutes)
-            {
-                _ = _settings.UpdateAsync(s => s.BackgroundSyncIntervalMinutes = value);
-                OnPropertyChanged();
-            }
-        }
+        set => UpdateIntSetting(nameof(BackgroundSyncIntervalMinutes), value, 5, 24 * 60, s => s.BackgroundSyncIntervalMinutes, (s, v) => s.BackgroundSyncIntervalMinutes = v);
     }
 
     public int DeviceReconnectDelaySeconds
     {
         get => _settings.Current.DeviceReconnectDelaySeconds;
-        set
-        {
-            if (value != _settings.Current.DeviceReconnectDelaySeconds)
-            {
-                _ = _settings.UpdateAsync(s => s.DeviceReconnectDelaySeconds = value);
-                OnPropertyChanged();
-            }
-        }
+        set => UpdateIntSetting(nameof(DeviceReconnectDelaySeconds), value, 5, 300, s => s.DeviceReconnectDelaySeconds, (s, v) => s.DeviceReconnectDelaySeconds = v);
     }
 
     public string UpdateManifestUrl
     {
         get => _settings.Current.UpdateManifestUrl;
-        set
+        set => UpdateManifestSetting(value);
+    }
+
+    private void UpdateIntSetting(string propertyName, int value, int min, int max, Func<AppSettings, int> accessor, Action<AppSettings, int> setter)
+    {
+        var normalized = Math.Clamp(value, min, max);
+        if (normalized != value)
         {
-            if (!string.Equals(value, _settings.Current.UpdateManifestUrl, StringComparison.Ordinal))
-            {
-                _ = _settings.UpdateAsync(s => s.UpdateManifestUrl = value);
-                OnPropertyChanged();
-            }
+            _log.Warn($"Значение {propertyName} скорректировано с {value} до {normalized} (допустимый диапазон {min}-{max}).");
+        }
+
+        if (normalized == accessor(_settings.Current))
+        {
+            _log.Debug($"Параметр {propertyName} не изменился (значение {normalized}).");
+            return;
+        }
+
+        _ = ApplySettingAsync(propertyName, normalized, setter);
+    }
+
+    private void UpdateManifestSetting(string? value)
+    {
+        var trimmed = value?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            _log.Warn("Попытка установить пустой URL манифеста обновлений проигнорирована.");
+            return;
+        }
+
+        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) || string.IsNullOrEmpty(uri.Scheme) || string.IsNullOrEmpty(uri.Host))
+        {
+            _log.Warn($"Недопустимый URL манифеста обновлений: '{trimmed}'.");
+            return;
+        }
+
+        var normalized = uri.ToString();
+        if (string.Equals(normalized, _settings.Current.UpdateManifestUrl, StringComparison.Ordinal))
+        {
+            _log.Debug($"URL манифеста обновлений не изменился: {normalized}");
+            return;
+        }
+
+        _ = ApplySettingAsync(nameof(UpdateManifestUrl), normalized, (s, v) => s.UpdateManifestUrl = v);
+    }
+
+    private async Task ApplySettingAsync<T>(string propertyName, T value, Action<AppSettings, T> setter)
+    {
+        try
+        {
+            await _settings.UpdateAsync(settings => setter(settings, value));
+            _log.Info($"Параметр {propertyName} обновлён: {value}.");
+            OnPropertyChanged(propertyName);
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Ошибка при обновлении параметра {propertyName}: {ex}");
+            AddLog(new LogEntry(DateTime.Now, "ERROR", $"Не удалось обновить параметр {propertyName}: {ex.Message}"));
         }
     }
 

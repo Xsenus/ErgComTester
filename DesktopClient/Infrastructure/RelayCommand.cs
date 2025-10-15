@@ -1,10 +1,9 @@
 using System;
 using System.Threading.Tasks;
-using System.Windows.Input;
 
 namespace MicroluxErgConnect.Infrastructure;
 
-public sealed class RelayCommand : ICommand
+public sealed class RelayCommand
 {
     private readonly Func<bool>? _canExecute;
     private readonly Action? _execute;
