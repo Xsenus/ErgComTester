@@ -213,6 +213,8 @@ public sealed class UpdateService : IDisposable
         }
         catch (AggregateException) { }
         _cts?.Dispose();
+        _cts = null;
+        _loopTask = null;
         _httpClient.Dispose();
     }
 }
