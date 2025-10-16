@@ -4,6 +4,7 @@ using System.IO.Ports;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MicroluxErgConnect.Infrastructure;
 using MicroluxErgConnect.Models;
 
 namespace MicroluxErgConnect.Services;
@@ -138,6 +139,11 @@ public sealed class DeviceMonitorService : IDisposable
             {
                 info = await completed;
             }
+            catch (SerialPortInUseException ex)
+            {
+                _log.Debug($"[{ex.PortName}] порт занят другим процессом, пропускаем.");
+                continue;
+            }
             catch (OperationCanceledException)
             {
                 return;
@@ -196,6 +202,10 @@ public sealed class DeviceMonitorService : IDisposable
             _log.Debug($"[{portName}] таймаут ответа.");
             return null;
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            throw new SerialPortInUseException(portName, ex);
+        }
         catch (OperationCanceledException)
         {
             throw;
@@ -249,6 +259,11 @@ public sealed class DeviceMonitorService : IDisposable
             _log.Debug($"[{connection.PortName}] устройство ответило корректно при повторной проверке.");
             return true;
         }
+        catch (SerialPortInUseException ex)
+        {
+            _log.Debug($"[{ex.PortName}] порт временно занят, предполагаем, что устройство всё ещё подключено.");
+            return true;
+        }
         catch (OperationCanceledException)
         {
             throw;
@@ -297,5 +312,7 @@ public sealed class DeviceMonitorService : IDisposable
         }
         catch (AggregateException) { }
         _cts?.Dispose();
+        _cts = null;
+        _monitorTask = null;
     }
 }
