@@ -220,33 +220,15 @@ public sealed class DeviceMonitorService : IDisposable
     private byte[] ReadChunk(SerialPort sp, int minExpected)
     {
         var start = Environment.TickCount;
-        var lastData = start;
-        using var ms = new System.IO.MemoryStream();
-        var buffer = new byte[4096];
-        while (Environment.TickCount - start < _settings.Current.Serial.MaxReadWindowMs)
-        {
-            var toRead = Math.Min(buffer.Length, sp.BytesToRead);
-            if (toRead > 0)
-            {
-                var read = sp.Read(buffer, 0, toRead);
-                if (read > 0)
-                {
-                    ms.Write(buffer, 0, read);
-                    lastData = Environment.TickCount;
-                }
-            }
-            else
-            {
-                if (ms.Length >= minExpected && Environment.TickCount - lastData > _settings.Current.Serial.QuietTimeMs)
-                {
-                    break;
-                }
-                Thread.Sleep(5);
-            }
-        }
+        var data = ErgIo.ReadChunk(
+            sp,
+            _log,
+            minExpected,
+            _settings.Current.Serial.QuietTimeMs,
+            _settings.Current.Serial.MaxReadWindowMs);
         var elapsed = Environment.TickCount - start;
-        _log.Debug($"[{sp.PortName}] прием завершен: {ms.Length} байт за {elapsed} мс.");
-        return ms.ToArray();
+        _log.Debug($"[{sp.PortName}] прием завершен: {data.Length} байт за {elapsed} мс.");
+        return data;
     }
 
     private async Task<bool> VerifyAsync(DeviceConnectionInfo connection, CancellationToken ct)
