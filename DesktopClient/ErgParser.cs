@@ -2,7 +2,7 @@ using System.Text;
 
 namespace MicroluxErgConnect;
 
-internal record CommonInfo(string ReportName, string DeviceName, string SoftwareRev, int TotalNumId);
+public record CommonInfo(string ReportName, string DeviceName, string SoftwareRev, int TotalNumId);
 internal record PatientInfo(uint PatientId, byte AnimalType, string TestDateTime, byte TotalNumTests, string Description);
 
 internal static class ErgParser
