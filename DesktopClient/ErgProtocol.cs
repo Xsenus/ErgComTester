@@ -31,10 +31,13 @@ internal static class ErgProtocol
     }
 
     public static bool ValidateChecksum(byte[] frame)
+        => frame != null && ValidateChecksum(frame.AsSpan());
+
+    public static bool ValidateChecksum(ReadOnlySpan<byte> frame)
     {
-        if (frame == null || frame.Length < 2) return false;
+        if (frame.Length < 2) return false;
         var expected = frame[^1];
-        var actual = LsbSum(frame.AsSpan(0, frame.Length - 1));
+        var actual = LsbSum(frame[..^1]);
         return expected == actual;
     }
 }
