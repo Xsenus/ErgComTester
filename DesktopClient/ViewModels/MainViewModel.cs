@@ -75,7 +75,25 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (File.Exists(_log.SessionLogPath))
             {
-                foreach (var line in File.ReadLines(_log.SessionLogPath).Take(200))
+                using var stream = new FileStream(_log.SessionLogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var reader = new StreamReader(stream);
+                var lastLines = new Queue<string>();
+                while (!reader.EndOfStream)
+                {
+                    var line = reader.ReadLine();
+                    if (line is null)
+                    {
+                        continue;
+                    }
+
+                    lastLines.Enqueue(line);
+                    if (lastLines.Count > 200)
+                    {
+                        lastLines.Dequeue();
+                    }
+                }
+
+                foreach (var line in lastLines)
                 {
                     AddLog(new LogEntry(DateTime.Now, "HIST", line));
                 }

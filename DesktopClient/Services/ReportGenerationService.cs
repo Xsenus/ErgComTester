@@ -1,9 +1,9 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.IO.Ports;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MicroluxErgConnect.Models;
@@ -125,6 +125,7 @@ public sealed class ReportGenerationService : IDisposable
             {
                 _log.Warn($"[{portName}] контрольная сумма пациента #{index} не совпала, запрос повтор");
                 var repeat = ErgProtocol.BuildRepeat();
+                port.DiscardInBuffer();
                 port.Write(repeat, 0, repeat.Length);
                 block = ReadPatientBlock(port, options);
                 if (block.Length == 0 || !ErgProtocol.ValidateChecksum(block))
@@ -176,34 +177,83 @@ public sealed class ReportGenerationService : IDisposable
     {
         var start = Environment.TickCount;
         var lastData = start;
-        using var ms = new MemoryStream();
-        var buffer = new byte[4096];
-        while (Environment.TickCount - start < options.MaxReadWindowMs)
+        using var ms = new MemoryStream(4096);
+        var buffer = ArrayPool<byte>.Shared.Rent(1024);
+
+        try
         {
-            var toRead = Math.Min(buffer.Length, port.BytesToRead);
-            if (toRead > 0)
+            while (Environment.TickCount - start < options.MaxReadWindowMs)
             {
-                var read = port.Read(buffer, 0, toRead);
-                if (read > 0)
+                try
                 {
-                    ms.Write(buffer, 0, read);
-                    lastData = Environment.TickCount;
-                    if (ms.Length > 0 && ms.Length % 2048 == 0)
+                    var read = port.Read(buffer, 0, buffer.Length);
+                    if (read > 0)
                     {
-                        SendContinueAck(port, port.PortName, "промежуточное подтверждение для разгрузки буфера");
+                        ms.Write(buffer, 0, read);
+                        lastData = Environment.TickCount;
+
+                        if (ms.Length > 0 && ms.Length % 2048 == 0)
+                        {
+                            SendContinueAck(port, port.PortName, "промежуточное подтверждение для разгрузки буфера");
+                        }
+
+                        continue;
                     }
                 }
-            }
-            else
-            {
-                if (ms.Length >= options.MinPatientBlockSize && Environment.TickCount - lastData > options.QuietTimeMs)
+                catch (TimeoutException)
+                {
+                    if (ms.Length == 0)
+                    {
+                        break;
+                    }
+                }
+
+                if (ms.Length == 0)
+                {
+                    if (Environment.TickCount - start >= options.MaxReadWindowMs)
+                    {
+                        break;
+                    }
+
+                    continue;
+                }
+
+                if (Environment.TickCount - lastData < options.QuietTimeMs)
+                {
+                    continue;
+                }
+
+                if (!ms.TryGetBuffer(out var segment))
+                {
                     break;
-                Thread.Sleep(5);
+                }
+
+                var span = segment.AsSpan(0, (int)ms.Length);
+                if (ErgProtocol.ValidateChecksum(span))
+                {
+                    break;
+                }
+
+                // Данных пока недостаточно — продолжим ожидание, если не вышли за окно чтения.
+                lastData = Environment.TickCount;
             }
         }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+
+        if (ms.Length == 0)
+        {
+            var elapsedEmpty = Environment.TickCount - start;
+            _log.Debug($"[{port.PortName}] прием блока пациента завершен: 0 байт за {elapsedEmpty} мс (данных нет).");
+            return Array.Empty<byte>();
+        }
+
         var data = ms.ToArray();
         var elapsed = Environment.TickCount - start;
-        _log.Debug($"[{port.PortName}] прием блока пациента завершен: {data.Length} байт за {elapsed} мс.");
+        var checksumStatus = ErgProtocol.ValidateChecksum(data) ? "контрольная сумма подтверждена" : "контрольная сумма НЕ совпала";
+        _log.Debug($"[{port.PortName}] прием блока пациента завершен: {data.Length} байт за {elapsed} мс ({checksumStatus}).");
         return data;
     }
 
