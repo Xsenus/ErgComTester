@@ -1,6 +1,8 @@
-using System.IO.Ports;
 using System.IO.Compression;
+using System.IO.Ports;
 using System.Reflection;
+using System.Text;
+using ErgData;
 
 namespace ErgComTester;
 
@@ -59,6 +61,8 @@ internal class Program
 
     static int Main(string[] args)
     {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
         var options = CliOptions.Parse(args);
         var sessionStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         var baseDir = AppContext.BaseDirectory;
@@ -71,6 +75,11 @@ internal class Program
 
         try
         {
+            if (options.Mode == RunMode.Parse)
+            {
+                return RunParseMode(options, logger);
+            }
+
             // AUTO mode by default
             if (options.Mode == RunMode.Auto)
             {
@@ -214,7 +223,11 @@ internal class Program
                     if (!opt.NoFetch)
                     {
                         var outDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "out", "raw"));
+                        var jsonDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "out", "structured"));
+                        var pdfDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "out", "pdf"));
                         Directory.CreateDirectory(outDir);
+                        Directory.CreateDirectory(jsonDir);
+                        Directory.CreateDirectory(pdfDir);
                         logger.Info($"Fetching up to {Math.Max(1, common.TotalNumId)} patient(s)...");
 
                         for (int i = 1; i <= Math.Max(1, common.TotalNumId); i++)
@@ -247,11 +260,23 @@ internal class Program
                                 if (ErgParser.TryParsePatientBlock(block, out var pinfo, out var perr))
                                 {
                                     logger.Info($"Patient_ID     : {pinfo.PatientId}");
-                                    logger.Info($"Animal_Type    : {pinfo.AnimalType}");
-                                    logger.Info($"Test_Date_Time : {pinfo.TestDateTime}");
-                                    logger.Info($"Total_Num_Tests: {pinfo.TotalNumTests}");
-                                    if (!string.IsNullOrWhiteSpace(pinfo.Description))
-                                        logger.Info($"Description    : {pinfo.Description}");
+                                    logger.Info($"Animal         : {pinfo.Animal}");
+                                    logger.Info($"Tests          : {pinfo.Tests.Count}/{pinfo.TotalNumTests}");
+                                    logger.Info($"Description    : {TrimForLog(pinfo.Description)}");
+
+                                    for (int t = 0; t < pinfo.Tests.Count; t++)
+                                    {
+                                        var test = pinfo.Tests[t];
+                                        logger.Info($"  Test #{t + 1}: {test.TestName} | Δt={test.GraphDt}мс, точки={test.GraphNumPoints}");
+                                    }
+
+                                    var jsonPath = Path.Combine(jsonDir, $"patient_{i:000}.json");
+                                    ErgDataSerializer.SaveJson(jsonPath, pinfo);
+                                    logger.Info($"Saved JSON   : {jsonPath}");
+
+                                    var pdfPath = Path.Combine(pdfDir, $"patient_{i:000}.pdf");
+                                    ErgReportBuilder.BuildPatientReport(pinfo, pdfPath, common, clinicName: options.ClinicName, rawFilePath: rawPath);
+                                    logger.Info($"Saved PDF    : {pdfPath}");
                                 }
                                 else logger.Warn($"Patient parse warning: {perr}");
                             }
@@ -279,4 +304,70 @@ internal class Program
         logger.Info($"Device not confirmed on {portName}.");
         return 11;
     }
+
+    static string TrimForLog(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "<empty>";
+        text = text.Replace('\r', ' ').Replace('\n', ' ');
+        return text.Length > 200 ? text[..200] + "…" : text;
+    }
+
+    static int RunParseMode(CliOptions options, Logger logger)
+    {
+        if (string.IsNullOrWhiteSpace(options.ParseInputPath))
+        {
+            logger.Error("Parse mode requires --parse=<path-to-bin>");
+            return 1;
+        }
+
+        var inputPath = Path.GetFullPath(options.ParseInputPath);
+        if (!File.Exists(inputPath))
+        {
+            logger.Error($"Input file not found: {inputPath}");
+            return 2;
+        }
+
+        logger.Section("Parse patient block");
+        logger.Info($"Source: {inputPath}");
+
+        var data = File.ReadAllBytes(inputPath);
+        if (!ErgParser.TryParsePatientBlock(data, out var patient, out var error))
+        {
+            logger.Error($"Parse failed: {error}");
+            return 3;
+        }
+
+        logger.Info($"Patient_ID     : {patient.PatientId}");
+        logger.Info($"Animal         : {patient.Animal}");
+        logger.Info($"Tests          : {patient.Tests.Count}/{patient.TotalNumTests}");
+        logger.Info($"Date/Time      : {patient.TestDateTime}");
+        logger.Info($"Description    : {TrimForLog(patient.Description)}");
+
+        for (int i = 0; i < patient.Tests.Count; i++)
+        {
+            var test = patient.Tests[i];
+            logger.Info($"  Test #{i + 1}: {test.TestName}, Δt={test.GraphDt}мс, точки={test.GraphNumPoints}");
+        }
+
+        var jsonPath = options.JsonOutputPath;
+        if (string.IsNullOrWhiteSpace(jsonPath))
+        {
+            jsonPath = Path.ChangeExtension(inputPath, ".json");
+        }
+        jsonPath = Path.GetFullPath(jsonPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(jsonPath)!);
+        ErgDataSerializer.SaveJson(jsonPath, patient);
+        logger.Info($"JSON saved: {jsonPath}");
+
+        if (!string.IsNullOrWhiteSpace(options.PdfOutputPath))
+        {
+            var pdfPath = Path.GetFullPath(options.PdfOutputPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(pdfPath)!);
+            ErgReportBuilder.BuildPatientReport(patient, pdfPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath);
+            logger.Info($"PDF saved : {pdfPath}");
+        }
+
+        return 0;
+    }
+
 }
