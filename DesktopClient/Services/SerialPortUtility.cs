@@ -1,6 +1,7 @@
 using System;
 using System.IO.Ports;
 using System.Threading;
+using MicroluxErgConnect;
 
 namespace MicroluxErgConnect.Services;
 
@@ -17,7 +18,7 @@ public static class SerialPortUtility
             NewLine = "\r\n"
         };
 
-    public static void ToggleLinesIfNeeded(SerialPort port, SerialCommunicationOptions options, LogService log)
+    public static void ToggleLinesIfNeeded(SerialPort port, SerialCommunicationOptions options, ILog log)
     {
         if (!options.ToggleLinesOnOpen) return;
         try

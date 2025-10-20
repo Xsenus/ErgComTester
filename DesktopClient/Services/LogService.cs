@@ -3,10 +3,11 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using MicroluxErgConnect.Models;
+using MicroluxErgConnect;
 
 namespace MicroluxErgConnect.Services;
 
-public sealed class LogService : IDisposable
+public sealed class LogService : IDisposable, ILog
 {
     private readonly object _lock = new();
     private readonly StreamWriter _writer;

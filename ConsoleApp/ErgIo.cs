@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO.Ports;
+using MicroluxErgConnect;
 
 namespace ErgComTester;
 
@@ -13,7 +14,7 @@ internal static class ErgIo
     private static readonly Dictionary<string, ReadStrategyId> _preferredByPort = new(StringComparer.OrdinalIgnoreCase);
     private static readonly object _lock = new();
 
-    public static byte[] ReadChunk(SerialPort sp, Logger log, int minExpectedSize, int quietMs, int maxWindowMs)
+    public static byte[] ReadChunk(SerialPort sp, ILog log, int minExpectedSize, int quietMs, int maxWindowMs)
     {
         var strategies = BuildStrategyOrder(sp.PortName);
         byte[] bestAttempt = Array.Empty<byte>();
@@ -57,7 +58,7 @@ internal static class ErgIo
         foreach (var s in _defaultStrategyOrder) yield return s;
     }
 
-    private static void RememberPreferredStrategy(string portName, ReadStrategyId strategy, Logger log)
+    private static void RememberPreferredStrategy(string portName, ReadStrategyId strategy, ILog log)
     {
         lock (_lock)
         {
@@ -184,7 +185,7 @@ internal static class ErgIo
         return ms.ToArray();
     }
 
-    public static void Write(SerialPort sp, byte[] data, Logger log, string caption)
+    public static void Write(SerialPort sp, byte[] data, ILog log, string caption)
     {
         try { sp.Write(data, 0, data.Length); log.HexDump($"TX {caption}", data); }
         catch (Exception ex) { log.Error($"Write failed: {ex.Message}"); throw; }

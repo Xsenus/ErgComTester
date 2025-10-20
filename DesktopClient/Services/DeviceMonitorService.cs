@@ -6,13 +6,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using MicroluxErgConnect.Infrastructure;
 using MicroluxErgConnect.Models;
+using MicroluxErgConnect;
 
 namespace MicroluxErgConnect.Services;
 
 public sealed class DeviceMonitorService : IDisposable
 {
     private readonly SettingsService _settings;
-    private readonly LogService _log;
+    private readonly ILog _log;
     private readonly ReportGenerationService _reports;
     private readonly object _stateLock = new();
 
@@ -25,7 +26,7 @@ public sealed class DeviceMonitorService : IDisposable
     public event EventHandler<DeviceConnectionInfo>? DeviceConnected;
     public event EventHandler? DeviceDisconnected;
 
-    public DeviceMonitorService(SettingsService settings, LogService log, ReportGenerationService reports)
+    public DeviceMonitorService(SettingsService settings, ILog log, ReportGenerationService reports)
     {
         _settings = settings;
         _log = log;

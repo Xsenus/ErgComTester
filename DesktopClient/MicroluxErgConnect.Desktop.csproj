@@ -7,11 +7,14 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>MicroluxErgConnect</AssemblyName>
     <RootNamespace>MicroluxErgConnect</RootNamespace>
-    <AssemblyVersion>1.0.0.1</AssemblyVersion>
-    <FileVersion>1.0.0.1</FileVersion>
+    <AssemblyVersion>1.0.0.2</AssemblyVersion>
+    <FileVersion>1.0.0.2</FileVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="QuestPDF" Version="2024.3.0" />
     <PackageReference Include="System.IO.Ports" Version="9.0.9" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Shared/ILog.cs" Link="Logging/ILog.cs" />
   </ItemGroup>
 </Project>
