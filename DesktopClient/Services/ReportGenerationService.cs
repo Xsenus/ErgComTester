@@ -1,14 +1,8 @@
-using System;
 using System.Buffers;
-using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.IO.Ports;
-using System.Threading;
-using System.Threading.Tasks;
 using ErgData;
 using MicroluxErgConnect.Models;
-using MicroluxErgConnect;
 
 namespace MicroluxErgConnect.Services;
 
@@ -27,7 +21,7 @@ public sealed class ReportGenerationService : IDisposable
 
     static ReportGenerationService()
     {
-        QuestPDF.Settings.License = LicenseType.Community;
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
         QuestPDF.Settings.CheckIfAllTextGlyphsAreAvailable = false;
     }
 

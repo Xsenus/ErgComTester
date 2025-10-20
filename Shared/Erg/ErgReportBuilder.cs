@@ -212,8 +212,7 @@ public static class ErgReportBuilder
             string FormatMs(byte value) => value == 255 ? "—" : $"{value} мс";
             string FormatMkV(ushort value) => value == 65535 ? "—" : $"{value} мкВ";
 
-            return $"a: {FormatMs(aMs)}, {FormatMkV(aMkV)}
-" +
+            return $"a: {FormatMs(aMs)}, {FormatMkV(aMkV)}" +
                    $"b: {FormatMs(bMs)}, {FormatMkV(bMkV)}";
         }
 

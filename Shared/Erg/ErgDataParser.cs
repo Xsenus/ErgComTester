@@ -76,7 +76,7 @@ public static class ErgDataParser
             var testDate = ReadZString(ref reader, 18, Cp1251);
             var totalTests = reader.ReadByte();
 
-            var tests = new List<ErgTest>(Math.Max(1, totalTests));
+            var tests = new List<ErgTest>(Math.Max((byte)1, totalTests));
             for (int i = 0; i < totalTests; i++)
             {
                 tests.Add(ReadTest(ref reader, i));
