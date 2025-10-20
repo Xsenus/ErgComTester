@@ -6,11 +6,9 @@ using System.IO;
 using System.IO.Ports;
 using System.Threading;
 using System.Threading.Tasks;
+using ErgData;
 using MicroluxErgConnect.Models;
 using MicroluxErgConnect;
-using QuestPDF.Fluent;
-using QuestPDF.Helpers;
-using QuestPDF.Infrastructure;
 
 namespace MicroluxErgConnect.Services;
 
@@ -106,7 +104,7 @@ public sealed class ReportGenerationService : IDisposable
         port.DiscardOutBuffer();
 
         _log.Info($"[{portName}] запрос данных пациентов");
-        var patients = new List<(PatientInfo info, byte[] raw)>();
+        var patients = new List<(ErgPatient info, byte[] raw)>();
         int maxPatients = Math.Max(1, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 1);
 
         for (int index = 1; index <= maxPatients; index++)
@@ -142,7 +140,7 @@ public sealed class ReportGenerationService : IDisposable
             }
             else
             {
-                _log.Info($"Получен пациент #{index}: ID={patient.PatientId}, тестов={patient.TotalNumTests}");
+                _log.Info($"Получен пациент #{index}: ID={patient.PatientId}, животное={DescribeAnimal(patient.Animal)}, тестов={patient.Tests.Count}/{patient.TotalNumTests}");
                 patients.Add((patient, block));
             }
 
@@ -273,7 +271,7 @@ public sealed class ReportGenerationService : IDisposable
         return data;
     }
 
-    private void GenerateReports(List<(PatientInfo info, byte[] raw)> patients)
+    private void GenerateReports(List<(ErgPatient info, byte[] raw)> patients)
     {
         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
         var sessionDir = Path.Combine(_settings.Current.ReportsDirectory, timestamp);
@@ -287,8 +285,12 @@ public sealed class ReportGenerationService : IDisposable
             File.WriteAllBytes(rawPath, patient.raw);
             _log.Debug($"Сырые данные пациента #{i + 1} сохранены: {rawPath}");
 
+            var jsonPath = Path.Combine(sessionDir, $"patient_{i + 1:000}.json");
+            ErgDataSerializer.SaveJson(jsonPath, patient.info);
+            _log.Debug($"Структурированные данные пациента #{i + 1} сохранены: {jsonPath}");
+
             var pdfPath = Path.Combine(sessionDir, $"patient_{i + 1:000}.pdf");
-            BuildPdfReport(pdfPath, patient.info, rawPath);
+            ErgReportBuilder.BuildPatientReport(patient.info, pdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: rawPath);
             _log.Info($"PDF-отчет для пациента #{i + 1} создан: {pdfPath}");
             ReportGenerated?.Invoke(this, pdfPath);
         }
@@ -303,55 +305,16 @@ public sealed class ReportGenerationService : IDisposable
         }
     }
 
-    private void BuildPdfReport(string pdfPath, PatientInfo patient, string rawPath)
-    {
-        var description = string.IsNullOrWhiteSpace(patient.Description) ? "Нет данных" : patient.Description;
-        var reportName = _lastDeviceInfo?.DeviceInfo.ReportName ?? "Микролюкс ERG-Connect";
-        Document.Create(container =>
+    private static string DescribeAnimal(AnimalKind animal)
+        => animal switch
         {
-            container.Page(page =>
-            {
-                page.Margin(20);
-                page.Size(PageSizes.A4);
-                page.PageColor(Colors.White);
-                page.DefaultTextStyle(x => x.FontSize(12));
-
-                page.Header().Row(row =>
-                {
-                    row.RelativeItem().Column(col =>
-                    {
-                        col.Item().Text(reportName).FontSize(16).SemiBold();
-                        col.Item().Text($"Отчет сформирован: {DateTime.Now:g}");
-                        col.Item().Text($"Пациент ID: {patient.PatientId}");
-                    });
-                    row.ConstantItem(120).Border(1).AlignCenter().Padding(4).Column(col =>
-                    {
-                        col.Item().Text("Животное").SemiBold();
-                        col.Item().Text(patient.AnimalType.ToString());
-                    });
-                });
-
-                page.Content().Column(col =>
-                {
-                    col.Spacing(10);
-                    col.Item().Text($"Дата/время исследования: {patient.TestDateTime}").Bold();
-                    col.Item().Text($"Количество тестов: {patient.TotalNumTests}");
-                    col.Item().Text("Автоматическое заключение:").Bold();
-                    col.Item().Text(description).FontSize(11);
-                    col.Item().Text($"Сырая выгрузка сохранена: {rawPath}").FontSize(10);
-                    col.Item().Text("Графические данные будут добавлены после интеграции с прибором.")
-                        .FontSize(10).Italic().FontColor(Colors.Grey.Darken2);
-                });
-
-                page.Footer().AlignCenter().Text(text =>
-                {
-                    text.CurrentPageNumber();
-                    text.Span(" / ");
-                    text.TotalPages();
-                });
-            });
-        }).GeneratePdf(pdfPath);
-    }
+            AnimalKind.Cat => "Кошка",
+            AnimalKind.Dog => "Собака",
+            AnimalKind.Rabbit => "Кролик",
+            AnimalKind.Horse => "Лошадь",
+            AnimalKind.Other => "Прочие",
+            _ => animal.ToString()
+        };
 
     private void CancelLoop()
     {

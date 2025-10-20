@@ -1,4 +1,5 @@
 using System;
+using ErgData;
 
 namespace MicroluxErgConnect.Models;
 

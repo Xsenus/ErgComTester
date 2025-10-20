@@ -8,8 +8,13 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.IO.Ports" Version="9.0.9" />
+    <PackageReference Include="QuestPDF" Version="2024.3.0" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Shared/ILog.cs" Link="Logging/ILog.cs" />
+    <Compile Include="../Shared/Erg/ErgDataModels.cs" Link="Erg/ErgDataModels.cs" />
+    <Compile Include="../Shared/Erg/ErgDataParser.cs" Link="Erg/ErgDataParser.cs" />
+    <Compile Include="../Shared/Erg/ErgDataSerializer.cs" Link="Erg/ErgDataSerializer.cs" />
+    <Compile Include="../Shared/Erg/ErgReportBuilder.cs" Link="Erg/ErgReportBuilder.cs" />
   </ItemGroup>
 </Project>

@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using MicroluxErgConnect.Infrastructure;
@@ -11,6 +12,7 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         ApplicationConfiguration.Initialize();
         SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
 
