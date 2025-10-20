@@ -6,13 +6,14 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using MicroluxErgConnect.Models;
+using MicroluxErgConnect;
 
 namespace MicroluxErgConnect.Services;
 
 public sealed class UpdateService : IDisposable
 {
     private readonly SettingsService _settings;
-    private readonly LogService _log;
+    private readonly ILog _log;
     private readonly HttpClient _httpClient = new();
     private readonly object _stateLock = new();
     private CancellationTokenSource? _cts;
@@ -21,7 +22,7 @@ public sealed class UpdateService : IDisposable
 
     public event EventHandler<UpdateState>? StateChanged;
 
-    public UpdateService(SettingsService settings, LogService log)
+    public UpdateService(SettingsService settings, ILog log)
     {
         _settings = settings;
         _log = log;

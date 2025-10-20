@@ -2,7 +2,7 @@ using System.Text;
 
 namespace MicroluxErgConnect;
 
-internal sealed class Logger : IDisposable
+internal sealed class Logger : IDisposable, ILog
 {
     private readonly object _lock = new();
     private readonly StreamWriter _sw;

@@ -7,6 +7,7 @@ using System.IO.Ports;
 using System.Threading;
 using System.Threading.Tasks;
 using MicroluxErgConnect.Models;
+using MicroluxErgConnect;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -16,7 +17,7 @@ namespace MicroluxErgConnect.Services;
 public sealed class ReportGenerationService : IDisposable
 {
     private readonly SettingsService _settings;
-    private readonly LogService _log;
+    private readonly ILog _log;
     private readonly object _sync = new();
     private CancellationTokenSource? _cts;
     private Task? _loopTask;
@@ -32,7 +33,7 @@ public sealed class ReportGenerationService : IDisposable
         QuestPDF.Settings.CheckIfAllTextGlyphsAreAvailable = false;
     }
 
-    public ReportGenerationService(SettingsService settings, LogService log)
+    public ReportGenerationService(SettingsService settings, ILog log)
     {
         _settings = settings;
         _log = log;
