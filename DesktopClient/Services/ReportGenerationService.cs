@@ -175,14 +175,17 @@ public sealed class ReportGenerationService : IDisposable
 
     private byte[] ReadPatientBlock(SerialPort port, SerialCommunicationOptions options)
     {
-        var start = Environment.TickCount;
-        var lastData = start;
+        const int ContinueAckBlockSize = 2048;
+
+        long start = Environment.TickCount64;
+        long lastData = start;
+        long nextAckThreshold = ContinueAckBlockSize;
         using var ms = new MemoryStream(4096);
         var buffer = ArrayPool<byte>.Shared.Rent(1024);
 
         try
         {
-            while (Environment.TickCount - start < options.MaxReadWindowMs)
+            while (Environment.TickCount64 - lastData < options.MaxReadWindowMs)
             {
                 try
                 {
@@ -190,11 +193,13 @@ public sealed class ReportGenerationService : IDisposable
                     if (read > 0)
                     {
                         ms.Write(buffer, 0, read);
-                        lastData = Environment.TickCount;
+                        lastData = Environment.TickCount64;
 
-                        if (ms.Length > 0 && ms.Length % 2048 == 0)
+                        var totalBytes = ms.Length;
+                        while (totalBytes >= nextAckThreshold)
                         {
-                            SendContinueAck(port, port.PortName, "промежуточное подтверждение для разгрузки буфера");
+                            SendContinueAck(port, port.PortName, $"накоплено {totalBytes} байт");
+                            nextAckThreshold += ContinueAckBlockSize;
                         }
 
                         continue;
@@ -204,21 +209,21 @@ public sealed class ReportGenerationService : IDisposable
                 {
                     if (ms.Length == 0)
                     {
-                        break;
+                        if (Environment.TickCount64 - start >= options.MaxReadWindowMs)
+                        {
+                            break;
+                        }
+
+                        continue;
                     }
                 }
 
                 if (ms.Length == 0)
                 {
-                    if (Environment.TickCount - start >= options.MaxReadWindowMs)
-                    {
-                        break;
-                    }
-
                     continue;
                 }
 
-                if (Environment.TickCount - lastData < options.QuietTimeMs)
+                if (Environment.TickCount64 - lastData < options.QuietTimeMs)
                 {
                     continue;
                 }
@@ -229,13 +234,12 @@ public sealed class ReportGenerationService : IDisposable
                 }
 
                 var span = segment.AsSpan(0, (int)ms.Length);
-                if (ErgProtocol.ValidateChecksum(span))
+                if (span.Length >= options.MinPatientBlockSize && ErgProtocol.ValidateChecksum(span))
                 {
                     break;
                 }
 
                 // Данных пока недостаточно — продолжим ожидание, если не вышли за окно чтения.
-                lastData = Environment.TickCount;
             }
         }
         finally
@@ -243,17 +247,28 @@ public sealed class ReportGenerationService : IDisposable
             ArrayPool<byte>.Shared.Return(buffer);
         }
 
+        long stop = Environment.TickCount64;
+        bool readWindowElapsed = stop - lastData >= options.MaxReadWindowMs;
+
         if (ms.Length == 0)
         {
-            var elapsedEmpty = Environment.TickCount - start;
+            var elapsedEmpty = (int)(stop - start);
             _log.Debug($"[{port.PortName}] прием блока пациента завершен: 0 байт за {elapsedEmpty} мс (данных нет).");
             return Array.Empty<byte>();
         }
 
         var data = ms.ToArray();
-        var elapsed = Environment.TickCount - start;
-        var checksumStatus = ErgProtocol.ValidateChecksum(data) ? "контрольная сумма подтверждена" : "контрольная сумма НЕ совпала";
+        var elapsed = (int)(stop - start);
+        var checksumValid = ErgProtocol.ValidateChecksum(data);
+        var checksumStatus = checksumValid ? "контрольная сумма подтверждена" : "контрольная сумма НЕ совпала";
         _log.Debug($"[{port.PortName}] прием блока пациента завершен: {data.Length} байт за {elapsed} мс ({checksumStatus}).");
+
+        if (!checksumValid && readWindowElapsed)
+        {
+            var idle = (int)(stop - lastData);
+            _log.Debug($"[{port.PortName}] окно чтения истекло после простоя {idle} мс, получено {data.Length} байт (вероятно неполный блок).");
+        }
+
         return data;
     }
 
