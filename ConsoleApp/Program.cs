@@ -275,7 +275,7 @@ internal class Program
                                     logger.Info($"Saved JSON   : {jsonPath}");
 
                                     var pdfPath = Path.Combine(pdfDir, $"patient_{i:000}.pdf");
-                                    ErgReportBuilder.BuildPatientReport(pinfo, pdfPath, common, clinicName: options.ClinicName, rawFilePath: rawPath);
+                                    ErgReportBuilder.BuildPatientReport(pinfo, pdfPath, common, clinicName: opt.ClinicName, rawFilePath: rawPath);
                                     logger.Info($"Saved PDF    : {pdfPath}");
                                 }
                                 else logger.Warn($"Patient parse warning: {perr}");
