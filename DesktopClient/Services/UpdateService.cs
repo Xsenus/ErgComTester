@@ -22,6 +22,16 @@ public sealed class UpdateService : IDisposable
 
     public event EventHandler<UpdateState>? StateChanged;
 
+    private bool IsAutoUpdaterMode
+    {
+        get
+        {
+            var url = _settings.Current.UpdateManifestUrl;
+            return Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                && string.Equals(uri.Scheme, Uri.UriSchemeFtp, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     public UpdateService(SettingsService settings, ILog log)
     {
         _settings = settings;
@@ -35,6 +45,13 @@ public sealed class UpdateService : IDisposable
 
     public void Start()
     {
+        if (IsAutoUpdaterMode)
+        {
+            _log.Info("Сервис обновлений переведен в режим AutoUpdater.NET. Фоновые проверки встроенного механизма отключены.");
+            UpdateStateInternal(new UpdateState(false, CurrentVersion, null, "Обновления управляются AutoUpdater.NET."));
+            return;
+        }
+
         if (_loopTask != null)
         {
             _log.Debug("Сервис обновлений уже запущен.");
@@ -68,6 +85,16 @@ public sealed class UpdateService : IDisposable
 
     public async Task<UpdateState> CheckForUpdatesAsync(bool forceDownload, CancellationToken ct = default)
     {
+        if (IsAutoUpdaterMode)
+        {
+            var message = forceDownload
+                ? "Проверка обновлений выполняется AutoUpdater.NET. Запустите приложение заново для проверки."
+                : "Плановая проверка отключена: используется AutoUpdater.NET.";
+            _log.Info($"AutoUpdater.NET: {message}");
+            var latest = CurrentState.LatestVersion ?? CurrentVersion;
+            return UpdateStateInternal(new UpdateState(CurrentState.UpdateAvailable, latest, CurrentState.DownloadedFile, message));
+        }
+
         try
         {
             _log.Info(forceDownload ? "Ручная проверка обновлений." : "Плановая проверка обновлений.");
@@ -110,6 +137,12 @@ public sealed class UpdateService : IDisposable
 
     public void ApplyUpdate()
     {
+        if (IsAutoUpdaterMode)
+        {
+            _log.Info("AutoUpdater.NET управляет установкой обновлений. Ручной запуск встроенного механизма недоступен.");
+            return;
+        }
+
         var file = CurrentState.DownloadedFile;
         if (string.IsNullOrWhiteSpace(file) || !File.Exists(file))
         {
@@ -206,6 +239,13 @@ public sealed class UpdateService : IDisposable
 
     public void Dispose()
     {
+        if (IsAutoUpdaterMode)
+        {
+            _log.Info("Сервис обновлений (AutoUpdater.NET) завершает работу.");
+            _httpClient.Dispose();
+            return;
+        }
+
         _log.Info("Завершение работы сервиса обновлений.");
         _cts?.Cancel();
         try

@@ -78,6 +78,38 @@ public sealed class TelegramNotificationService : IDisposable
         EnqueueMessage(message);
     }
 
+    public void NotifyAutoUpdaterSummary(Version? manifestVersion, string? packageUrl, bool? mandatory, string? mandatoryMode, string? error, bool exitRequested)
+    {
+        var summary = new StringBuilder()
+            .AppendLine("🔁 Проверка обновлений (AutoUpdater.NET)");
+
+        if (manifestVersion != null)
+        {
+            summary.AppendLine($"Версия манифеста: {manifestVersion}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(packageUrl))
+        {
+            summary.AppendLine($"Пакет: {packageUrl}");
+        }
+
+        if (mandatory.HasValue)
+        {
+            summary.AppendLine($"Обязательное обновление: {(mandatory.Value ? $"да (режим {mandatoryMode ?? "?"})" : "нет")}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            summary.AppendLine($"⚠️ Ошибка: {error}");
+        }
+
+        summary.AppendLine(exitRequested
+            ? "Режим: установка обновления инициирована."
+            : "Режим: приложение продолжит работу.");
+
+        EnqueueMessage(summary.ToString());
+    }
+
     public void NotifyApplicationStopping(string logPath)
     {
         var message = $"⏹️ Microlux ERG-Connect завершает работу. Лог: {logPath}";

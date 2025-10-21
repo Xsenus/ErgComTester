@@ -3,6 +3,9 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using System.Net;
+using System.Xml.Linq;
+using AutoUpdaterDotNET;
 using MicroluxErgConnect.Models;
 using MicroluxErgConnect.Services;
 using MicroluxErgConnect.ViewModels;
@@ -12,6 +15,7 @@ namespace MicroluxErgConnect.Infrastructure;
 public static class AppServices
 {
     private static bool _initialized;
+    private static bool _autoUpdaterRequestedExit;
 
     public static SettingsService Settings { get; private set; } = null!;
     public static LogService Log { get; private set; } = null!;
@@ -51,6 +55,18 @@ public static class AppServices
         Update = new UpdateService(Settings, Log);
         MainViewModel = new MainViewModel(Settings, DeviceMonitor, Update, Reports, Log);
 
+        var autoUpdaterInfo = RunAutoUpdaterIfConfigured();
+        if (autoUpdaterInfo.Enabled)
+        {
+            Telegram.NotifyAutoUpdaterSummary(
+                autoUpdaterInfo.Manifest?.Version,
+                autoUpdaterInfo.Manifest?.PackageUrl,
+                autoUpdaterInfo.Manifest?.Mandatory,
+                autoUpdaterInfo.Manifest?.MandatoryMode,
+                autoUpdaterInfo.Error,
+                autoUpdaterInfo.ExitRequested);
+        }
+
         DeviceMonitor.DeviceConnected += (_, info) => Telegram.NotifyDeviceConnected(info);
         DeviceMonitor.DeviceDisconnected += (_, __) => Telegram.NotifyDeviceDisconnected(DeviceMonitor.CurrentStatus.Message);
 
@@ -74,6 +90,128 @@ public static class AppServices
         Log.Dispose();
         _initialized = false;
     }
+
+    private static AutoUpdaterRunInfo RunAutoUpdaterIfConfigured()
+    {
+        var url = Settings.Current.UpdateManifestUrl;
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            Log.Info("AutoUpdater.NET: URL манифеста не задан, проверка пропущена.");
+            return new AutoUpdaterRunInfo(false, null, "URL манифеста не задан", false);
+        }
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !string.Equals(uri.Scheme, Uri.UriSchemeFtp, StringComparison.OrdinalIgnoreCase))
+        {
+            Log.Info($"AutoUpdater.NET: URL '{url}' не поддерживается (ожидается ftp), используется встроенный сервис обновлений.");
+            return new AutoUpdaterRunInfo(false, null, "URL не поддерживает AutoUpdater.NET", false);
+        }
+
+        Log.Info($"AutoUpdater.NET: подготовка проверки обновлений ({url}).");
+
+        var manifest = TryReadAutoUpdaterManifest(url);
+        if (manifest != null)
+        {
+            var package = string.IsNullOrWhiteSpace(manifest.PackageUrl) ? "<не указан>" : manifest.PackageUrl;
+            var mandatory = manifest.Mandatory ? $"да (режим {manifest.MandatoryMode ?? "?"})" : "нет";
+            Log.Info($"AutoUpdater.NET: манифест версия {manifest.Version}, обязательное обновление: {mandatory}, пакет: {package}.");
+        }
+        else
+        {
+            Log.Warn("AutoUpdater.NET: не удалось прочитать манифест перед запуском.");
+        }
+
+        try
+        {
+            ConfigureAutoUpdater();
+            AutoUpdater.ApplicationExitEvent += OnAutoUpdaterExitRequested;
+            AutoUpdater.Start(url);
+            Log.Info("AutoUpdater.NET: проверка завершена.");
+            return new AutoUpdaterRunInfo(true, manifest, null, _autoUpdaterRequestedExit);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"AutoUpdater.NET: ошибка запуска проверки: {ex.Message}");
+            return new AutoUpdaterRunInfo(true, manifest, ex.Message, _autoUpdaterRequestedExit);
+        }
+        finally
+        {
+            AutoUpdater.ApplicationExitEvent -= OnAutoUpdaterExitRequested;
+        }
+    }
+
+    private static void ConfigureAutoUpdater()
+    {
+        _autoUpdaterRequestedExit = false;
+        var downloadDirectory = Path.Combine(Settings.BaseDirectory, "AutoUpdater");
+        Directory.CreateDirectory(downloadDirectory);
+        AutoUpdater.AppTitle = "Microlux ERG-Connect";
+        AutoUpdater.Synchronous = true;
+        AutoUpdater.ReportErrors = false;
+        AutoUpdater.ShowSkipButton = false;
+        AutoUpdater.ShowRemindLaterButton = false;
+        AutoUpdater.DownloadPath = downloadDirectory;
+    }
+
+    private static AutoUpdaterManifestInfo? TryReadAutoUpdaterManifest(string url)
+    {
+        try
+        {
+#pragma warning disable SYSLIB0014
+            var request = (FtpWebRequest)WebRequest.Create(url);
+            request.Method = WebRequestMethods.Ftp.DownloadFile;
+            request.UseBinary = true;
+            request.UsePassive = true;
+            request.KeepAlive = false;
+
+            using var response = (FtpWebResponse)request.GetResponse();
+            using var stream = response.GetResponseStream();
+#pragma warning restore SYSLIB0014
+            if (stream == null)
+            {
+                return null;
+            }
+
+            var document = XDocument.Load(stream);
+            var item = document.Element("item") ?? document.Root;
+            if (item == null)
+            {
+                return null;
+            }
+
+            var versionText = item.Element("version")?.Value?.Trim();
+            if (!Version.TryParse(versionText, out var version))
+            {
+                return null;
+            }
+
+            var packageUrl = item.Element("url")?.Value?.Trim();
+            var mandatoryElement = item.Element("mandatory");
+            bool mandatory = false;
+            string? mode = null;
+            if (mandatoryElement != null)
+            {
+                bool.TryParse(mandatoryElement.Value, out mandatory);
+                mode = mandatoryElement.Attribute("mode")?.Value;
+            }
+
+            return new AutoUpdaterManifestInfo(version, packageUrl, mandatory, mode);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"AutoUpdater.NET: не удалось прочитать манифест '{url}': {ex.Message}");
+            return null;
+        }
+    }
+
+    private static void OnAutoUpdaterExitRequested()
+    {
+        _autoUpdaterRequestedExit = true;
+        Log.Info("AutoUpdater.NET запросил завершение приложения для установки обновления.");
+    }
+
+    private sealed record AutoUpdaterRunInfo(bool Enabled, AutoUpdaterManifestInfo? Manifest, string? Error, bool ExitRequested);
+
+    private sealed record AutoUpdaterManifestInfo(Version Version, string? PackageUrl, bool Mandatory, string? MandatoryMode);
 
     private static void DumpSettings()
     {

@@ -26,22 +26,51 @@ public sealed class SettingsService
     public async Task LoadAsync()
     {
         Directory.CreateDirectory(BaseDirectory);
+
+        var saveRequired = false;
+
         if (File.Exists(SettingsPath))
         {
             await using var fs = File.OpenRead(SettingsPath);
             var loaded = await JsonSerializer.DeserializeAsync<AppSettings>(fs, JsonOptions);
-            if (loaded != null) _settings = loaded;
+            if (loaded != null)
+            {
+                _settings = loaded;
+            }
+            else
+            {
+                _settings = new AppSettings();
+                saveRequired = true;
+            }
         }
         else
         {
             _settings = new AppSettings();
-            await SaveAsync();
+            saveRequired = true;
         }
 
-        _settings.Telegram ??= new TelegramSettings();
+        _settings.Telegram ??= TelegramSettings.CreateDefault();
+
+        if (string.IsNullOrWhiteSpace(_settings.Telegram.BotToken)
+            && string.IsNullOrWhiteSpace(_settings.Telegram.ChatId))
+        {
+            _settings.Telegram = TelegramSettings.CreateDefault();
+            saveRequired = true;
+        }
+
+        if (string.Equals(_settings.UpdateManifestUrl, AppSettings.LegacyManifestUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            _settings.UpdateManifestUrl = AppSettings.DefaultManifestUrl;
+            saveRequired = true;
+        }
 
         Directory.CreateDirectory(_settings.LogsDirectory);
         Directory.CreateDirectory(_settings.ReportsDirectory);
+
+        if (saveRequired)
+        {
+            await SaveAsync();
+        }
     }
 
     public async Task SaveAsync()
