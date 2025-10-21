@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Globalization;
 using System.IO;
 using System.IO.Ports;
+using System.Threading.Tasks;
 using ErgData;
 using MicroluxErgConnect.Models;
 
@@ -189,6 +190,7 @@ public sealed class ReportGenerationService : IDisposable
                 else
                 {
                     _log.Info($"Получен пациент #{index}: ID={patient.PatientId}, животное={DescribeAnimal(patient.Animal)}, тестов={patient.Tests.Count}/{patient.TotalNumTests}");
+                    LogPatientWarnings(patient, $"[{portName}] пациент #{index}");
 
                     var jsonPath = Path.Combine(sessionDir, $"patient_{index:000}.json");
                     ErgDataSerializer.SaveJson(jsonPath, patient);
@@ -421,5 +423,116 @@ public sealed class ReportGenerationService : IDisposable
     public void Dispose()
     {
         CancelLoop();
+    }
+
+    public async Task<ManualConversionResult> ConvertPatientFileAsync(string filePath, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+            throw new ArgumentException("Путь к файлу не задан.", nameof(filePath));
+
+        var result = new ManualConversionResult { RawPath = filePath };
+
+        if (!File.Exists(filePath))
+        {
+            var reason = "Файл не найден.";
+            _log.Warn($"[{filePath}] {reason}");
+            _telegram?.NotifyManualConversionFailed(filePath, reason);
+            return result with { ErrorMessage = reason };
+        }
+
+        _log.Info($"Запущено ручное преобразование файла пациента: {filePath}");
+        _telegram?.NotifyManualConversionStarted(filePath);
+
+        byte[] data;
+        try
+        {
+            data = await File.ReadAllBytesAsync(filePath, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            _log.Warn($"[{filePath}] Ручное преобразование отменено пользователем.");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            var reason = $"Не удалось прочитать файл: {ex.Message}";
+            _log.Error($"[{filePath}] {reason}");
+            _telegram?.NotifyManualConversionFailed(filePath, reason);
+            return result with { ErrorMessage = reason };
+        }
+
+        _log.Debug($"[{Path.GetFileName(filePath)}] считано {data.Length} байт.");
+
+        if (!ErgProtocol.ValidateChecksum(data))
+        {
+            var reason = "Контрольная сумма файла не совпадает.";
+            _log.Warn($"[{filePath}] {reason}");
+            _telegram?.NotifyManualConversionFailed(filePath, reason);
+            return result with { ErrorMessage = reason };
+        }
+
+        if (!ErgParser.TryParsePatientBlock(data, out var patient, out var parseError))
+        {
+            var reason = parseError ?? "Неизвестная ошибка разбора.";
+            _log.Warn($"[{filePath}] {reason}");
+            _telegram?.NotifyManualConversionFailed(filePath, reason);
+            return result with { ErrorMessage = reason };
+        }
+
+        LogPatientWarnings(patient, $"[{Path.GetFileName(filePath)}]");
+
+        var directory = Path.GetDirectoryName(filePath);
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            directory = Directory.GetCurrentDirectory();
+        }
+        Directory.CreateDirectory(directory);
+
+        var baseName = Path.GetFileNameWithoutExtension(filePath);
+        var jsonPath = Path.Combine(directory, $"{baseName}.json");
+        var pdfPath = Path.Combine(directory, $"{baseName}.pdf");
+
+        try
+        {
+            ErgDataSerializer.SaveJson(jsonPath, patient);
+            _log.Info($"JSON сохранен: {jsonPath}");
+        }
+        catch (Exception ex)
+        {
+            var reason = $"Ошибка сохранения JSON: {ex.Message}";
+            _log.Error($"[{filePath}] {reason}");
+            _telegram?.NotifyManualConversionFailed(filePath, reason);
+            return result with { ErrorMessage = reason };
+        }
+
+        try
+        {
+            ErgReportBuilder.BuildPatientReport(patient, pdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: filePath);
+            _log.Info($"PDF-отчет сохранен: {pdfPath}");
+        }
+        catch (Exception ex)
+        {
+            var reason = $"Ошибка генерации PDF: {ex.Message}";
+            _log.Error($"[{filePath}] {reason}");
+            _telegram?.NotifyManualConversionFailed(filePath, reason);
+            return result with { ErrorMessage = reason, JsonPath = jsonPath };
+        }
+
+        _log.Info($"Ручное преобразование успешно завершено для {filePath}.");
+        _telegram?.NotifyManualConversionSucceeded(filePath, patient, jsonPath, pdfPath);
+        return result with { Success = true, JsonPath = jsonPath, PdfPath = pdfPath, Patient = patient };
+    }
+
+    private void LogPatientWarnings(ErgPatient patient, string context)
+    {
+        if (patient.Warnings is not { Count: > 0 })
+        {
+            return;
+        }
+
+        foreach (var warning in patient.Warnings)
+        {
+            _log.Warn($"{context}: {warning}");
+        }
     }
 }

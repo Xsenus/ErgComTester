@@ -77,12 +77,41 @@ public static class ErgDataParser
             var totalTests = reader.ReadByte();
 
             var tests = new List<ErgTest>(Math.Max((byte)1, totalTests));
+            var warnings = new List<string>();
+
             for (int i = 0; i < totalTests; i++)
             {
-                tests.Add(ReadTest(ref reader, i));
+                if (reader.Remaining <= 0)
+                {
+                    warnings.Add($"Данные завершились до получения теста #{i + 1}.");
+                    break;
+                }
+
+                var localReader = reader;
+                try
+                {
+                    var test = ReadTest(ref localReader, i);
+                    tests.Add(test);
+                    reader = localReader;
+                }
+                catch (InvalidDataException ex) when (IsUnexpectedEnd(ex))
+                {
+                    warnings.Add($"Данные теста #{i + 1} обрезаны: {ex.Message}.");
+                    break;
+                }
+            }
+
+            if (tests.Count < totalTests)
+            {
+                warnings.Add($"Прибор заявил тестов: {totalTests}, распознано: {tests.Count}.");
             }
 
             var descriptionLength = Math.Min(500, reader.Remaining);
+            if (descriptionLength < 500)
+            {
+                warnings.Add($"Длина текстового описания {descriptionLength} байт вместо ожидаемых 500.");
+            }
+
             var description = descriptionLength > 0
                 ? ReadZString(ref reader, descriptionLength, Cp1251)
                 : string.Empty;
@@ -102,7 +131,8 @@ public static class ErgDataParser
                 Tests = tests,
                 Description = description,
                 Checksum = checksum,
-                ChecksumValid = checksumValid
+                ChecksumValid = checksumValid,
+                Warnings = warnings
             };
 
             return true;
@@ -264,6 +294,10 @@ public static class ErgDataParser
             sum += b;
         return (byte)(sum & 0xFF);
     }
+
+    private static bool IsUnexpectedEnd(Exception ex)
+        => ex is InvalidDataException ide
+           && ide.Message.IndexOf("Unexpected end of data", StringComparison.OrdinalIgnoreCase) >= 0;
 
     private ref struct SpanReader
     {

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace ErgData;
@@ -33,6 +34,7 @@ public sealed class ErgPatient
     public string Description { get; init; } = string.Empty;
     public byte Checksum { get; init; }
     public bool ChecksumValid { get; init; }
+    public List<string> Warnings { get; init; } = new();
 }
 
 public sealed class ErgTest

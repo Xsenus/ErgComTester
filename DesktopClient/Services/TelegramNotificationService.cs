@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -173,6 +174,20 @@ public sealed class TelegramNotificationService : IDisposable
         summary.AppendLine($"JSON: {jsonPath}");
         summary.AppendLine($"PDF: {pdfPath}");
 
+        if (patient.Warnings is { Count: > 0 })
+        {
+            summary.AppendLine("Предупреждения:");
+            foreach (var warning in patient.Warnings.Take(3))
+            {
+                summary.AppendLine($" • {TrimText(warning, 200)}");
+            }
+
+            if (patient.Warnings.Count > 3)
+            {
+                summary.AppendLine($" … и ещё {patient.Warnings.Count - 3}");
+            }
+        }
+
         EnqueueMessage(summary.ToString());
 
         var settings = CurrentSettings;
@@ -210,6 +225,71 @@ public sealed class TelegramNotificationService : IDisposable
 
     public void NotifyMessage(string message)
         => EnqueueMessage(message);
+
+    public void NotifyManualConversionStarted(string filePath)
+    {
+        var message = new StringBuilder()
+            .AppendLine("🛠 Ручное преобразование файла пациента")
+            .AppendLine(filePath)
+            .ToString();
+        EnqueueMessage(message);
+    }
+
+    public void NotifyManualConversionSucceeded(string filePath, ErgPatient patient, string jsonPath, string pdfPath)
+    {
+        var message = new StringBuilder()
+            .AppendLine("✅ Ручное преобразование завершено успешно")
+            .AppendLine(filePath)
+            .AppendLine($"ID пациента: {patient.PatientId}")
+            .AppendLine($"Животное: {patient.Animal}")
+            .AppendLine($"Тестов: {patient.Tests.Count}/{patient.TotalNumTests}")
+            .AppendLine($"JSON: {jsonPath}")
+            .AppendLine($"PDF: {pdfPath}");
+
+        if (!string.IsNullOrWhiteSpace(patient.Description))
+        {
+            message.AppendLine($"Заключение: {TrimText(patient.Description, 200)}");
+        }
+
+        if (patient.Warnings is { Count: > 0 })
+        {
+            message.AppendLine("Предупреждения:");
+            foreach (var warning in patient.Warnings.Take(3))
+            {
+                message.AppendLine($" • {TrimText(warning, 200)}");
+            }
+            if (patient.Warnings.Count > 3)
+            {
+                message.AppendLine($" … и ещё {patient.Warnings.Count - 3}");
+            }
+        }
+
+        EnqueueMessage(message.ToString());
+
+        var settings = CurrentSettings;
+        if (settings.ForwardRawData && File.Exists(filePath))
+        {
+            EnqueueDocument(filePath, Path.GetFileName(filePath));
+        }
+        if (settings.ForwardJson && File.Exists(jsonPath))
+        {
+            EnqueueDocument(jsonPath, Path.GetFileName(jsonPath));
+        }
+        if (settings.ForwardReports && File.Exists(pdfPath))
+        {
+            EnqueueDocument(pdfPath, Path.GetFileName(pdfPath));
+        }
+    }
+
+    public void NotifyManualConversionFailed(string filePath, string reason)
+    {
+        var message = new StringBuilder()
+            .AppendLine("⚠️ Ручное преобразование не выполнено")
+            .AppendLine(filePath)
+            .AppendLine($"Причина: {reason}")
+            .ToString();
+        EnqueueMessage(message);
+    }
 
     public void Dispose()
     {
