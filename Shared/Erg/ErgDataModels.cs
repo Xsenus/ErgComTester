@@ -54,12 +54,12 @@ public sealed class ErgTest
     public bool AWaveExists { get; init; }
     public byte AWaveMsNormalMin { get; init; }
     public byte AWaveMsNormalMax { get; init; }
-    public ushort AWaveMkVNormalMin { get; init; }
-    public ushort AWaveMkVNormalMax { get; init; }
+    public uint AWaveMkVNormalMin { get; init; }
+    public uint AWaveMkVNormalMax { get; init; }
     public byte BWaveMsNormalMin { get; init; }
     public byte BWaveMsNormalMax { get; init; }
-    public ushort BWaveMkVNormalMin { get; init; }
-    public ushort BWaveMkVNormalMax { get; init; }
+    public uint BWaveMkVNormalMin { get; init; }
+    public uint BWaveMkVNormalMax { get; init; }
     public byte Rezerv1 { get; init; }
     public byte Rezerv2 { get; init; }
     public int Rezerv3 { get; init; }
@@ -82,9 +82,9 @@ public sealed record EyeData
     public byte QualityIndex { get; init; }
     public byte ValueCount { get; init; }
     public byte[] AWaveMs { get; init; } = Array.Empty<byte>();
-    public ushort[] AWaveMkV { get; init; } = Array.Empty<ushort>();
+    public uint[] AWaveMkV { get; init; } = Array.Empty<uint>();
     public byte[] BWaveMs { get; init; } = Array.Empty<byte>();
-    public ushort[] BWaveMkV { get; init; } = Array.Empty<ushort>();
+    public uint[] BWaveMkV { get; init; } = Array.Empty<uint>();
     public byte AWaveMarker { get; init; }
     public byte BWaveMarker { get; init; }
     public byte GraphCount { get; init; }

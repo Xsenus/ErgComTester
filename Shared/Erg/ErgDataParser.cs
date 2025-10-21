@@ -153,12 +153,12 @@ public static class ErgDataParser
         var aWaveExists = reader.ReadByte() != 0;
         var aMsNormalMin = reader.ReadByte();
         var aMsNormalMax = reader.ReadByte();
-        var aMkVNormalMin = reader.ReadUInt16LittleEndian();
-        var aMkVNormalMax = reader.ReadUInt16LittleEndian();
+        var aMkVNormalMin = reader.ReadUInt32LittleEndian();
+        var aMkVNormalMax = reader.ReadUInt32LittleEndian();
         var bMsNormalMin = reader.ReadByte();
         var bMsNormalMax = reader.ReadByte();
-        var bMkVNormalMin = reader.ReadUInt16LittleEndian();
-        var bMkVNormalMax = reader.ReadUInt16LittleEndian();
+        var bMkVNormalMin = reader.ReadUInt32LittleEndian();
+        var bMkVNormalMax = reader.ReadUInt32LittleEndian();
         var rezerv1 = reader.ReadByte();
         var rezerv2 = reader.ReadByte();
         var rezerv3 = reader.ReadInt32LittleEndian();
@@ -205,11 +205,11 @@ public static class ErgDataParser
         var quality = reader.ReadByte();
         var valueCount = reader.ReadByte();
         var aMs = reader.ReadBytes(6).ToArray();
-        var aMkV = new ushort[6];
-        for (int i = 0; i < aMkV.Length; i++) aMkV[i] = reader.ReadUInt16LittleEndian();
+        var aMkV = new uint[6];
+        for (int i = 0; i < aMkV.Length; i++) aMkV[i] = reader.ReadUInt32LittleEndian();
         var bMs = reader.ReadBytes(6).ToArray();
-        var bMkV = new ushort[6];
-        for (int i = 0; i < bMkV.Length; i++) bMkV[i] = reader.ReadUInt16LittleEndian();
+        var bMkV = new uint[6];
+        for (int i = 0; i < bMkV.Length; i++) bMkV[i] = reader.ReadUInt32LittleEndian();
         var aMarker = reader.ReadByte();
         var bMarker = reader.ReadByte();
         var graphCount = reader.ReadByte();
@@ -302,6 +302,9 @@ public static class ErgDataParser
 
         public int ReadInt32LittleEndian()
             => BinaryPrimitives.ReadInt32LittleEndian(ReadBytes(4));
+
+        public uint ReadUInt32LittleEndian()
+            => BinaryPrimitives.ReadUInt32LittleEndian(ReadBytes(4));
 
         public uint ReadUInt32BigEndian()
             => BinaryPrimitives.ReadUInt32BigEndian(ReadBytes(4));

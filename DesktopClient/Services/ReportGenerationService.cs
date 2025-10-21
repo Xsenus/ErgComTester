@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Globalization;
+using System.IO;
 using System.IO.Ports;
 using ErgData;
 using MicroluxErgConnect.Models;
@@ -98,57 +99,125 @@ public sealed class ReportGenerationService : IDisposable
         port.DiscardOutBuffer();
 
         _log.Info($"[{portName}] запрос данных пациентов");
-        var patients = new List<(ErgPatient info, byte[] raw)>();
+        string? sessionDir = null;
+        var generatedReports = new List<string>();
         int maxPatients = Math.Max(1, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 1);
 
         for (int index = 1; index <= maxPatients; index++)
         {
             ct.ThrowIfCancellationRequested();
-            var cmd = ErgProtocol.BuildGetNext();
-            port.Write(cmd, 0, cmd.Length);
-            _log.Debug($"[{portName}] отправлен запрос 0xE5 (пациент #{index})");
-            var block = ReadPatientBlock(port, options);
-            if (block.Length == 0)
+
+            bool requestNextPatient = false;
+            bool stopRequested = false;
+            int attempt = 0;
+            string? attemptPath = null;
+            string? finalRawPath = null;
+
+            while (!ct.IsCancellationRequested)
             {
-                _log.Info("Передача пациентов завершена устройством.");
+                attempt++;
+                byte[] command;
+                string commandCaption;
+                if (attempt == 1)
+                {
+                    command = ErgProtocol.BuildGetNext();
+                    commandCaption = "0xE5";
+                }
+                else
+                {
+                    command = ErgProtocol.BuildRepeat();
+                    commandCaption = "0xEA";
+                }
+
+                port.Write(command, 0, command.Length);
+                _log.Debug($"[{portName}] отправлен запрос {commandCaption} (пациент #{index}, попытка {attempt})");
+
+                var block = ReadPatientBlock(port, options);
+                if (block.Length == 0)
+                {
+                    if (attempt == 1)
+                    {
+                        _log.Info("Передача пациентов завершена устройством.");
+                        stopRequested = true;
+                    }
+                    else
+                    {
+                        _log.Warn($"[{portName}] повторная передача пациента #{index} вернула пустой блок.");
+                        requestNextPatient = true;
+                    }
+                    break;
+                }
+
+                sessionDir ??= CreateSessionDirectory();
+                attemptPath = SavePatientAttempt(sessionDir, index, attempt, block);
+
+                var checksumValid = ErgProtocol.ValidateChecksum(block);
+                if (!checksumValid)
+                {
+                    _log.Warn($"[{portName}] контрольная сумма пациента #{index} (попытка {attempt}) не совпала, данные сохранены: {attemptPath}");
+                    if (attempt >= Math.Max(1, options.RetryCount))
+                    {
+                        finalRawPath = PromoteAttemptToFinal(sessionDir, index, attemptPath);
+                        _log.Error($"[{portName}] не удалось получить корректные данные пациента #{index} после {attempt} попыток. Используйте сохранённый дамп: {finalRawPath}");
+                        requestNextPatient = true;
+                        break;
+                    }
+
+                    port.DiscardInBuffer();
+                    _log.Debug($"[{portName}] запрос повторной передачи пациента #{index} (попытка {attempt + 1}).");
+                    continue;
+                }
+
+                finalRawPath = PromoteAttemptToFinal(sessionDir, index, attemptPath);
+                if (!ErgParser.TryParsePatientBlock(block, out var patient, out var err))
+                {
+                    _log.Warn($"[{portName}] получены данные пациента #{index}, но разбор завершился ошибкой: {err}. Сырой дамп: {finalRawPath}");
+                }
+                else
+                {
+                    _log.Info($"Получен пациент #{index}: ID={patient.PatientId}, животное={DescribeAnimal(patient.Animal)}, тестов={patient.Tests.Count}/{patient.TotalNumTests}");
+
+                    var jsonPath = Path.Combine(sessionDir, $"patient_{index:000}.json");
+                    ErgDataSerializer.SaveJson(jsonPath, patient);
+                    _log.Debug($"Структурированные данные пациента #{index} сохранены: {jsonPath}");
+
+                    var pdfPath = Path.Combine(sessionDir, $"patient_{index:000}.pdf");
+                    ErgReportBuilder.BuildPatientReport(patient, pdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath);
+                    _log.Info($"PDF-отчет для пациента #{index} создан: {pdfPath}");
+                    ReportGenerated?.Invoke(this, pdfPath);
+                    generatedReports.Add(pdfPath);
+                }
+
+                requestNextPatient = true;
                 break;
             }
 
-            if (!ErgProtocol.ValidateChecksum(block))
+            if (stopRequested)
             {
-                _log.Warn($"[{portName}] контрольная сумма пациента #{index} не совпала, запрос повтор");
-                var repeat = ErgProtocol.BuildRepeat();
-                port.DiscardInBuffer();
-                port.Write(repeat, 0, repeat.Length);
-                block = ReadPatientBlock(port, options);
-                if (block.Length == 0 || !ErgProtocol.ValidateChecksum(block))
-                {
-                    _log.Error($"[{portName}] не удалось получить корректные данные пациента #{index}");
-                    continue;
-                }
+                break;
             }
 
-            if (!ErgParser.TryParsePatientBlock(block, out var patient, out var err))
+            if (requestNextPatient)
             {
-                _log.Warn($"[{portName}] получены данные пациента #{index}, но разбор завершился ошибкой: {err}");
+                SendContinueAck(port, portName, $"подтверждение получения пациента #{index}");
+            }
+        }
+
+        if (generatedReports.Count == 0)
+        {
+            if (sessionDir != null)
+            {
+                _log.Warn($"Сырые данные пациентов сохранены в {sessionDir}, но обработка не выполнена.");
             }
             else
             {
-                _log.Info($"Получен пациент #{index}: ID={patient.PatientId}, животное={DescribeAnimal(patient.Animal)}, тестов={patient.Tests.Count}/{patient.TotalNumTests}");
-                patients.Add((patient, block));
+                _log.Info("Новых данных пациентов не обнаружено.");
             }
-
-            SendContinueAck(port, portName, $"подтверждение получения пациента #{index}");
-        }
-
-        if (patients.Count == 0)
-        {
-            _log.Info("Новых данных пациентов не обнаружено.");
         }
         else
         {
-            GenerateReports(patients);
-            _log.Info($"Создано {patients.Count} отчет(ов).");
+            _log.Info($"Создано {generatedReports.Count} отчет(ов).");
+            TryPlayNotificationSound();
         }
 
         if (options.EnableRtcSynchronization)
@@ -265,30 +334,37 @@ public sealed class ReportGenerationService : IDisposable
         return data;
     }
 
-    private void GenerateReports(List<(ErgPatient info, byte[] raw)> patients)
+    private string CreateSessionDirectory()
     {
         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
         var sessionDir = Path.Combine(_settings.Current.ReportsDirectory, timestamp);
         Directory.CreateDirectory(sessionDir);
         _log.Info($"Отчеты будут сохранены в каталоге {sessionDir}.");
+        return sessionDir;
+    }
 
-        for (int i = 0; i < patients.Count; i++)
+    private string SavePatientAttempt(string sessionDir, int patientIndex, int attempt, byte[] raw)
+    {
+        var fileName = $"patient_{patientIndex:000}_attempt{attempt:00}.bin";
+        var path = Path.Combine(sessionDir, fileName);
+        File.WriteAllBytes(path, raw);
+        _log.Debug($"Сырые данные пациента #{patientIndex} (попытка {attempt}) сохранены: {path}");
+        return path;
+    }
+
+    private string PromoteAttemptToFinal(string sessionDir, int patientIndex, string attemptPath)
+    {
+        var finalPath = Path.Combine(sessionDir, $"patient_{patientIndex:000}.bin");
+        File.Copy(attemptPath, finalPath, overwrite: true);
+        if (!string.Equals(finalPath, attemptPath, StringComparison.OrdinalIgnoreCase))
         {
-            var patient = patients[i];
-            var rawPath = Path.Combine(sessionDir, $"patient_{i + 1:000}.bin");
-            File.WriteAllBytes(rawPath, patient.raw);
-            _log.Debug($"Сырые данные пациента #{i + 1} сохранены: {rawPath}");
-
-            var jsonPath = Path.Combine(sessionDir, $"patient_{i + 1:000}.json");
-            ErgDataSerializer.SaveJson(jsonPath, patient.info);
-            _log.Debug($"Структурированные данные пациента #{i + 1} сохранены: {jsonPath}");
-
-            var pdfPath = Path.Combine(sessionDir, $"patient_{i + 1:000}.pdf");
-            ErgReportBuilder.BuildPatientReport(patient.info, pdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: rawPath);
-            _log.Info($"PDF-отчет для пациента #{i + 1} создан: {pdfPath}");
-            ReportGenerated?.Invoke(this, pdfPath);
+            _log.Debug($"Финальные данные пациента #{patientIndex} сохранены: {finalPath}");
         }
+        return finalPath;
+    }
 
+    private static void TryPlayNotificationSound()
+    {
         try
         {
             System.Media.SystemSounds.Exclamation.Play();
