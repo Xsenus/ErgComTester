@@ -18,6 +18,7 @@ public static class AppServices
     public static DeviceMonitorService DeviceMonitor { get; private set; } = null!;
     public static UpdateService Update { get; private set; } = null!;
     public static ReportGenerationService Reports { get; private set; } = null!;
+    public static TelegramNotificationService Telegram { get; private set; } = null!;
     public static MainViewModel MainViewModel { get; private set; } = null!;
 
     public static void Initialize()
@@ -29,7 +30,8 @@ public static class AppServices
 
         Log = new LogService(Settings);
         Log.Section("Microlux ERG-Connect Desktop");
-        Log.Info($"Версия приложения: {Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0, 0)}");
+        var version = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0, 0);
+        Log.Info($"Версия приложения: {version}");
         Log.Info($".NET: {RuntimeInformation.FrameworkDescription}");
         Log.Info($"ОС: {Environment.OSVersion} | {RuntimeInformation.OSDescription}");
         Log.Info($"Пользователь: {Environment.UserDomainName}\\{Environment.UserName} | x64={Environment.Is64BitProcess}");
@@ -43,13 +45,19 @@ public static class AppServices
             DumpSettings();
         };
 
-        Reports = new ReportGenerationService(Settings, Log);
+        Telegram = new TelegramNotificationService(Settings, Log);
+        Reports = new ReportGenerationService(Settings, Log, Telegram);
         DeviceMonitor = new DeviceMonitorService(Settings, Log, Reports);
         Update = new UpdateService(Settings, Log);
         MainViewModel = new MainViewModel(Settings, DeviceMonitor, Update, Reports, Log);
 
+        DeviceMonitor.DeviceConnected += (_, info) => Telegram.NotifyDeviceConnected(info);
+        DeviceMonitor.DeviceDisconnected += (_, __) => Telegram.NotifyDeviceDisconnected(DeviceMonitor.CurrentStatus.Message);
+
         DeviceMonitor.Start();
         Update.Start();
+
+        Telegram.NotifyApplicationStarted(version.ToString());
 
         _initialized = true;
     }
@@ -60,6 +68,9 @@ public static class AppServices
         Update.Dispose();
         DeviceMonitor.Dispose();
         Reports.Dispose();
+        Log.Info("Приложение Microlux ERG-Connect завершается.");
+        Telegram.NotifyApplicationStopping(Log.SessionLogPath);
+        Telegram.Dispose();
         Log.Dispose();
         _initialized = false;
     }
@@ -75,5 +86,6 @@ public static class AppServices
         Log.Info($"COM-порт: baud={serial.BaudRate}, readTimeout={serial.ReadTimeoutMs}мс, writeTimeout={serial.WriteTimeoutMs}мс, quiet={serial.QuietTimeMs}мс, window={serial.MaxReadWindowMs}мс");
         Log.Info($"COM-параметры: DTR={(serial.DtrEnable ? "on" : "off")}, RTS={(serial.RtsEnable ? "on" : "off")}, toggle={(serial.ToggleLinesOnOpen ? "on" : "off")}, retries={serial.RetryCount}, minCI={serial.MinCommonInfoSize}, minPatient={serial.MinPatientBlockSize}");
         Log.Info($"Дополнительно: RTC sync={(serial.EnableRtcSynchronization ? "вкл" : "выкл")}, получать пациентов={(serial.RequestPatientData ? "да" : "нет")}, ZIP={(serial.EnableZipPackaging ? "вкл" : "выкл")}");
+        Log.Info($"Telegram: {s.Telegram?.DescribeSafety() ?? "<не настроен>"}");
     }
 }

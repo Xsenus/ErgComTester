@@ -38,6 +38,8 @@ public sealed class SettingsService
             await SaveAsync();
         }
 
+        _settings.Telegram ??= new TelegramSettings();
+
         Directory.CreateDirectory(_settings.LogsDirectory);
         Directory.CreateDirectory(_settings.ReportsDirectory);
     }

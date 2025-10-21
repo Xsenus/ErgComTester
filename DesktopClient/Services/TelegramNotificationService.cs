@@ -1,0 +1,538 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Threading;
+using System.Threading.Channels;
+using System.Threading.Tasks;
+using ErgData;
+using MicroluxErgConnect.Models;
+
+namespace MicroluxErgConnect.Services;
+
+public sealed class TelegramNotificationService : IDisposable
+{
+    private const int TelegramMessageLimit = 4000;
+
+    private readonly SettingsService _settings;
+    private readonly LogService _log;
+    private readonly HttpClient _httpClient;
+    private readonly Channel<Func<CancellationToken, Task>> _queue;
+    private readonly CancellationTokenSource _cts = new();
+    private readonly Task _processorTask;
+    private readonly object _configLock = new();
+
+    private TelegramSettings _configSnapshot;
+    private string? _lastConfigIssue;
+    private int _minSeverity;
+    private int _suppressForwarding;
+
+    public TelegramNotificationService(SettingsService settings, LogService log)
+    {
+        _settings = settings;
+        _log = log;
+        _configSnapshot = settings.Current.Telegram ?? new TelegramSettings();
+        _minSeverity = GetSeverity(_configSnapshot.MinimumLevel);
+
+        _httpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(30)
+        };
+
+        _queue = Channel.CreateUnbounded<Func<CancellationToken, Task>>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false
+        });
+
+        _processorTask = Task.Run(ProcessQueueAsync);
+
+        _settings.SettingsChanged += OnSettingsChanged;
+        _log.LogAdded += OnLogAdded;
+    }
+
+    public bool IsEnabled
+    {
+        get
+        {
+            lock (_configLock)
+            {
+                return _configSnapshot.Enabled
+                    && !string.IsNullOrWhiteSpace(_configSnapshot.BotToken)
+                    && !string.IsNullOrWhiteSpace(_configSnapshot.ChatId);
+            }
+        }
+    }
+
+    public void NotifyApplicationStarted(string version)
+    {
+        var message = new StringBuilder()
+            .AppendLine("🚀 Microlux ERG-Connect запущено")
+            .AppendLine($"Версия: {version}")
+            .AppendLine($"Пользователь: {Environment.UserDomainName}\\{Environment.UserName}")
+            .AppendLine($"Машина: {Environment.MachineName}")
+            .ToString();
+        EnqueueMessage(message);
+    }
+
+    public void NotifyApplicationStopping(string logPath)
+    {
+        var message = $"⏹️ Microlux ERG-Connect завершает работу. Лог: {logPath}";
+        EnqueueMessage(message);
+
+        if (File.Exists(logPath) && CurrentSettings.SendLogOnExit)
+        {
+            EnqueueDocument(logPath, "Лог сессии приложения");
+        }
+    }
+
+    public void NotifyDeviceConnected(DeviceConnectionInfo info)
+    {
+        var payload = new StringBuilder()
+            .AppendLine("🔌 Устройство подключено")
+            .AppendLine($"Порт: {info.PortName}")
+            .AppendLine($"Прибор: {info.DeviceInfo.DeviceName}")
+            .AppendLine($"Отчет: {info.DeviceInfo.ReportName}")
+            .AppendLine($"ПО: {info.DeviceInfo.SoftwareRev}")
+            .AppendLine($"Пациентов в памяти: {info.DeviceInfo.TotalNumId}")
+            .ToString();
+        EnqueueMessage(payload);
+    }
+
+    public void NotifyDeviceDisconnected(string? reason)
+    {
+        var text = string.IsNullOrWhiteSpace(reason)
+            ? "🔌 Устройство отключено"
+            : $"🔌 Устройство отключено: {reason}";
+        EnqueueMessage(text);
+    }
+
+    public void NotifySessionStarted(string portName, string sessionDirectory, int expectedPatients)
+    {
+        var message = new StringBuilder()
+            .AppendLine("📥 Начата синхронизация пациентов")
+            .AppendLine($"Порт: {portName}")
+            .AppendLine($"Каталог: {sessionDirectory}")
+            .AppendLine($"Ожидается пациентов: {expectedPatients}")
+            .ToString();
+        EnqueueMessage(message);
+    }
+
+    public void NotifyNoPatients(string portName)
+    {
+        EnqueueMessage($"ℹ️ Устройство на {portName} не передало новых пациентов.");
+    }
+
+    public void NotifyPatientParseFailed(int patientIndex, string rawPath, string error)
+    {
+        var message = new StringBuilder()
+            .AppendLine($"⚠️ Пациент #{patientIndex:000} не обработан")
+            .AppendLine($"Причина: {error}")
+            .AppendLine($"Сырые данные: {rawPath}")
+            .ToString();
+        EnqueueMessage(message);
+
+        if (File.Exists(rawPath) && CurrentSettings.ForwardRawData)
+        {
+            EnqueueDocument(rawPath, $"patient_{patientIndex:000}.bin (ошибка)");
+        }
+    }
+
+    public void NotifyPatientChecksumFailed(int patientIndex, string rawPath, int attempts)
+    {
+        var message = new StringBuilder()
+            .AppendLine($"❌ Контрольная сумма пациента #{patientIndex:000} не подтверждена")
+            .AppendLine($"Попыток: {attempts}")
+            .AppendLine($"Дамп: {rawPath}")
+            .ToString();
+        EnqueueMessage(message);
+
+        if (File.Exists(rawPath) && CurrentSettings.ForwardRawData)
+        {
+            EnqueueDocument(rawPath, $"patient_{patientIndex:000}.bin (ошибка контрольной суммы)");
+        }
+    }
+
+    public void NotifyPatientProcessed(int patientIndex, ErgPatient patient, string rawPath, string jsonPath, string pdfPath)
+    {
+        var summary = new StringBuilder()
+            .AppendLine($"✅ Пациент #{patientIndex:000} обработан")
+            .AppendLine($"ID: {patient.PatientId}")
+            .AppendLine($"Животное: {patient.Animal}")
+            .AppendLine($"Дата: {patient.TestDateTime}")
+            .AppendLine($"Тестов: {patient.Tests.Count}/{patient.TotalNumTests}");
+
+        if (!string.IsNullOrWhiteSpace(patient.Description))
+        {
+            summary.AppendLine($"Заключение: {TrimText(patient.Description, 200)}");
+        }
+
+        summary.AppendLine($"RAW: {rawPath}");
+        summary.AppendLine($"JSON: {jsonPath}");
+        summary.AppendLine($"PDF: {pdfPath}");
+
+        EnqueueMessage(summary.ToString());
+
+        var settings = CurrentSettings;
+        if (settings.ForwardRawData && File.Exists(rawPath))
+        {
+            EnqueueDocument(rawPath, $"patient_{patientIndex:000}.bin");
+        }
+
+        if (settings.ForwardJson && File.Exists(jsonPath))
+        {
+            EnqueueDocument(jsonPath, $"patient_{patientIndex:000}.json");
+        }
+
+        if (settings.ForwardReports && File.Exists(pdfPath))
+        {
+            EnqueueDocument(pdfPath, $"patient_{patientIndex:000}.pdf");
+        }
+    }
+
+    public void NotifySessionCompleted(string portName, string? sessionDirectory, int processedPatients, int generatedReports)
+    {
+        var builder = new StringBuilder()
+            .AppendLine("📦 Синхронизация завершена")
+            .AppendLine($"Порт: {portName}")
+            .AppendLine($"Получено пациентов: {processedPatients}")
+            .AppendLine($"Отчетов сформировано: {generatedReports}");
+
+        if (!string.IsNullOrWhiteSpace(sessionDirectory))
+        {
+            builder.AppendLine($"Каталог данных: {sessionDirectory}");
+        }
+
+        EnqueueMessage(builder.ToString());
+    }
+
+    public void NotifyMessage(string message)
+        => EnqueueMessage(message);
+
+    public void Dispose()
+    {
+        _settings.SettingsChanged -= OnSettingsChanged;
+        _log.LogAdded -= OnLogAdded;
+        _queue.Writer.TryComplete();
+
+        try
+        {
+            _processorTask.Wait(TimeSpan.FromSeconds(15));
+        }
+        catch (Exception)
+        {
+            _cts.Cancel();
+        }
+
+        _httpClient.Dispose();
+        _cts.Dispose();
+    }
+
+    private TelegramSettings CurrentSettings
+    {
+        get
+        {
+            lock (_configLock)
+            {
+                return _configSnapshot;
+            }
+        }
+    }
+
+    private async Task ProcessQueueAsync()
+    {
+        try
+        {
+            while (await _queue.Reader.WaitToReadAsync(_cts.Token))
+            {
+                while (_queue.Reader.TryRead(out var work))
+                {
+                    try
+                    {
+                        await work(_cts.Token);
+                    }
+                    catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+                    {
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        using (SuppressForwarding())
+                        {
+                            _log.Warn($"[Telegram] Ошибка обработки очереди: {ex.Message}");
+                        }
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // ignored
+        }
+    }
+
+    private void OnLogAdded(object? sender, LogEntry entry)
+    {
+        if (Volatile.Read(ref _suppressForwarding) > 0)
+        {
+            return;
+        }
+
+        if (!TryGetConfiguration(out _, out _, logIssues: false))
+        {
+            return;
+        }
+
+        var severity = GetSeverity(entry.Level);
+        if (severity < Volatile.Read(ref _minSeverity))
+        {
+            return;
+        }
+
+        var formatted = FormatLogEntry(entry);
+        foreach (var chunk in SplitMessage(formatted))
+        {
+            Enqueue(ct => SendMessageAsync(chunk, ct));
+        }
+    }
+
+    private void OnSettingsChanged(object? sender, AppSettings settings)
+    {
+        lock (_configLock)
+        {
+            _configSnapshot = settings.Telegram ?? new TelegramSettings();
+            _minSeverity = GetSeverity(_configSnapshot.MinimumLevel);
+            _lastConfigIssue = null;
+        }
+
+        if (_configSnapshot.Enabled && (string.IsNullOrWhiteSpace(_configSnapshot.BotToken) || string.IsNullOrWhiteSpace(_configSnapshot.ChatId)))
+        {
+            using (SuppressForwarding())
+            {
+                _log.Warn("[Telegram] Уведомления включены, но не задан BotToken или ChatId.");
+            }
+        }
+    }
+
+    private void Enqueue(Func<CancellationToken, Task> work)
+    {
+        if (!TryGetConfiguration(out _, out _, logIssues: false))
+        {
+            return;
+        }
+
+        if (!_queue.Writer.TryWrite(work))
+        {
+            using (SuppressForwarding())
+            {
+                _log.Warn("[Telegram] Очередь уведомлений переполнена, событие пропущено.");
+            }
+        }
+    }
+
+    private void EnqueueMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        foreach (var chunk in SplitMessage(message))
+        {
+            Enqueue(ct => SendMessageAsync(chunk, ct));
+        }
+    }
+
+    private void EnqueueDocument(string path, string caption)
+    {
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        Enqueue(ct => SendDocumentAsync(path, caption, ct));
+    }
+
+    private async Task SendMessageAsync(string message, CancellationToken ct)
+    {
+        if (!TryGetConfiguration(out var config, out var chatId, logIssues: true))
+        {
+            return;
+        }
+
+        var url = $"https://api.telegram.org/bot{config.BotToken}/sendMessage";
+        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["chat_id"] = chatId,
+            ["text"] = message,
+            ["disable_web_page_preview"] = "true"
+        });
+
+        using var response = await _httpClient.PostAsync(url, content, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            using (SuppressForwarding())
+            {
+                _log.Warn($"[Telegram] Ошибка отправки сообщения: {(int)response.StatusCode} {response.ReasonPhrase}. {body}");
+            }
+        }
+    }
+
+    private async Task SendDocumentAsync(string path, string caption, CancellationToken ct)
+    {
+        if (!TryGetConfiguration(out var config, out var chatId, logIssues: true))
+        {
+            return;
+        }
+
+        await using var fileStream = File.OpenRead(path);
+        using var content = new MultipartFormDataContent();
+        content.Add(new StringContent(chatId), "chat_id");
+        if (!string.IsNullOrWhiteSpace(caption))
+        {
+            content.Add(new StringContent(caption), "caption");
+        }
+
+        var streamContent = new StreamContent(fileStream);
+        streamContent.Headers.ContentType = new MediaTypeHeaderValue(GuessMimeType(path));
+        content.Add(streamContent, "document", Path.GetFileName(path));
+
+        var url = $"https://api.telegram.org/bot{config.BotToken}/sendDocument";
+        using var response = await _httpClient.PostAsync(url, content, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            using (SuppressForwarding())
+            {
+                _log.Warn($"[Telegram] Ошибка отправки файла '{path}': {(int)response.StatusCode} {response.ReasonPhrase}. {body}");
+            }
+        }
+    }
+
+    private bool TryGetConfiguration(out TelegramSettings config, out string chatId, bool logIssues)
+    {
+        lock (_configLock)
+        {
+            config = _configSnapshot;
+        }
+
+        chatId = string.Empty;
+
+        if (!config.Enabled)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(config.BotToken) || string.IsNullOrWhiteSpace(config.ChatId))
+        {
+            if (logIssues)
+            {
+                LogConfigIssue("Не указан BotToken или ChatId.");
+            }
+            return false;
+        }
+
+        chatId = config.ChatId;
+        return true;
+    }
+
+    private void LogConfigIssue(string issue)
+    {
+        bool shouldLog;
+        lock (_configLock)
+        {
+            shouldLog = !string.Equals(_lastConfigIssue, issue, StringComparison.Ordinal);
+            if (shouldLog)
+            {
+                _lastConfigIssue = issue;
+            }
+        }
+
+        if (!shouldLog)
+        {
+            return;
+        }
+
+        using (SuppressForwarding())
+        {
+            _log.Warn($"[Telegram] {issue}");
+        }
+    }
+
+    private IDisposable SuppressForwarding()
+        => new ForwardingScope(this);
+
+    private static IEnumerable<string> SplitMessage(string message)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            yield break;
+        }
+
+        for (int offset = 0; offset < message.Length; offset += TelegramMessageLimit)
+        {
+            var length = Math.Min(TelegramMessageLimit, message.Length - offset);
+            yield return message.Substring(offset, length);
+        }
+    }
+
+    private static string FormatLogEntry(LogEntry entry)
+        => $"[{entry.Level}] {entry.Timestamp:HH:mm:ss} {entry.Message}";
+
+    private static string TrimText(string value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        return value.Substring(0, maxLength) + "…";
+    }
+
+    private static string GuessMimeType(string path)
+        => Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".pdf" => "application/pdf",
+            ".json" => "application/json",
+            ".zip" => "application/zip",
+            ".txt" => "text/plain",
+            _ => "application/octet-stream"
+        };
+
+    private static int GetSeverity(string? level)
+        => level?.ToUpperInvariant() switch
+        {
+            "TRACE" => 0,
+            "DEBUG" => 0,
+            "INFO" => 1,
+            "REPORT" => 1,
+            "WARN" => 2,
+            "ERROR" => 3,
+            _ => 1
+        };
+
+    private sealed class ForwardingScope : IDisposable
+    {
+        private readonly TelegramNotificationService _owner;
+        private bool _disposed;
+
+        public ForwardingScope(TelegramNotificationService owner)
+        {
+            _owner = owner;
+            Interlocked.Increment(ref _owner._suppressForwarding);
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+            Interlocked.Decrement(ref _owner._suppressForwarding);
+            _disposed = true;
+        }
+    }
+}

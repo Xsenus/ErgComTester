@@ -11,6 +11,7 @@ public sealed class ReportGenerationService : IDisposable
 {
     private readonly SettingsService _settings;
     private readonly ILog _log;
+    private readonly TelegramNotificationService? _telegram;
     private readonly object _sync = new();
     private CancellationTokenSource? _cts;
     private Task? _loopTask;
@@ -26,10 +27,11 @@ public sealed class ReportGenerationService : IDisposable
         QuestPDF.Settings.CheckIfAllTextGlyphsAreAvailable = false;
     }
 
-    public ReportGenerationService(SettingsService settings, ILog log)
+    public ReportGenerationService(SettingsService settings, ILog log, TelegramNotificationService? telegram = null)
     {
         _settings = settings;
         _log = log;
+        _telegram = telegram;
     }
 
     public void OnDeviceConnected(DeviceConnectionInfo info)
@@ -102,6 +104,8 @@ public sealed class ReportGenerationService : IDisposable
         string? sessionDir = null;
         var generatedReports = new List<string>();
         int maxPatients = Math.Max(1, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 1);
+        bool sessionAnnounced = false;
+        int processedPatients = 0;
 
         for (int index = 1; index <= maxPatients; index++)
         {
@@ -149,6 +153,11 @@ public sealed class ReportGenerationService : IDisposable
                 }
 
                 sessionDir ??= CreateSessionDirectory();
+                if (!sessionAnnounced)
+                {
+                    _telegram?.NotifySessionStarted(portName, sessionDir, maxPatients);
+                    sessionAnnounced = true;
+                }
                 attemptPath = SavePatientAttempt(sessionDir, index, attempt, block);
 
                 var checksumValid = ErgProtocol.ValidateChecksum(block);
@@ -159,7 +168,9 @@ public sealed class ReportGenerationService : IDisposable
                     {
                         finalRawPath = PromoteAttemptToFinal(sessionDir, index, attemptPath);
                         _log.Error($"[{portName}] не удалось получить корректные данные пациента #{index} после {attempt} попыток. Используйте сохранённый дамп: {finalRawPath}");
+                        _telegram?.NotifyPatientChecksumFailed(index, finalRawPath, attempt);
                         requestNextPatient = true;
+                        processedPatients++;
                         break;
                     }
 
@@ -172,6 +183,8 @@ public sealed class ReportGenerationService : IDisposable
                 if (!ErgParser.TryParsePatientBlock(block, out var patient, out var err))
                 {
                     _log.Warn($"[{portName}] получены данные пациента #{index}, но разбор завершился ошибкой: {err}. Сырой дамп: {finalRawPath}");
+                    _telegram?.NotifyPatientParseFailed(index, finalRawPath, err ?? "Неизвестная ошибка");
+                    processedPatients++;
                 }
                 else
                 {
@@ -186,6 +199,8 @@ public sealed class ReportGenerationService : IDisposable
                     _log.Info($"PDF-отчет для пациента #{index} создан: {pdfPath}");
                     ReportGenerated?.Invoke(this, pdfPath);
                     generatedReports.Add(pdfPath);
+                    processedPatients++;
+                    _telegram?.NotifyPatientProcessed(index, patient, finalRawPath, jsonPath, pdfPath);
                 }
 
                 requestNextPatient = true;
@@ -208,16 +223,20 @@ public sealed class ReportGenerationService : IDisposable
             if (sessionDir != null)
             {
                 _log.Warn($"Сырые данные пациентов сохранены в {sessionDir}, но обработка не выполнена.");
+                _telegram?.NotifySessionCompleted(portName, sessionDir, processedPatients, generatedReports.Count);
             }
             else
             {
                 _log.Info("Новых данных пациентов не обнаружено.");
+                _telegram?.NotifyNoPatients(portName);
+                _telegram?.NotifySessionCompleted(portName, null, processedPatients, generatedReports.Count);
             }
         }
         else
         {
             _log.Info($"Создано {generatedReports.Count} отчет(ов).");
             TryPlayNotificationSound();
+            _telegram?.NotifySessionCompleted(portName, sessionDir, processedPatients, generatedReports.Count);
         }
 
         if (options.EnableRtcSynchronization)
