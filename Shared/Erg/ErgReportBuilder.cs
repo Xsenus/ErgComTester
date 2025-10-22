@@ -136,11 +136,13 @@ public static class ErgReportBuilder
             return $"{min}…{max}";
         }
 
-        private static string FormatRange(ushort min, ushort max)
+        private static string FormatRange(uint min, uint max)
         {
-            if (min == 65535 && max == 65535) return "—";
-            if (min == 65535) return $"≤ {max}";
-            if (max == 65535) return $"≥ {min}";
+            bool minMissing = min == 65535 || min == uint.MaxValue;
+            bool maxMissing = max == 65535 || max == uint.MaxValue;
+            if (minMissing && maxMissing) return "—";
+            if (minMissing) return $"≤ {max}";
+            if (maxMissing) return $"≥ {min}";
             return $"{min}…{max}";
         }
     }
@@ -210,7 +212,7 @@ public static class ErgReportBuilder
             var bMkV = eye.BWaveMkV[index];
 
             string FormatMs(byte value) => value == 255 ? "—" : $"{value} мс";
-            string FormatMkV(ushort value) => value == 65535 ? "—" : $"{value} мкВ";
+            string FormatMkV(uint value) => (value == 65535 || value == uint.MaxValue) ? "—" : $"{value} мкВ";
 
             return $"a: {FormatMs(aMs)}, {FormatMkV(aMkV)}" +
                    $"b: {FormatMs(bMs)}, {FormatMkV(bMkV)}";

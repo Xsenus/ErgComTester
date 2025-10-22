@@ -32,6 +32,7 @@ partial class MainForm
     private Label backgroundSyncLabel;
     private TextBox backgroundSyncTextBox;
     private Button openReportsButton;
+    private Button convertBinButton;
     private GroupBox updatesGroup;
     private TableLayoutPanel updatesLayout;
     private Label updateStatusCaptionLabel;
@@ -81,6 +82,7 @@ partial class MainForm
         backgroundSyncLabel = new Label();
         backgroundSyncTextBox = new TextBox();
         openReportsButton = new Button();
+        convertBinButton = new Button();
         updatesGroup = new GroupBox();
         updatesLayout = new TableLayoutPanel();
         updateStatusCaptionLabel = new Label();
@@ -257,9 +259,10 @@ partial class MainForm
         settingsGroup.Padding = new Padding(10);
 
         settingsLayout.ColumnCount = 2;
-        settingsLayout.RowCount = 4;
+        settingsLayout.RowCount = 5;
         settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60F));
         settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));
+        settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -289,6 +292,9 @@ partial class MainForm
         openReportsButton.Text = "Открыть каталог отчетов";
         openReportsButton.AutoSize = true;
         openReportsButton.Click += OnOpenReportsClicked;
+        convertBinButton.Text = "Конвертировать .bin в отчет";
+        convertBinButton.AutoSize = true;
+        convertBinButton.Click += OnConvertBinClicked;
         settingsLayout.Controls.Add(scanIntervalLabel, 0, 0);
         settingsLayout.Controls.Add(scanIntervalTextBox, 1, 0);
         settingsLayout.Controls.Add(reconnectDelayLabel, 0, 1);
@@ -297,6 +303,8 @@ partial class MainForm
         settingsLayout.Controls.Add(backgroundSyncTextBox, 1, 2);
         settingsLayout.Controls.Add(openReportsButton, 0, 3);
         settingsLayout.SetColumnSpan(openReportsButton, 2);
+        settingsLayout.Controls.Add(convertBinButton, 0, 4);
+        settingsLayout.SetColumnSpan(convertBinButton, 2);
         settingsGroup.Controls.Add(settingsLayout);
     }
 

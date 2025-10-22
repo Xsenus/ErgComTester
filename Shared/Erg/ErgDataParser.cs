@@ -77,12 +77,41 @@ public static class ErgDataParser
             var totalTests = reader.ReadByte();
 
             var tests = new List<ErgTest>(Math.Max((byte)1, totalTests));
+            var warnings = new List<string>();
+
             for (int i = 0; i < totalTests; i++)
             {
-                tests.Add(ReadTest(ref reader, i));
+                if (reader.Remaining <= 0)
+                {
+                    warnings.Add($"Данные завершились до получения теста #{i + 1}.");
+                    break;
+                }
+
+                var localReader = reader;
+                try
+                {
+                    var test = ReadTest(ref localReader, i);
+                    tests.Add(test);
+                    reader = localReader;
+                }
+                catch (InvalidDataException ex) when (IsUnexpectedEnd(ex))
+                {
+                    warnings.Add($"Данные теста #{i + 1} обрезаны: {ex.Message}.");
+                    break;
+                }
+            }
+
+            if (tests.Count < totalTests)
+            {
+                warnings.Add($"Прибор заявил тестов: {totalTests}, распознано: {tests.Count}.");
             }
 
             var descriptionLength = Math.Min(500, reader.Remaining);
+            if (descriptionLength < 500)
+            {
+                warnings.Add($"Длина текстового описания {descriptionLength} байт вместо ожидаемых 500.");
+            }
+
             var description = descriptionLength > 0
                 ? ReadZString(ref reader, descriptionLength, Cp1251)
                 : string.Empty;
@@ -102,7 +131,8 @@ public static class ErgDataParser
                 Tests = tests,
                 Description = description,
                 Checksum = checksum,
-                ChecksumValid = checksumValid
+                ChecksumValid = checksumValid,
+                Warnings = warnings
             };
 
             return true;
@@ -153,12 +183,12 @@ public static class ErgDataParser
         var aWaveExists = reader.ReadByte() != 0;
         var aMsNormalMin = reader.ReadByte();
         var aMsNormalMax = reader.ReadByte();
-        var aMkVNormalMin = reader.ReadUInt16LittleEndian();
-        var aMkVNormalMax = reader.ReadUInt16LittleEndian();
+        var aMkVNormalMin = reader.ReadUInt32LittleEndian();
+        var aMkVNormalMax = reader.ReadUInt32LittleEndian();
         var bMsNormalMin = reader.ReadByte();
         var bMsNormalMax = reader.ReadByte();
-        var bMkVNormalMin = reader.ReadUInt16LittleEndian();
-        var bMkVNormalMax = reader.ReadUInt16LittleEndian();
+        var bMkVNormalMin = reader.ReadUInt32LittleEndian();
+        var bMkVNormalMax = reader.ReadUInt32LittleEndian();
         var rezerv1 = reader.ReadByte();
         var rezerv2 = reader.ReadByte();
         var rezerv3 = reader.ReadInt32LittleEndian();
@@ -205,11 +235,11 @@ public static class ErgDataParser
         var quality = reader.ReadByte();
         var valueCount = reader.ReadByte();
         var aMs = reader.ReadBytes(6).ToArray();
-        var aMkV = new ushort[6];
-        for (int i = 0; i < aMkV.Length; i++) aMkV[i] = reader.ReadUInt16LittleEndian();
+        var aMkV = new uint[6];
+        for (int i = 0; i < aMkV.Length; i++) aMkV[i] = reader.ReadUInt32LittleEndian();
         var bMs = reader.ReadBytes(6).ToArray();
-        var bMkV = new ushort[6];
-        for (int i = 0; i < bMkV.Length; i++) bMkV[i] = reader.ReadUInt16LittleEndian();
+        var bMkV = new uint[6];
+        for (int i = 0; i < bMkV.Length; i++) bMkV[i] = reader.ReadUInt32LittleEndian();
         var aMarker = reader.ReadByte();
         var bMarker = reader.ReadByte();
         var graphCount = reader.ReadByte();
@@ -265,6 +295,10 @@ public static class ErgDataParser
         return (byte)(sum & 0xFF);
     }
 
+    private static bool IsUnexpectedEnd(Exception ex)
+        => ex is InvalidDataException ide
+           && ide.Message.IndexOf("Unexpected end of data", StringComparison.OrdinalIgnoreCase) >= 0;
+
     private ref struct SpanReader
     {
         private ReadOnlySpan<byte> _span;
@@ -302,6 +336,9 @@ public static class ErgDataParser
 
         public int ReadInt32LittleEndian()
             => BinaryPrimitives.ReadInt32LittleEndian(ReadBytes(4));
+
+        public uint ReadUInt32LittleEndian()
+            => BinaryPrimitives.ReadUInt32LittleEndian(ReadBytes(4));
 
         public uint ReadUInt32BigEndian()
             => BinaryPrimitives.ReadUInt32BigEndian(ReadBytes(4));

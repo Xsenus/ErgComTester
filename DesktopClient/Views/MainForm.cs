@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using MicroluxErgConnect.Infrastructure;
 using MicroluxErgConnect.Models;
@@ -239,6 +241,106 @@ public partial class MainForm : Form
     private void OnOpenLogsClicked(object? sender, EventArgs e)
     {
         ExecuteSafeAsync(_viewModel.OpenLogsCommand, "открытие каталога логов");
+    }
+
+    private async void OnConvertBinClicked(object? sender, EventArgs e)
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = "Выберите файл пациента",
+            Filter = "Файлы пациента (*.bin)|*.bin|Все файлы (*.*)|*.*",
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        var filePath = dialog.FileName;
+        AppServices.Log.Info($"Пользователь выбрал файл для ручного преобразования: {filePath}");
+
+        var previousCursor = Cursor;
+        Cursor = Cursors.WaitCursor;
+
+        try
+        {
+            var result = await _viewModel.ConvertRawFileAsync(filePath);
+            if (result.Success)
+            {
+                var detailsBuilder = new System.Text.StringBuilder();
+                if (!string.IsNullOrWhiteSpace(result.JsonPath))
+                {
+                    detailsBuilder.AppendLine($"JSON: {result.JsonPath}");
+                }
+                if (!string.IsNullOrWhiteSpace(result.PdfPath))
+                {
+                    detailsBuilder.AppendLine($"PDF: {result.PdfPath}");
+                }
+                var details = detailsBuilder.Length > 0
+                    ? detailsBuilder.ToString().TrimEnd()
+                    : "Файлы отчета сохранены";
+
+                if (!string.IsNullOrWhiteSpace(result.RawPath))
+                {
+                    details = $"Исходный файл: {result.RawPath}{Environment.NewLine}{details}";
+                }
+
+                if (result.Patient?.Warnings is { Count: > 0 } warnings)
+                {
+                    var warningsText = string.Join(Environment.NewLine, warnings
+                        .Take(3)
+                        .Select(w => $"• {w}"));
+                    details += $"{Environment.NewLine}Предупреждения:{Environment.NewLine}{warningsText}";
+                    if (warnings.Count > 3)
+                    {
+                        details += $"{Environment.NewLine}… и ещё {warnings.Count - 3}";
+                    }
+                }
+                MessageBox.Show(
+                    this,
+                    $"Файл успешно обработан.{Environment.NewLine}{details}",
+                    "Microlux ERG-Connect",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            else
+            {
+                var reason = result.ErrorMessage ?? "Неизвестная ошибка.";
+                if (!string.IsNullOrWhiteSpace(result.RawPath))
+                {
+                    reason += $"{Environment.NewLine}Файл: {result.RawPath}";
+                }
+                if (!string.IsNullOrWhiteSpace(result.JsonPath))
+                {
+                    reason += $"{Environment.NewLine}JSON: {result.JsonPath}";
+                }
+                MessageBox.Show(
+                    this,
+                    $"Не удалось обработать файл.{Environment.NewLine}{reason}",
+                    "Microlux ERG-Connect",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            AppServices.Log.Warn("Ручное преобразование файла отменено пользователем.");
+        }
+        catch (Exception ex)
+        {
+            AppServices.Log.Error($"Ошибка при ручном преобразовании файла: {ex}");
+            MessageBox.Show(
+                this,
+                $"Ошибка при обработке файла: {ex.Message}",
+                "Microlux ERG-Connect",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+        finally
+        {
+            Cursor = previousCursor;
+        }
     }
 
     private void OnCheckUpdatesClicked(object? sender, EventArgs e)

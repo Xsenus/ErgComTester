@@ -190,6 +190,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public Task<ManualConversionResult> ConvertRawFileAsync(string filePath)
+        => _reports.ConvertPatientFileAsync(filePath);
+
     public string StatusText
     {
         get => _statusText;
