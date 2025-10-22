@@ -10,7 +10,6 @@ public sealed class TelegramSettings
     public bool Enabled { get; set; }
     public string BotToken { get; set; } = string.Empty;
     public string ChatId { get; set; } = string.Empty;
-    public string MinimumLevel { get; set; } = "Info";
     public bool ForwardReports { get; set; } = true;
     public bool ForwardJson { get; set; } = true;
     public bool ForwardRawData { get; set; } = true;
@@ -22,7 +21,6 @@ public sealed class TelegramSettings
             Enabled = true,
             BotToken = DefaultBotToken,
             ChatId = DefaultChatId,
-            MinimumLevel = "Info",
             ForwardReports = true,
             ForwardJson = true,
             ForwardRawData = true,
@@ -32,6 +30,6 @@ public sealed class TelegramSettings
     public string DescribeSafety()
     {
         var chat = string.IsNullOrWhiteSpace(ChatId) ? "<не задан>" : ChatId;
-        return $"enabled={(Enabled ? "да" : "нет")}, chatId={chat}, minLevel={MinimumLevel}, reports={(ForwardReports ? "да" : "нет")}, json={(ForwardJson ? "да" : "нет")}, raw={(ForwardRawData ? "да" : "нет")}, logOnExit={(SendLogOnExit ? "да" : "нет")}"; 
+        return $"enabled={(Enabled ? "да" : "нет")}, chatId={chat}, reports={(ForwardReports ? "да" : "нет")}, json={(ForwardJson ? "да" : "нет")}, raw={(ForwardRawData ? "да" : "нет")}, logOnExit={(SendLogOnExit ? "да" : "нет")}";
     }
 }

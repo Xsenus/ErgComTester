@@ -27,7 +27,6 @@ public sealed class TelegramNotificationService : IDisposable
 
     private TelegramSettings _configSnapshot;
     private string? _lastConfigIssue;
-    private int _minSeverity;
     private int _suppressForwarding;
 
     public TelegramNotificationService(SettingsService settings, LogService log)
@@ -35,7 +34,6 @@ public sealed class TelegramNotificationService : IDisposable
         _settings = settings;
         _log = log;
         _configSnapshot = settings.Current.Telegram ?? new TelegramSettings();
-        _minSeverity = GetSeverity(_configSnapshot.MinimumLevel);
 
         _httpClient = new HttpClient
         {
@@ -51,7 +49,6 @@ public sealed class TelegramNotificationService : IDisposable
         _processorTask = Task.Run(ProcessQueueAsync);
 
         _settings.SettingsChanged += OnSettingsChanged;
-        _log.LogAdded += OnLogAdded;
     }
 
     public bool IsEnabled
@@ -326,7 +323,6 @@ public sealed class TelegramNotificationService : IDisposable
     public void Dispose()
     {
         _settings.SettingsChanged -= OnSettingsChanged;
-        _log.LogAdded -= OnLogAdded;
         _queue.Writer.TryComplete();
 
         try
@@ -385,37 +381,11 @@ public sealed class TelegramNotificationService : IDisposable
         }
     }
 
-    private void OnLogAdded(object? sender, LogEntry entry)
-    {
-        if (Volatile.Read(ref _suppressForwarding) > 0)
-        {
-            return;
-        }
-
-        if (!TryGetConfiguration(out _, out _, logIssues: false))
-        {
-            return;
-        }
-
-        var severity = GetSeverity(entry.Level);
-        if (severity < Volatile.Read(ref _minSeverity))
-        {
-            return;
-        }
-
-        var formatted = FormatLogEntry(entry);
-        foreach (var chunk in SplitMessage(formatted))
-        {
-            Enqueue(ct => SendMessageAsync(chunk, ct));
-        }
-    }
-
     private void OnSettingsChanged(object? sender, AppSettings settings)
     {
         lock (_configLock)
         {
             _configSnapshot = settings.Telegram ?? new TelegramSettings();
-            _minSeverity = GetSeverity(_configSnapshot.MinimumLevel);
             _lastConfigIssue = null;
         }
 
@@ -591,9 +561,6 @@ public sealed class TelegramNotificationService : IDisposable
         }
     }
 
-    private static string FormatLogEntry(LogEntry entry)
-        => $"[{entry.Level}] {entry.Timestamp:HH:mm:ss} {entry.Message}";
-
     private static string TrimText(string value, int maxLength)
     {
         if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
@@ -612,18 +579,6 @@ public sealed class TelegramNotificationService : IDisposable
             ".zip" => "application/zip",
             ".txt" => "text/plain",
             _ => "application/octet-stream"
-        };
-
-    private static int GetSeverity(string? level)
-        => level?.ToUpperInvariant() switch
-        {
-            "TRACE" => 0,
-            "DEBUG" => 0,
-            "INFO" => 1,
-            "REPORT" => 1,
-            "WARN" => 2,
-            "ERROR" => 3,
-            _ => 1
         };
 
     private sealed class ForwardingScope : IDisposable
