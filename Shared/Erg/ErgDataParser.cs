@@ -193,8 +193,8 @@ public static class ErgDataParser
         var rezerv2 = reader.ReadByte();
         var rezerv3 = reader.ReadInt16BigEndian();
 
-        var rightEye = ReadEye(ref reader, graphNumPoints, graphDiscr, aWaveExists);
-        var leftEye = ReadEye(ref reader, graphNumPoints, graphDiscr, aWaveExists);
+        var rightEye = ReadEye(ref reader, graphNumPoints, graphDt, graphDiscr, aWaveExists);
+        var leftEye = ReadEye(ref reader, graphNumPoints, graphDt, graphDiscr, aWaveExists);
 
         return new ErgTest
         {
@@ -229,7 +229,7 @@ public static class ErgDataParser
         };
     }
 
-    private static EyeData ReadEye(ref SpanReader reader, int graphNumPoints, byte graphDiscrPerMkV, bool aWaveExists)
+    private static EyeData ReadEye(ref SpanReader reader, int graphNumPoints, byte graphDt, byte graphDiscrPerMkV, bool aWaveExists)
     {
         var isFlat = reader.ReadByte() != 0;
         var qualityRaw = reader.ReadByte();
@@ -245,11 +245,16 @@ public static class ErgDataParser
         for (int i = 0; i < bMkV.Length; i++)
             bMkV[i] = NormalizeAmplitude(reader.ReadUInt16BigEndian());
 
+        var aMs = aWaveExists ? ParseMarkers(aMsBytes) : null;
+        var bMs = ParseMarkers(bMsBytes);
+
         var aMarkerRaw = reader.ReadByte();
         var bMarkerRaw = reader.ReadByte();
         var graphCountRaw = reader.ReadByte();
 
         var allGraphs = ReadGraphs(ref reader, graphNumPoints, graphDiscrPerMkV);
+
+        AdjustGraphAmplitudes(allGraphs, graphDt, bMs, bMkV);
 
         var rezerv1 = reader.ReadByte();
         var rezerv2 = reader.ReadByte();
@@ -263,9 +268,9 @@ public static class ErgDataParser
             IsFlat = isFlat,
             QualityIndex = NormalizeByte(qualityRaw),
             ValueCount = NormalizeByte(valueCountRaw),
-            AWaveMs = aWaveExists ? ParseMarkers(aMsBytes) : null,
+            AWaveMs = aMs,
             AWaveMkV = aWaveExists ? aMkV : null,
-            BWaveMs = ParseMarkers(bMsBytes),
+            BWaveMs = bMs,
             BWaveMkV = bMkV,
             AWaveMarker = NormalizeByte(aMarkerRaw),
             BWaveMarker = NormalizeByte(bMarkerRaw),
@@ -290,11 +295,88 @@ public static class ErgDataParser
                 continue;
             }
 
-            ushort raw = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(offset, 2));
+            ushort raw = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(offset, 2));
             result[i] = raw == ushort.MaxValue ? null : raw;
         }
 
         return result;
+    }
+
+    private static void AdjustGraphAmplitudes(double[][] graphs, byte graphDt, ushort?[]? bWaveMs, uint?[]? bWaveMkV)
+    {
+        if (graphs == null || graphs.Length == 0)
+            return;
+        if (graphDt == 0)
+            return;
+        if (bWaveMs == null || bWaveMkV == null)
+            return;
+
+        var ratios = new List<double>();
+        double dt = graphDt;
+        int markerCount = Math.Min(bWaveMs.Length, bWaveMkV.Length);
+
+        for (int i = 0; i < markerCount; i++)
+        {
+            var markerMs = bWaveMs[i];
+            var amplitude = bWaveMkV[i];
+            if (!markerMs.HasValue || !amplitude.HasValue)
+                continue;
+            if (amplitude.Value == 0)
+                continue;
+
+            int index = (int)Math.Round(markerMs.Value / dt);
+            if (index < 0)
+                continue;
+
+            double sample = 0;
+            bool found = false;
+
+            foreach (var graph in graphs)
+            {
+                if (graph == null)
+                    continue;
+                if (graph.Length == 0)
+                    continue;
+                if (index >= graph.Length)
+                    continue;
+
+                double value = Math.Abs(graph[index]);
+                if (value > sample)
+                    sample = value;
+                found = true;
+            }
+
+            if (!found || sample <= double.Epsilon)
+                continue;
+
+            double ratio = sample / amplitude.Value;
+            if (!double.IsFinite(ratio) || ratio <= 0)
+                continue;
+
+            ratios.Add(ratio);
+        }
+
+        if (ratios.Count == 0)
+            return;
+
+        ratios.Sort();
+        double median = ratios[ratios.Count / 2];
+        if (!double.IsFinite(median) || median <= 0)
+            return;
+        if (median <= 1.5)
+            return;
+
+        for (int g = 0; g < graphs.Length; g++)
+        {
+            var graph = graphs[g];
+            if (graph == null)
+                continue;
+
+            for (int p = 0; p < graph.Length; p++)
+            {
+                graph[p] /= median;
+            }
+        }
     }
 
     private static double[][] ReadGraphs(ref SpanReader reader, int graphNumPoints, byte graphDiscrPerMkV)
