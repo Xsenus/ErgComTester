@@ -199,10 +199,32 @@ public sealed class ReportGenerationService : IDisposable
                     var pdfPath = Path.Combine(sessionDir, $"patient_{index:000}.pdf");
                     ErgReportBuilder.BuildPatientReport(patient, pdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath);
                     _log.Info($"PDF-отчет для пациента #{index} создан: {pdfPath}");
+
+                    var docxPath = Path.Combine(sessionDir, $"patient_{index:000}.docx");
+                    try
+                    {
+                        ErgReportBuilder.BuildPatientWordReport(patient, docxPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath);
+                        _log.Info($"Word-отчет для пациента #{index} создан: {docxPath}");
+                    }
+                    catch
+                    {
+                        try
+                        {
+                            if (File.Exists(pdfPath))
+                                File.Delete(pdfPath);
+                        }
+                        catch (Exception cleanupEx)
+                        {
+                            _log.Warn($"[{pdfPath}] не удалось удалить PDF после ошибки Word: {cleanupEx.Message}");
+                        }
+                        throw;
+                    }
+
                     ReportGenerated?.Invoke(this, pdfPath);
+                    ReportGenerated?.Invoke(this, docxPath);
                     generatedReports.Add(pdfPath);
                     processedPatients++;
-                    _telegram?.NotifyPatientProcessed(index, patient, finalRawPath, jsonPath, pdfPath);
+                    _telegram?.NotifyPatientProcessed(index, patient, finalRawPath, jsonPath, pdfPath, docxPath);
                 }
 
                 requestNextPatient = true;
@@ -491,6 +513,7 @@ public sealed class ReportGenerationService : IDisposable
         var baseName = Path.GetFileNameWithoutExtension(filePath);
         var jsonPath = Path.Combine(directory, $"{baseName}.json");
         var pdfPath = Path.Combine(directory, $"{baseName}.pdf");
+        var docxPath = Path.Combine(directory, $"{baseName}.docx");
 
         try
         {
@@ -518,9 +541,33 @@ public sealed class ReportGenerationService : IDisposable
             return result with { ErrorMessage = reason, JsonPath = jsonPath };
         }
 
+        try
+        {
+            ErgReportBuilder.BuildPatientWordReport(patient, docxPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: filePath);
+            _log.Info($"Word-отчет сохранен: {docxPath}");
+        }
+        catch (Exception ex)
+        {
+            var reason = $"Ошибка генерации Word: {ex.Message}";
+            _log.Error($"[{filePath}] {reason}");
+            try
+            {
+                if (File.Exists(pdfPath))
+                {
+                    File.Delete(pdfPath);
+                }
+            }
+            catch (Exception cleanupEx)
+            {
+                _log.Warn($"[{pdfPath}] не удалось удалить PDF после ошибки Word: {cleanupEx.Message}");
+            }
+            _telegram?.NotifyManualConversionFailed(filePath, reason);
+            return result with { ErrorMessage = reason, JsonPath = jsonPath };
+        }
+
         _log.Info($"Ручное преобразование успешно завершено для {filePath}.");
-        _telegram?.NotifyManualConversionSucceeded(filePath, patient, jsonPath, pdfPath);
-        return result with { Success = true, JsonPath = jsonPath, PdfPath = pdfPath, Patient = patient };
+        _telegram?.NotifyManualConversionSucceeded(filePath, patient, jsonPath, pdfPath, docxPath);
+        return result with { Success = true, JsonPath = jsonPath, PdfPath = pdfPath, DocxPath = docxPath, Patient = patient };
     }
 
     private void LogPatientWarnings(ErgPatient patient, string context)

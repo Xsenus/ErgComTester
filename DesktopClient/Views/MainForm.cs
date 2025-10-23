@@ -363,6 +363,10 @@ public partial class MainForm : Form
                 {
                     detailsBuilder.AppendLine($"PDF: {result.PdfPath}");
                 }
+                if (!string.IsNullOrWhiteSpace(result.DocxPath))
+                {
+                    detailsBuilder.AppendLine($"Word: {result.DocxPath}");
+                }
                 var details = detailsBuilder.Length > 0
                     ? detailsBuilder.ToString().TrimEnd()
                     : "Файлы отчета сохранены";

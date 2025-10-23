@@ -14,7 +14,9 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Autoupdater.NET.Official" Version="1.8.3" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="2.21.0" />
     <PackageReference Include="QuestPDF" Version="2024.3.0" />
+    <PackageReference Include="SkiaSharp" Version="2.88.6" />
     <PackageReference Include="System.IO.Ports" Version="9.0.9" />
   </ItemGroup>
   <ItemGroup>

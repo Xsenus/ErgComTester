@@ -8,6 +8,7 @@ public sealed record ManualConversionResult
     public string RawPath { get; init; } = string.Empty;
     public string? JsonPath { get; init; }
     public string? PdfPath { get; init; }
+    public string? DocxPath { get; init; }
     public string? ErrorMessage { get; init; }
     public ErgPatient? Patient { get; init; }
 }
