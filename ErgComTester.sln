@@ -6,12 +6,18 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ErgComTester", "ConsoleApp\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MicroluxErgConnect.Desktop", "DesktopClient\MicroluxErgConnect.Desktop.csproj", "{39750805-C536-4005-979F-90768FE0669C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ErgData.Tests", "Tests\ErgData.Tests\ErgData.Tests.csproj", "{B9093ADF-DAA2-4563-95CB-81C2908BB3B6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B9093ADF-DAA2-4563-95CB-81C2908BB3B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B9093ADF-DAA2-4563-95CB-81C2908BB3B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B9093ADF-DAA2-4563-95CB-81C2908BB3B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B9093ADF-DAA2-4563-95CB-81C2908BB3B6}.Release|Any CPU.Build.0 = Release|Any CPU
 		{6107F1EA-1D8D-6FB3-E05B-ED205417518C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{6107F1EA-1D8D-6FB3-E05B-ED205417518C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6107F1EA-1D8D-6FB3-E05B-ED205417518C}.Release|Any CPU.ActiveCfg = Release|Any CPU
