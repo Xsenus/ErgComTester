@@ -63,6 +63,7 @@ public static class AppServices
                 autoUpdaterInfo.Manifest?.PackageUrl,
                 autoUpdaterInfo.Manifest?.Mandatory,
                 autoUpdaterInfo.Manifest?.MandatoryMode,
+                autoUpdaterInfo.Manifest?.Description,
                 autoUpdaterInfo.Error,
                 autoUpdaterInfo.ExitRequested);
         }
@@ -114,6 +115,16 @@ public static class AppServices
             var package = string.IsNullOrWhiteSpace(manifest.PackageUrl) ? "<не указан>" : manifest.PackageUrl;
             var mandatory = manifest.Mandatory ? $"да (режим {manifest.MandatoryMode ?? "?"})" : "нет";
             Log.Info($"AutoUpdater.NET: манифест версия {manifest.Version}, обязательное обновление: {mandatory}, пакет: {package}.");
+
+            if (!string.IsNullOrWhiteSpace(manifest.Description))
+            {
+                var snippet = manifest.Description.ReplaceLineEndings(" ").Trim();
+                if (snippet.Length > 500)
+                {
+                    snippet = snippet.Substring(0, 500) + "…";
+                }
+                Log.Info($"AutoUpdater.NET: описание обновления: {snippet}");
+            }
         }
         else
         {
@@ -194,7 +205,10 @@ public static class AppServices
                 mode = mandatoryElement.Attribute("mode")?.Value;
             }
 
-            return new AutoUpdaterManifestInfo(version, packageUrl, mandatory, mode);
+            var descriptionElement = item.Element("description") ?? item.Element("changelog");
+            var description = descriptionElement?.Value?.Trim();
+
+            return new AutoUpdaterManifestInfo(version, packageUrl, mandatory, mode, description);
         }
         catch (Exception ex)
         {
@@ -211,7 +225,7 @@ public static class AppServices
 
     private sealed record AutoUpdaterRunInfo(bool Enabled, AutoUpdaterManifestInfo? Manifest, string? Error, bool ExitRequested);
 
-    private sealed record AutoUpdaterManifestInfo(Version Version, string? PackageUrl, bool Mandatory, string? MandatoryMode);
+    private sealed record AutoUpdaterManifestInfo(Version Version, string? PackageUrl, bool Mandatory, string? MandatoryMode, string? Description);
 
     private static void DumpSettings()
     {

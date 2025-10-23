@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -16,6 +19,7 @@ namespace MicroluxErgConnect.Services;
 public sealed class TelegramNotificationService : IDisposable
 {
     private const int TelegramMessageLimit = 4000;
+    private const long TelegramDocumentLimitBytes = 49L * 1024 * 1024; // Telegram Bot API ограничивает документы ~50 МБ.
 
     private readonly SettingsService _settings;
     private readonly LogService _log;
@@ -75,7 +79,7 @@ public sealed class TelegramNotificationService : IDisposable
         EnqueueMessage(message);
     }
 
-    public void NotifyAutoUpdaterSummary(Version? manifestVersion, string? packageUrl, bool? mandatory, string? mandatoryMode, string? error, bool exitRequested)
+    public void NotifyAutoUpdaterSummary(Version? manifestVersion, string? packageUrl, bool? mandatory, string? mandatoryMode, string? description, string? error, bool exitRequested)
     {
         var summary = new StringBuilder()
             .AppendLine("🔁 Проверка обновлений (AutoUpdater.NET)");
@@ -93,6 +97,15 @@ public sealed class TelegramNotificationService : IDisposable
         if (mandatory.HasValue)
         {
             summary.AppendLine($"Обязательное обновление: {(mandatory.Value ? $"да (режим {mandatoryMode ?? "?"})" : "нет")}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            summary.AppendLine("Описание:");
+            foreach (var line in NormalizeMultiline(description, 800))
+            {
+                summary.AppendLine(line);
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(error))
@@ -476,23 +489,7 @@ public sealed class TelegramNotificationService : IDisposable
             return;
         }
 
-        var url = $"https://api.telegram.org/bot{config.BotToken}/sendMessage";
-        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["chat_id"] = chatId,
-            ["text"] = message,
-            ["disable_web_page_preview"] = "true"
-        });
-
-        using var response = await _httpClient.PostAsync(url, content, ct);
-        if (!response.IsSuccessStatusCode)
-        {
-            var body = await response.Content.ReadAsStringAsync(ct);
-            using (SuppressForwarding())
-            {
-                _log.Warn($"[Telegram] Ошибка отправки сообщения: {(int)response.StatusCode} {response.ReasonPhrase}. {body}");
-            }
-        }
+        await SendMessageAsync(config, chatId, message, ct);
     }
 
     private async Task SendDocumentAsync(string path, string caption, CancellationToken ct)
@@ -502,26 +499,56 @@ public sealed class TelegramNotificationService : IDisposable
             return;
         }
 
-        await using var fileStream = File.OpenRead(path);
-        using var content = new MultipartFormDataContent();
-        content.Add(new StringContent(chatId), "chat_id");
-        if (!string.IsNullOrWhiteSpace(caption))
+        var fileInfo = new FileInfo(path);
+        var sendResult = fileInfo.Length > TelegramDocumentLimitBytes
+            ? SendDocumentResult.TooLarge
+            : await SendDocumentInternalAsync(config, chatId, path, caption, ct);
+
+        if (sendResult != SendDocumentResult.TooLarge)
         {
-            content.Add(new StringContent(caption), "caption");
+            return;
         }
 
-        var streamContent = new StreamContent(fileStream);
-        streamContent.Headers.ContentType = new MediaTypeHeaderValue(GuessMimeType(path));
-        content.Add(streamContent, "document", Path.GetFileName(path));
-
-        var url = $"https://api.telegram.org/bot{config.BotToken}/sendDocument";
-        using var response = await _httpClient.PostAsync(url, content, ct);
-        if (!response.IsSuccessStatusCode)
+        string? zipPath = null;
+        try
         {
-            var body = await response.Content.ReadAsStringAsync(ct);
-            using (SuppressForwarding())
+            zipPath = await TryCreateZipCopyAsync(path, ct);
+            if (zipPath == null)
             {
-                _log.Warn($"[Telegram] Ошибка отправки файла '{path}': {(int)response.StatusCode} {response.ReasonPhrase}. {body}");
+                NotifyFileTooLarge(path, fileInfo.Length);
+                return;
+            }
+
+            var zipInfo = new FileInfo(zipPath);
+            if (zipInfo.Length > TelegramDocumentLimitBytes)
+            {
+                NotifyFileTooLarge(path, zipInfo.Length, archived: true);
+                return;
+            }
+
+            var zipCaption = string.IsNullOrWhiteSpace(caption)
+                ? $"{Path.GetFileName(path)} (ZIP)"
+                : $"{caption} (ZIP)";
+
+            await SendMessageAsync(config, chatId,
+                $"📦 Файл {Path.GetFileName(path)} упакован в ZIP ({FormatFileSize(zipInfo.Length)}).", ct);
+
+            var zipResult = await SendDocumentInternalAsync(config, chatId, zipPath, zipCaption, ct);
+            if (zipResult == SendDocumentResult.TooLarge)
+            {
+                NotifyFileTooLarge(path, zipInfo.Length, archived: true);
+            }
+        }
+        finally
+        {
+            if (zipPath != null)
+            {
+                try
+                {
+                    File.Delete(zipPath);
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
             }
         }
     }
@@ -579,6 +606,25 @@ public sealed class TelegramNotificationService : IDisposable
     private IDisposable SuppressForwarding()
         => new ForwardingScope(this);
 
+    private static IEnumerable<string> NormalizeMultiline(string text, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            yield break;
+        }
+
+        var normalized = text.ReplaceLineEndings("\n").Trim();
+        if (normalized.Length > maxLength)
+        {
+            normalized = normalized.Substring(0, maxLength) + "…";
+        }
+
+        foreach (var line in normalized.Split('\n'))
+        {
+            yield return line.TrimEnd();
+        }
+    }
+
     private static IEnumerable<string> SplitMessage(string message)
     {
         if (string.IsNullOrEmpty(message))
@@ -612,6 +658,161 @@ public sealed class TelegramNotificationService : IDisposable
             ".txt" => "text/plain",
             _ => "application/octet-stream"
         };
+
+    private static string FormatFileSize(long bytes)
+    {
+        const double OneKb = 1024.0;
+        const double OneMb = OneKb * 1024.0;
+        const double OneGb = OneMb * 1024.0;
+
+        return bytes switch
+        {
+            >= (long)OneGb => string.Format(CultureInfo.InvariantCulture, "{0:F2} ГБ", bytes / OneGb),
+            >= (long)OneMb => string.Format(CultureInfo.InvariantCulture, "{0:F2} МБ", bytes / OneMb),
+            >= (long)OneKb => string.Format(CultureInfo.InvariantCulture, "{0:F1} КБ", bytes / OneKb),
+            _ => string.Format(CultureInfo.InvariantCulture, "{0} байт", bytes)
+        };
+    }
+
+    private async Task SendMessageAsync(TelegramSettings config, string chatId, string message, CancellationToken ct)
+    {
+        var url = $"https://api.telegram.org/bot{config.BotToken}/sendMessage";
+        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["chat_id"] = chatId,
+            ["text"] = message,
+            ["disable_web_page_preview"] = "true"
+        });
+
+        using var response = await _httpClient.PostAsync(url, content, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            using (SuppressForwarding())
+            {
+                _log.Warn($"[Telegram] Ошибка отправки сообщения: {(int)response.StatusCode} {response.ReasonPhrase}. {body}");
+            }
+        }
+    }
+
+    private async Task<SendDocumentResult> SendDocumentInternalAsync(TelegramSettings config, string chatId, string path, string caption, CancellationToken ct)
+    {
+        try
+        {
+            await using var fileStream = File.OpenRead(path);
+            using var content = new MultipartFormDataContent();
+            content.Add(new StringContent(chatId), "chat_id");
+            if (!string.IsNullOrWhiteSpace(caption))
+            {
+                content.Add(new StringContent(caption), "caption");
+            }
+
+            var streamContent = new StreamContent(fileStream);
+            streamContent.Headers.ContentType = new MediaTypeHeaderValue(GuessMimeType(path));
+            content.Add(streamContent, "document", Path.GetFileName(path));
+
+            var url = $"https://api.telegram.org/bot{config.BotToken}/sendDocument";
+            using var response = await _httpClient.PostAsync(url, content, ct);
+            if (response.IsSuccessStatusCode)
+            {
+                return SendDocumentResult.Success;
+            }
+
+            var body = await response.Content.ReadAsStringAsync(ct);
+            using (SuppressForwarding())
+            {
+                _log.Warn($"[Telegram] Ошибка отправки файла '{path}': {(int)response.StatusCode} {response.ReasonPhrase}. {body}");
+            }
+
+            return IsTooLargeError(response.StatusCode, body)
+                ? SendDocumentResult.TooLarge
+                : SendDocumentResult.Failed;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            using (SuppressForwarding())
+            {
+                _log.Warn($"[Telegram] Ошибка чтения файла '{path}': {ex.Message}");
+            }
+            return SendDocumentResult.Failed;
+        }
+    }
+
+    private static bool IsTooLargeError(HttpStatusCode statusCode, string? body)
+    {
+        if (statusCode == HttpStatusCode.RequestEntityTooLarge)
+        {
+            return true;
+        }
+
+        if (statusCode == HttpStatusCode.BadRequest && !string.IsNullOrWhiteSpace(body))
+        {
+            if (body.IndexOf("too large", StringComparison.OrdinalIgnoreCase) >= 0
+                || body.IndexOf("file is too big", StringComparison.OrdinalIgnoreCase) >= 0
+                || body.IndexOf("must be less than", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private async Task<string?> TryCreateZipCopyAsync(string sourcePath, CancellationToken ct)
+    {
+        try
+        {
+            var zipPath = Path.Combine(Path.GetTempPath(), $"erg_{Guid.NewGuid():N}.zip");
+            await using (var zipStream = File.Open(zipPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                using var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: true);
+                var entryName = Path.GetFileName(sourcePath);
+                var entry = archive.CreateEntry(entryName, CompressionLevel.SmallestSize);
+                await using var entryStream = entry.Open();
+                await using var fileStream = File.OpenRead(sourcePath);
+                await fileStream.CopyToAsync(entryStream, ct);
+            }
+
+            return zipPath;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            using (SuppressForwarding())
+            {
+                _log.Warn($"[Telegram] Не удалось упаковать файл '{sourcePath}' в ZIP: {ex.Message}");
+            }
+            return null;
+        }
+    }
+
+    private void NotifyFileTooLarge(string originalPath, long size, bool archived = false)
+    {
+        var descriptor = archived ? "архив" : "файл";
+        var message = new StringBuilder()
+            .Append("⚠️ ")
+            .Append(char.ToUpper(descriptor[0], CultureInfo.CurrentCulture))
+            .Append(descriptor.AsSpan(1))
+            .Append(' ')
+            .Append(Path.GetFileName(originalPath))
+            .Append(archived ? " слишком большой даже после упаковки." : " слишком большой для отправки.")
+            .Append(' ')
+            .Append($"Размер: {FormatFileSize(size)}.")
+            .ToString();
+
+        // Не дожидаемся завершения отправки — поместим уведомление в очередь.
+        EnqueueMessage(message);
+    }
+
+    private enum SendDocumentResult
+    {
+        Success,
+        TooLarge,
+        Failed
+    }
 
     private sealed class ForwardingScope : IDisposable
     {
