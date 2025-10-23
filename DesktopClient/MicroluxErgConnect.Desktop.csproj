@@ -13,11 +13,11 @@
     <SatelliteResourceLanguages>en;ru</SatelliteResourceLanguages>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Autoupdater.NET.Official" Version="1.8.3" />
-    <PackageReference Include="DocumentFormat.OpenXml" Version="2.21.0" />
-    <PackageReference Include="QuestPDF" Version="2024.3.0" />
-    <PackageReference Include="SkiaSharp" Version="2.88.6" />
-    <PackageReference Include="System.IO.Ports" Version="9.0.9" />
+    <PackageReference Include="Autoupdater.NET.Official" Version="1.9.2" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.3.0" />
+    <PackageReference Include="QuestPDF" Version="2025.7.3" />
+    <PackageReference Include="SkiaSharp" Version="3.119.1" />
+    <PackageReference Include="System.IO.Ports" Version="9.0.10" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resources\microlux-connect.ico" Condition="Exists('Resources\microlux-connect.ico')" />

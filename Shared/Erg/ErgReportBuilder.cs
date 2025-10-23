@@ -280,7 +280,7 @@ public static class ErgReportBuilder
                             col.Item().Text("Правый глаз").SemiBold();
                             if (rightGraph != null)
                             {
-                                col.Item().Image(rightGraph.ToImageSource()).FitWidth();
+                                col.Item().Image(rightGraph.Data).FitWidth();
                             }
                             else
                             {
@@ -294,7 +294,7 @@ public static class ErgReportBuilder
                             col.Item().Text("Левый глаз").SemiBold();
                             if (leftGraph != null)
                             {
-                                col.Item().Image(leftGraph.ToImageSource()).FitWidth();
+                                col.Item().Image(leftGraph.Data).FitWidth();
                             }
                             else
                             {
@@ -314,8 +314,6 @@ public static class ErgReportBuilder
 
     private sealed record GraphImage(byte[] Data, int Width, int Height)
     {
-        public QuestPDF.Infrastructure.ImageSource ToImageSource()
-            => QuestPDF.Helpers.ImageSource.FromBinary(() => new MemoryStream(Data));
     }
 
     private static IEnumerable<TableRowData> GetEyeTableRows(ErgTest test)
