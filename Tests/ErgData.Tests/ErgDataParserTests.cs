@@ -31,8 +31,11 @@ public sealed class ErgDataParserTests
         return frame;
     }
 
-    private static byte[] BuildPatientFrame()
+    private static byte[] BuildPatientFrame(Action<TestBuilder>? configure = null)
     {
+        var builder = TestBuilder.CreateDefault();
+        configure?.Invoke(builder);
+
         var body = new MemoryStream();
         using (var writer = new BinaryWriter(body, Encoding.ASCII, leaveOpen: true))
         {
@@ -43,7 +46,7 @@ public sealed class ErgDataParserTests
             WriteFixedString(writer, "15/09/2025 12:15", 18, Encoding.GetEncoding(1251));
             writer.Write((byte)1); // total tests
 
-            WriteTest(writer);
+            WriteTest(writer, builder);
 
             WriteFixedString(writer, "Описание пациента", 500, Encoding.GetEncoding(1251));
         }
@@ -53,22 +56,22 @@ public sealed class ErgDataParserTests
         return frame;
     }
 
-    private static void WriteTest(BinaryWriter writer)
+    private static void WriteTest(BinaryWriter writer, TestBuilder builder)
     {
         var enc = Encoding.GetEncoding(1251);
-        WriteFixedString(writer, "DA 0.01", 100, enc);
-        writer.Write((byte)128);
-        writer.Write((byte)5);
-        writer.Write((byte)2);
-        writer.Write((byte)12);
-        writer.Write((byte)1);
-        writer.Write((byte)5);
-        WriteInt16BigEndian(writer, -50);
-        WriteInt16BigEndian(writer, 150);
-        writer.Write((byte)2);
-        writer.Write((byte)10);
-        WriteInt16BigEndian(writer, -100);
-        WriteInt16BigEndian(writer, 180);
+        WriteFixedString(writer, builder.TestName, 100, enc);
+        writer.Write(builder.GraphNumPoints);
+        writer.Write(builder.GraphDt);
+        writer.Write(builder.GraphDiscr);
+        writer.Write(builder.GraphFlashPosition);
+        writer.Write(builder.GraphXValueStep);
+        writer.Write(builder.GraphXLineStep);
+        WriteInt16BigEndian(writer, builder.GraphXScaleMin);
+        WriteInt16BigEndian(writer, builder.GraphXScaleMax);
+        writer.Write(builder.GraphYValueStep);
+        writer.Write(builder.GraphYLineStep);
+        WriteInt16BigEndian(writer, builder.GraphYScaleMin);
+        WriteInt16BigEndian(writer, builder.GraphYScaleMax);
 
         var colors = new (byte R, byte G, byte B)[]
         {
@@ -89,21 +92,69 @@ public sealed class ErgDataParserTests
         var dotted = new byte[] { 0, 1, 0, 1, 0, 0 };
         writer.Write(dotted);
 
-        writer.Write((byte)1); // a wave exists
-        writer.Write((byte)10);
-        writer.Write((byte)20);
-        WriteUInt16BigEndian(writer, 50);
-        WriteUInt16BigEndian(writer, 350);
-        writer.Write((byte)40);
-        writer.Write((byte)80);
-        WriteUInt16BigEndian(writer, 20);
-        WriteUInt16BigEndian(writer, 250);
+        writer.Write(builder.AWaveExists ? (byte)1 : (byte)0);
+        writer.Write(builder.AWaveMsNormalMin);
+        writer.Write(builder.AWaveMsNormalMax);
+        WriteUInt16BigEndian(writer, builder.AWaveMkVNormalMin);
+        WriteUInt16BigEndian(writer, builder.AWaveMkVNormalMax);
+        writer.Write(builder.BWaveMsNormalMin);
+        writer.Write(builder.BWaveMsNormalMax);
+        WriteUInt16BigEndian(writer, builder.BWaveMkVNormalMin);
+        WriteUInt16BigEndian(writer, builder.BWaveMkVNormalMax);
         writer.Write((byte)0);
         writer.Write((byte)0);
         WriteInt16BigEndian(writer, 0);
 
-        WriteEye(writer, flat: false);
-        WriteEye(writer, flat: true);
+        WriteEye(writer, flat: false, builder.RightEye);
+        WriteEye(writer, flat: true, builder.LeftEye);
+    }
+
+    private static void WriteEye(BinaryWriter writer, bool flat, EyeOptions? options)
+    {
+        options ??= flat ? EyeOptions.DefaultLeft : EyeOptions.DefaultRight;
+
+        writer.Write((byte)(flat ? 1 : 0));
+
+        byte? quality = options.Quality ?? (flat ? (byte?)null : (byte?)3);
+        writer.Write((byte)(quality ?? 255));
+
+        byte? valueCount = options.ValueCount ?? (flat ? (byte?)null : (byte?)2);
+        writer.Write((byte)(valueCount ?? 255));
+
+        var aMs = BuildArray(options.AWaveMs, flat ? NullMarkers : DefaultRightAWaveMs, 3);
+        var bMs = BuildArray(options.BWaveMs, flat ? NullMarkers : DefaultRightBWaveMs, 3);
+        var aMkV = BuildArray(options.AWaveMkV, flat ? NullAmplitudes : DefaultRightAWaveMkV, 6);
+        var bMkV = BuildArray(options.BWaveMkV, flat ? NullAmplitudes : DefaultRightBWaveMkV, 6);
+
+        WriteMarkerArray(writer, aMs);
+        WriteAmplitudeArray(writer, aMkV);
+        WriteMarkerArray(writer, bMs);
+        WriteAmplitudeArray(writer, bMkV);
+
+        byte? aMarker = options.AWaveMarker ?? (flat ? (byte?)null : (byte?)14);
+        writer.Write((byte)(aMarker ?? 255));
+
+        byte? bMarker = options.BWaveMarker ?? (flat ? (byte?)null : (byte?)56);
+        writer.Write((byte)(bMarker ?? 255));
+
+        byte graphCount = options.GraphCount ?? (byte)(flat ? 0 : 1);
+        writer.Write(graphCount);
+
+        var sampleFactory = options.SampleFactory ?? (flat
+            ? (_, _) => (short)0
+            : (int graph, int point) => (short)(graph == 0 ? point - 64 : 0));
+
+        for (int graph = 0; graph < 6; graph++)
+        {
+            for (int point = 0; point < 128; point++)
+            {
+                writer.Write(sampleFactory(graph, point));
+            }
+        }
+
+        writer.Write((byte)0);
+        writer.Write((byte)0);
+        WriteInt16BigEndian(writer, 0);
     }
 
     private static void WriteInt16BigEndian(BinaryWriter writer, short value)
@@ -120,71 +171,116 @@ public sealed class ErgDataParserTests
         writer.Write(buffer);
     }
 
-    private static void WriteEye(BinaryWriter writer, bool flat)
+    private static ushort?[] BuildArray(ushort?[]? source, ushort?[] fallback, int length)
     {
-        writer.Write((byte)(flat ? 1 : 0));
-        writer.Write((byte)(flat ? 255 : 3));
-        writer.Write((byte)(flat ? 255 : 2));
-
-        var aMsBytes = new byte[6];
-        var bMsBytes = new byte[6];
-        var aMkV = new ushort[6];
-        var bMkV = new ushort[6];
-
-        if (flat)
+        var result = new ushort?[length];
+        var values = source ?? fallback;
+        for (int i = 0; i < length; i++)
         {
-            for (int i = 0; i < 3; i++)
-            {
-                BinaryPrimitives.WriteUInt16BigEndian(aMsBytes.AsSpan(i * 2, 2), ushort.MaxValue);
-                BinaryPrimitives.WriteUInt16BigEndian(bMsBytes.AsSpan(i * 2, 2), ushort.MaxValue);
-            }
-
-            for (int i = 0; i < 6; i++)
-            {
-                aMkV[i] = ushort.MaxValue;
-                bMkV[i] = ushort.MaxValue;
-            }
-        }
-        else
-        {
-            BinaryPrimitives.WriteUInt16BigEndian(aMsBytes.AsSpan(0, 2), 15);
-            BinaryPrimitives.WriteUInt16BigEndian(aMsBytes.AsSpan(2, 2), 16);
-            BinaryPrimitives.WriteUInt16BigEndian(aMsBytes.AsSpan(4, 2), ushort.MaxValue);
-
-            BinaryPrimitives.WriteUInt16BigEndian(bMsBytes.AsSpan(0, 2), 55);
-            BinaryPrimitives.WriteUInt16BigEndian(bMsBytes.AsSpan(2, 2), 57);
-            BinaryPrimitives.WriteUInt16BigEndian(bMsBytes.AsSpan(4, 2), ushort.MaxValue);
-
-            aMkV[0] = 120;
-            aMkV[1] = 110;
-            for (int i = 2; i < 6; i++) aMkV[i] = ushort.MaxValue;
-
-            bMkV[0] = 200;
-            bMkV[1] = 190;
-            for (int i = 2; i < 6; i++) bMkV[i] = ushort.MaxValue;
+            result[i] = i < values.Length ? values[i] : null;
         }
 
-        writer.Write(aMsBytes);
-        foreach (var value in aMkV) WriteUInt16BigEndian(writer, value);
-        writer.Write(bMsBytes);
-        foreach (var value in bMkV) WriteUInt16BigEndian(writer, value);
+        return result;
+    }
 
-        writer.Write((byte)(flat ? 255 : 14));
-        writer.Write((byte)(flat ? 255 : 56));
-        writer.Write((byte)(flat ? 0 : 1));
-
-        for (int graph = 0; graph < 6; graph++)
+    private static void WriteMarkerArray(BinaryWriter writer, ushort?[] values)
+    {
+        var buffer = new byte[values.Length * 2];
+        for (int i = 0; i < values.Length; i++)
         {
-            for (int point = 0; point < 128; point++)
-            {
-                short sample = flat ? (short)0 : (short)(graph == 0 ? point - 64 : 0);
-                writer.Write(sample);
-            }
+            ushort raw = values[i] ?? ushort.MaxValue;
+            BinaryPrimitives.WriteUInt16LittleEndian(buffer.AsSpan(i * 2, 2), raw);
         }
 
-        writer.Write((byte)0);
-        writer.Write((byte)0);
-        WriteInt16BigEndian(writer, 0);
+        writer.Write(buffer);
+    }
+
+    private static void WriteAmplitudeArray(BinaryWriter writer, ushort?[] values)
+    {
+        for (int i = 0; i < values.Length; i++)
+        {
+            ushort raw = values[i] ?? ushort.MaxValue;
+            WriteUInt16BigEndian(writer, raw);
+        }
+    }
+
+    private static readonly ushort?[] NullMarkers = new ushort?[] { null, null, null };
+    private static readonly ushort?[] NullAmplitudes = new ushort?[] { null, null, null, null, null, null };
+    private static readonly ushort?[] DefaultRightAWaveMs = new ushort?[] { 15, 16, null };
+    private static readonly ushort?[] DefaultRightBWaveMs = new ushort?[] { 55, 57, null };
+    private static readonly ushort?[] DefaultRightAWaveMkV = new ushort?[] { 120, 110, null, null, null, null };
+    private static readonly ushort?[] DefaultRightBWaveMkV = new ushort?[] { 200, 190, null, null, null, null };
+
+    private sealed record EyeOptions
+    {
+        public byte? Quality { get; init; }
+        public byte? ValueCount { get; init; }
+        public ushort?[]? AWaveMs { get; init; }
+        public ushort?[]? BWaveMs { get; init; }
+        public ushort?[]? AWaveMkV { get; init; }
+        public ushort?[]? BWaveMkV { get; init; }
+        public byte? AWaveMarker { get; init; }
+        public byte? BWaveMarker { get; init; }
+        public byte? GraphCount { get; init; }
+        public Func<int, int, short>? SampleFactory { get; init; }
+
+        public static EyeOptions DefaultRight { get; } = new EyeOptions
+        {
+            Quality = 3,
+            ValueCount = 2,
+            AWaveMs = DefaultRightAWaveMs,
+            BWaveMs = DefaultRightBWaveMs,
+            AWaveMkV = DefaultRightAWaveMkV,
+            BWaveMkV = DefaultRightBWaveMkV,
+            AWaveMarker = 14,
+            BWaveMarker = 56,
+            GraphCount = 1,
+            SampleFactory = (graph, point) => (short)(graph == 0 ? point - 64 : 0)
+        };
+
+        public static EyeOptions DefaultLeft { get; } = new EyeOptions
+        {
+            Quality = null,
+            ValueCount = null,
+            AWaveMs = NullMarkers,
+            BWaveMs = NullMarkers,
+            AWaveMkV = NullAmplitudes,
+            BWaveMkV = NullAmplitudes,
+            AWaveMarker = null,
+            BWaveMarker = null,
+            GraphCount = 0,
+            SampleFactory = (_, _) => 0
+        };
+    }
+
+    private sealed class TestBuilder
+    {
+        public string TestName { get; set; } = "DA 0.01";
+        public byte GraphNumPoints { get; set; } = 128;
+        public byte GraphDt { get; set; } = 5;
+        public byte GraphDiscr { get; set; } = 2;
+        public byte GraphFlashPosition { get; set; } = 12;
+        public byte GraphXValueStep { get; set; } = 1;
+        public byte GraphXLineStep { get; set; } = 5;
+        public short GraphXScaleMin { get; set; } = -50;
+        public short GraphXScaleMax { get; set; } = 150;
+        public byte GraphYValueStep { get; set; } = 2;
+        public byte GraphYLineStep { get; set; } = 10;
+        public short GraphYScaleMin { get; set; } = -100;
+        public short GraphYScaleMax { get; set; } = 180;
+        public bool AWaveExists { get; set; } = true;
+        public byte AWaveMsNormalMin { get; set; } = 10;
+        public byte AWaveMsNormalMax { get; set; } = 20;
+        public ushort AWaveMkVNormalMin { get; set; } = 50;
+        public ushort AWaveMkVNormalMax { get; set; } = 350;
+        public byte BWaveMsNormalMin { get; set; } = 40;
+        public byte BWaveMsNormalMax { get; set; } = 80;
+        public ushort BWaveMkVNormalMin { get; set; } = 20;
+        public ushort BWaveMkVNormalMax { get; set; } = 250;
+        public EyeOptions RightEye { get; set; } = EyeOptions.DefaultRight;
+        public EyeOptions LeftEye { get; set; } = EyeOptions.DefaultLeft;
+
+        public static TestBuilder CreateDefault() => new TestBuilder();
     }
 
     [Fact]
@@ -281,6 +377,44 @@ public sealed class ErgDataParserTests
 
         Assert.Equal<byte>(0, test.LeftEye.GraphCount);
         Assert.Null(test.LeftEye.Graphs);
+    }
+
+    [Fact]
+    public void TryParsePatient_ScalesGraphAmplitudesUsingMarkers()
+    {
+        var frame = BuildPatientFrame(builder =>
+        {
+            builder.GraphDt = 1;
+            builder.GraphDiscr = 14;
+            builder.RightEye = builder.RightEye with
+            {
+                ValueCount = 1,
+                BWaveMs = new ushort?[] { 34, null, null },
+                BWaveMkV = new ushort?[] { 14, null, null, null, null, null },
+                BWaveMarker = 34,
+                GraphCount = 1,
+                SampleFactory = (graph, point) =>
+                {
+                    if (graph == 0 && point == 34)
+                        return (short)(14 * 14 * 40);
+                    return 0;
+                }
+            };
+        });
+
+        var success = ErgDataParser.TryParsePatient(frame, out var patient, out var error);
+
+        Assert.True(success);
+        Assert.Null(error);
+
+        var test = patient.Tests.Single();
+        Assert.Equal((byte)1, test.GraphDt);
+        Assert.Equal((byte)14, test.GraphDiscrPerMkV);
+
+        var graph = Assert.Single(test.RightEye.Graphs!);
+        Assert.InRange(graph[34], 13.5, 14.5);
+        Assert.Equal<uint?>(14u, test.RightEye.BWaveMkV![0]);
+        Assert.Equal<ushort?>(34, test.RightEye.BWaveMs![0]);
     }
 
     private static void WriteFixedString(BinaryWriter writer, string value, int length, Encoding encoding)

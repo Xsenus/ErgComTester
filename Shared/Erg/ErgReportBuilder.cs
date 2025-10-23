@@ -320,8 +320,8 @@ public static class ErgReportBuilder
     {
         yield return new TableRowData("FLAT", BoolText(test.RightEye.IsFlat), BoolText(test.LeftEye.IsFlat));
         yield return new TableRowData("QI", Quality(test.RightEye.QualityIndex), Quality(test.LeftEye.QualityIndex));
-        yield return new TableRowData("Маркер a", FormatMarker(test.RightEye.AWaveMarker), FormatMarker(test.LeftEye.AWaveMarker));
-        yield return new TableRowData("Маркер b", FormatMarker(test.RightEye.BWaveMarker), FormatMarker(test.LeftEye.BWaveMarker));
+        yield return new TableRowData("Маркер a", FormatMarker(test.RightEye, test.RightEye.AWaveMarker), FormatMarker(test.LeftEye, test.LeftEye.AWaveMarker));
+        yield return new TableRowData("Маркер b", FormatMarker(test.RightEye, test.RightEye.BWaveMarker), FormatMarker(test.LeftEye, test.LeftEye.BWaveMarker));
 
         var maxValues = Math.Max(DetermineValueCount(test.RightEye), DetermineValueCount(test.LeftEye));
         for (int i = 0; i < maxValues; i++)
@@ -359,8 +359,15 @@ public static class ErgReportBuilder
         return new string('★', value) + new string('☆', 3 - value);
     }
 
-    private static string FormatMarker(byte? marker)
-        => marker.HasValue ? $"{marker} мс" : "—";
+    private static string FormatMarker(EyeData eye, byte? marker)
+    {
+        int valueCount = eye.ValueCount ?? DetermineValueCount(eye);
+        if (valueCount <= 0)
+            return "—";
+        if (!marker.HasValue || marker.Value == 0)
+            return "—";
+        return $"{marker} мс";
+    }
 
     private static string? FormatMeasurement(EyeData eye, int index)
     {
