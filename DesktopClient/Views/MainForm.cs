@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -23,6 +24,9 @@ public partial class MainForm : Form
     {
         _viewModel = AppServices.MainViewModel;
         InitializeComponent();
+        DoubleBuffered = true;
+        SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        UpdateStyles();
         logsBindingSource.DataSource = _logEntries;
         _viewModel.PropertyChanged += ViewModelOnPropertyChanged;
         _viewModel.Logs.CollectionChanged += LogsOnCollectionChanged;
@@ -101,25 +105,25 @@ public partial class MainForm : Form
         switch (e.PropertyName)
         {
             case nameof(MainViewModel.StatusText):
-                statusValueLabel.Text = _viewModel.StatusText;
+                statusValueLabel.Text = FormatSingleLine(_viewModel.StatusText);
                 break;
             case nameof(MainViewModel.CurrentPort):
-                portValueLabel.Text = _viewModel.CurrentPort ?? "-";
+                portValueLabel.Text = FormatSingleLine(_viewModel.CurrentPort);
                 break;
             case nameof(MainViewModel.DeviceName):
-                deviceValueLabel.Text = _viewModel.DeviceName ?? "-";
+                deviceValueLabel.Text = FormatSingleLine(_viewModel.DeviceName);
                 break;
             case nameof(MainViewModel.SoftwareVersion):
-                softwareValueLabel.Text = _viewModel.SoftwareVersion ?? "-";
+                softwareValueLabel.Text = FormatSingleLine(_viewModel.SoftwareVersion);
                 break;
             case nameof(MainViewModel.ReportName):
-                reportValueLabel.Text = _viewModel.ReportName ?? "-";
+                reportValueLabel.Text = FormatSingleLine(_viewModel.ReportName);
                 break;
             case nameof(MainViewModel.SyncStatus):
-                syncStatusLabel.Text = _viewModel.SyncStatus;
+                syncStatusLabel.Text = FormatSingleLine(_viewModel.SyncStatus);
                 break;
             case nameof(MainViewModel.UpdateStatusText):
-                updateStatusValueLabel.Text = _viewModel.UpdateStatusText;
+                updateStatusValueLabel.Text = FormatSingleLine(_viewModel.UpdateStatusText);
                 break;
             case nameof(MainViewModel.DeviceScanIntervalSeconds):
             case nameof(MainViewModel.DeviceReconnectDelaySeconds):
@@ -128,6 +132,15 @@ public partial class MainForm : Form
             case nameof(MainViewModel.UpdateManifestUrl):
                 ApplySettingsToInputs();
                 break;
+        }
+
+        if (string.IsNullOrEmpty(e.PropertyName) ||
+            e.PropertyName is nameof(MainViewModel.StatusText)
+                or nameof(MainViewModel.CurrentPort)
+                or nameof(MainViewModel.DeviceName)
+                or nameof(MainViewModel.SyncStatus))
+        {
+            UpdateHeaderSummary();
         }
     }
 
@@ -203,13 +216,14 @@ public partial class MainForm : Form
 
     private void UpdateAll()
     {
-        statusValueLabel.Text = _viewModel.StatusText;
-        portValueLabel.Text = _viewModel.CurrentPort ?? "-";
-        deviceValueLabel.Text = _viewModel.DeviceName ?? "-";
-        softwareValueLabel.Text = _viewModel.SoftwareVersion ?? "-";
-        reportValueLabel.Text = _viewModel.ReportName ?? "-";
-        syncStatusLabel.Text = _viewModel.SyncStatus;
-        updateStatusValueLabel.Text = _viewModel.UpdateStatusText;
+        statusValueLabel.Text = FormatSingleLine(_viewModel.StatusText);
+        portValueLabel.Text = FormatSingleLine(_viewModel.CurrentPort);
+        deviceValueLabel.Text = FormatSingleLine(_viewModel.DeviceName);
+        softwareValueLabel.Text = FormatSingleLine(_viewModel.SoftwareVersion);
+        reportValueLabel.Text = FormatSingleLine(_viewModel.ReportName);
+        syncStatusLabel.Text = FormatSingleLine(_viewModel.SyncStatus);
+        updateStatusValueLabel.Text = FormatSingleLine(_viewModel.UpdateStatusText);
+        UpdateHeaderSummary();
     }
 
     private void UpdateCommandState()
@@ -222,6 +236,78 @@ public partial class MainForm : Form
     private void ForceCommandStateLogging()
     {
         AppServices.Log.Debug($"Доступность команд: проверка обновлений={(checkUpdatesButton.Enabled ? "доступна" : "недоступна")}, установка={(installUpdateButton.Enabled ? "доступна" : "недоступна")}");
+    }
+
+    private void UpdateHeaderSummary()
+    {
+        headerStatusLabel.Text = $"Статус: {FormatSingleLine(_viewModel.StatusText)}";
+        headerDeviceLabel.Text = $"Устройство: {FormatSingleLine(_viewModel.DeviceName, "Не обнаружено")}";
+        headerPortLabel.Text = $"Порт: {FormatSingleLine(_viewModel.CurrentPort)}";
+        headerSyncLabel.Text = $"Синхронизация: {FormatSingleLine(_viewModel.SyncStatus)}";
+
+        ApplyStatusVisualState(_viewModel.StatusText, headerStatusLabel, isBadge: true);
+        ApplyStatusVisualState(_viewModel.StatusText, statusValueLabel, isBadge: false);
+        ApplyStatusVisualState(_viewModel.SyncStatus, headerSyncLabel, isBadge: true);
+        ApplyStatusVisualState(_viewModel.SyncStatus, syncStatusLabel, isBadge: false);
+    }
+
+    private void ApplyStatusVisualState(string? statusText, Label label, bool isBadge)
+    {
+        var color = ResolveStatusColor(statusText);
+        if (isBadge)
+        {
+            label.BackColor = color;
+            label.ForeColor = Color.White;
+        }
+        else
+        {
+            label.ForeColor = color;
+        }
+    }
+
+    private static Color ResolveStatusColor(string? statusText)
+    {
+        const int defaultRed = 48;
+        const int defaultGreen = 149;
+        const int defaultBlue = 177;
+        if (string.IsNullOrWhiteSpace(statusText))
+        {
+            return Color.FromArgb(defaultRed, defaultGreen, defaultBlue);
+        }
+
+        var normalized = statusText.ToLowerInvariant();
+        if (normalized.Contains("ошиб") || normalized.Contains("error") || normalized.Contains("fail"))
+        {
+            return Color.FromArgb(227, 83, 64);
+        }
+
+        if (normalized.Contains("подключ") || normalized.Contains("готов") || normalized.Contains("успеш") || normalized.Contains("sync"))
+        {
+            return Color.FromArgb(59, 179, 115);
+        }
+
+        if (normalized.Contains("ожид") || normalized.Contains("поиск") || normalized.Contains("жд") || normalized.Contains("wait"))
+        {
+            return Color.FromArgb(242, 192, 64);
+        }
+
+        return Color.FromArgb(defaultRed, defaultGreen, defaultBlue);
+    }
+
+    private static string FormatSingleLine(string? value, string placeholder = "-")
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return placeholder;
+        }
+
+        var parts = value
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Trim())
+            .Where(part => !string.IsNullOrWhiteSpace(part));
+
+        var result = string.Join(" ", parts);
+        return string.IsNullOrWhiteSpace(result) ? placeholder : result;
     }
 
     private void OnResetPortClicked(object? sender, EventArgs e)
