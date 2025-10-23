@@ -286,15 +286,14 @@ partial class MainForm
     {
         var topLayout = new TableLayoutPanel
         {
-            ColumnCount = 3,
+            ColumnCount = 2,
             Dock = DockStyle.Fill,
             Margin = new Padding(0, 0, 0, 16),
             BackColor = Color.Transparent,
             Padding = new Padding(0)
         };
-        topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));
-        topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));
-        topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));
+        topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52F));
+        topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48F));
         topLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
         ConfigureConnectionGroup();
@@ -302,12 +301,28 @@ partial class MainForm
         ConfigureUpdatesGroup();
 
         connectionGroup.Margin = new Padding(0, 0, 16, 0);
-        settingsGroup.Margin = new Padding(0, 0, 16, 0);
         updatesGroup.Margin = new Padding(0);
 
+        var rightColumnLayout = new TableLayoutPanel
+        {
+            ColumnCount = 1,
+            RowCount = 2,
+            Dock = DockStyle.Fill,
+            BackColor = Color.Transparent,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
+        };
+        rightColumnLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        rightColumnLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        rightColumnLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
+        settingsGroup.Margin = new Padding(0, 0, 0, 12);
+
+        rightColumnLayout.Controls.Add(settingsGroup, 0, 0);
+        rightColumnLayout.Controls.Add(updatesGroup, 0, 1);
+
         topLayout.Controls.Add(connectionGroup, 0, 0);
-        topLayout.Controls.Add(settingsGroup, 1, 0);
-        topLayout.Controls.Add(updatesGroup, 2, 0);
+        topLayout.Controls.Add(rightColumnLayout, 1, 0);
         return topLayout;
     }
 
@@ -408,6 +423,8 @@ partial class MainForm
         settingsLayout.Padding = new Padding(0, 4, 0, 0);
         settingsLayout.Margin = new Padding(0);
         settingsLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
+        settingsLayout.AutoSize = true;
+        settingsLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         settingsLayout.BackColor = Color.White;
 
         scanIntervalLabel.Text = "Интервал поиска (с):";
