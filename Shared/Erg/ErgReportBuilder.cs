@@ -3,6 +3,11 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.Drawing.Text;
+using System.Runtime.InteropServices;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -14,6 +19,9 @@ using QuestDocument = QuestPDF.Fluent.Document;
 using WordColor = DocumentFormat.OpenXml.Wordprocessing.Color;
 using WordDocument = DocumentFormat.OpenXml.Wordprocessing.Document;
 using SkiaSharp;
+using PdfSharpCore.Drawing;
+using PdfSharpCore.Drawing.Layout;
+using PdfSharpCore.Pdf;
 using A = DocumentFormat.OpenXml.Drawing;
 using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
@@ -32,6 +40,24 @@ public static class ErgReportBuilder
         if (patient == null) throw new ArgumentNullException(nameof(patient));
         if (string.IsNullOrWhiteSpace(pdfPath)) throw new ArgumentNullException(nameof(pdfPath));
 
+        var directory = Path.GetDirectoryName(pdfPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        if (RenderingSupport.UseLegacyPdfGeneration)
+        {
+            BuildPatientReportLegacyPdf(patient, pdfPath, deviceInfo, clinicName, rawFilePath);
+        }
+        else
+        {
+            BuildPatientReportQuestPdf(patient, pdfPath, deviceInfo, clinicName, rawFilePath);
+        }
+    }
+
+    private static void BuildPatientReportQuestPdf(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
+    {
         var headerTitle = string.IsNullOrWhiteSpace(clinicName)
             ? "Отчет по результатам ЭРГ-исследования сетчатки"
             : clinicName;
@@ -103,6 +129,12 @@ public static class ErgReportBuilder
         }).GeneratePdf(pdfPath);
     }
 
+    private static void BuildPatientReportLegacyPdf(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
+    {
+        using var renderer = new LegacyPdfRenderer(patient, pdfPath, deviceInfo, clinicName, rawFilePath);
+        renderer.Build();
+    }
+
     public static void BuildPatientWordReport(ErgPatient patient, string docxPath, CommonInfo? deviceInfo = null, string? clinicName = null, string? rawFilePath = null)
     {
         if (patient == null) throw new ArgumentNullException(nameof(patient));
@@ -155,6 +187,514 @@ public static class ErgReportBuilder
         }
 
         mainPart.Document.Save();
+    }
+
+    private sealed class LegacyPdfRenderer : IDisposable
+    {
+        private const int Dpi = 200;
+        private const int PageWidth = (int)(8.27f * Dpi);
+        private const int PageHeight = (int)(11.69f * Dpi);
+
+        private readonly ErgPatient _patient;
+        private readonly string _pdfPath;
+        private readonly CommonInfo? _deviceInfo;
+        private readonly string? _clinicName;
+        private readonly string? _rawFilePath;
+
+        private readonly List<byte[]> _pages = new();
+        private Bitmap? _bitmap;
+        private Graphics? _graphics;
+        private float _y;
+
+        private readonly float _marginLeft = 0.8f * Dpi;
+        private readonly float _marginRight = 0.8f * Dpi;
+        private readonly float _marginTop = 0.8f * Dpi;
+        private readonly float _marginBottom = 0.9f * Dpi;
+        private readonly float _spacingSmall = 0.08f * Dpi;
+        private readonly float _spacingMedium = 0.12f * Dpi;
+        private readonly float _spacingLarge = 0.2f * Dpi;
+        private readonly float _graphGap = 0.12f * Dpi;
+        private readonly float _tableCellPadding = 0.08f * Dpi;
+
+        private float ContentWidth => PageWidth - _marginLeft - _marginRight;
+
+        private readonly System.Drawing.Font _titleFont = new("Arial", 26f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _sectionFont = new("Arial", 14f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _headerFont = new("Arial", 12f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _textFont = new("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _smallFont = new("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _italicSmallFont = new("Arial", 10f, FontStyle.Italic, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _tableHeaderFont = new("Arial", 11f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _tableFont = new("Arial", 11f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _graphLabelFont = new("Arial", 11f, FontStyle.Bold, GraphicsUnit.Point);
+
+        private readonly StringFormat _formatLeft = new(StringFormatFlags.LineLimit)
+        {
+            Alignment = StringAlignment.Near,
+            LineAlignment = StringAlignment.Near,
+            Trimming = StringTrimming.Word
+        };
+
+        private readonly StringFormat _formatRight = new(StringFormatFlags.LineLimit)
+        {
+            Alignment = StringAlignment.Far,
+            LineAlignment = StringAlignment.Near,
+            Trimming = StringTrimming.Word
+        };
+
+        private readonly StringFormat _formatCenter = new(StringFormatFlags.LineLimit)
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center,
+            Trimming = StringTrimming.Word
+        };
+
+        private readonly SolidBrush _mutedBrush = new(System.Drawing.Color.FromArgb(90, 90, 90));
+        private readonly SolidBrush _descriptionBackgroundBrush = new(System.Drawing.Color.FromArgb(245, 245, 245));
+        private readonly SolidBrush _headerBackgroundBrush = new(System.Drawing.Color.FromArgb(232, 232, 232));
+        private readonly Pen _tablePen = new(System.Drawing.Color.FromArgb(200, 200, 200));
+
+        public LegacyPdfRenderer(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
+        {
+            _patient = patient;
+            _pdfPath = pdfPath;
+            _deviceInfo = deviceInfo;
+            _clinicName = clinicName;
+            _rawFilePath = rawFilePath;
+            _tablePen.Width = 1f;
+        }
+
+        public void Build()
+        {
+            StartNewPage();
+            DrawTitle();
+            DrawHeaderInfo();
+            DrawDescription();
+            DrawRawFilePath();
+
+            for (int i = 0; i < _patient.Tests.Count; i++)
+            {
+                DrawTestSection(i, _patient.Tests[i]);
+            }
+
+            FinalizeCurrentPage();
+            SavePdf();
+        }
+
+        public void Dispose()
+        {
+            FinalizeCurrentPage();
+            _graphics?.Dispose();
+            _bitmap?.Dispose();
+            _titleFont.Dispose();
+            _sectionFont.Dispose();
+            _headerFont.Dispose();
+            _textFont.Dispose();
+            _smallFont.Dispose();
+            _italicSmallFont.Dispose();
+            _tableHeaderFont.Dispose();
+            _tableFont.Dispose();
+            _graphLabelFont.Dispose();
+            _formatLeft.Dispose();
+            _formatRight.Dispose();
+            _formatCenter.Dispose();
+            _mutedBrush.Dispose();
+            _descriptionBackgroundBrush.Dispose();
+            _headerBackgroundBrush.Dispose();
+            _tablePen.Dispose();
+        }
+
+        private void StartNewPage()
+        {
+            FinalizeCurrentPage();
+
+            _bitmap = new Bitmap(PageWidth, PageHeight);
+            _bitmap.SetResolution(Dpi, Dpi);
+            _graphics = Graphics.FromImage(_bitmap);
+            _graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            _graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+            _graphics.Clear(System.Drawing.Color.White);
+            _y = _marginTop;
+        }
+
+        private void FinalizeCurrentPage()
+        {
+            if (_graphics == null || _bitmap == null)
+                return;
+
+            _graphics.Dispose();
+            using var ms = new MemoryStream();
+            _bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+            _pages.Add(ms.ToArray());
+            _bitmap.Dispose();
+            _bitmap = null;
+            _graphics = null;
+        }
+
+        private void SavePdf()
+        {
+            using var document = new PdfDocument();
+            foreach (var pageImage in _pages)
+            {
+                var page = document.AddPage();
+                page.Size = PdfSharpCore.PageSize.A4;
+                using var gfx = XGraphics.FromPdfPage(page);
+                using var image = XImage.FromStream(() => new MemoryStream(pageImage));
+                gfx.DrawImage(image, 0, 0, page.Width, page.Height);
+            }
+
+            document.Save(_pdfPath);
+        }
+
+        private void EnsureSpace(float requiredHeight)
+        {
+            if (_graphics == null)
+                return;
+
+            var limit = PageHeight - _marginBottom;
+            if (_y + requiredHeight <= limit)
+                return;
+
+            StartNewPage();
+        }
+
+        private float MeasureText(string text, System.Drawing.Font font, float width, StringFormat? format = null)
+        {
+            if (_graphics == null || string.IsNullOrWhiteSpace(text))
+                return 0f;
+
+            format ??= _formatLeft;
+            var size = _graphics.MeasureString(text, font, new SizeF(width, float.MaxValue), format);
+            return size.Height;
+        }
+
+        private void DrawParagraph(string text, System.Drawing.Font font, System.Drawing.Brush brush, float spacingBefore, float spacingAfter, StringFormat? format = null)
+        {
+            if (_graphics == null)
+                return;
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                _y += spacingBefore + spacingAfter;
+                return;
+            }
+
+            format ??= _formatLeft;
+            var height = MeasureText(text, font, ContentWidth, format);
+            EnsureSpace(spacingBefore + height + spacingAfter);
+            _y += spacingBefore;
+            var rect = new RectangleF(_marginLeft, _y, ContentWidth, height);
+            _graphics.DrawString(text, font, brush, rect, format);
+            _y += height + spacingAfter;
+        }
+
+        private void DrawParagraphNoEnsure(string text, System.Drawing.Font font, System.Drawing.Brush brush, float spacingBefore, float spacingAfter, StringFormat? format = null)
+        {
+            if (_graphics == null)
+                return;
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                _y += spacingBefore + spacingAfter;
+                return;
+            }
+
+            format ??= _formatLeft;
+            _y += spacingBefore;
+            var height = MeasureText(text, font, ContentWidth, format);
+            var rect = new RectangleF(_marginLeft, _y, ContentWidth, height);
+            _graphics.DrawString(text, font, brush, rect, format);
+            _y += height + spacingAfter;
+        }
+
+        private void DrawTitle()
+        {
+            var title = string.IsNullOrWhiteSpace(_clinicName)
+                ? "Отчет по результатам ЭРГ-исследования сетчатки"
+                : _clinicName!;
+
+            DrawParagraph(title, _titleFont, Brushes.Black, 0, _spacingLarge);
+        }
+
+        private void DrawHeaderInfo()
+        {
+            var rows = new (string Left, string? Right)[]
+            {
+                ($"ID пациента: {_patient.PatientId}", $"Животное: {FormatAnimal(_patient.Animal)}"),
+                ($"Дата/время исследования: {_patient.TestDateTime}", FormatDeviceInfo()),
+                ($"Количество тестов: {_patient.Tests.Count} (в блоке указано: {_patient.TotalNumTests})", null)
+            };
+
+            foreach (var row in rows)
+            {
+                var leftHeight = MeasureText(row.Left, _textFont, ContentWidth / 2f, _formatLeft);
+                var rightText = row.Right ?? string.Empty;
+                var rightHeight = string.IsNullOrWhiteSpace(rightText)
+                    ? 0f
+                    : MeasureText(rightText, _textFont, ContentWidth / 2f, _formatRight);
+
+                var baseHeight = _textFont.GetHeight(_graphics!);
+                var height = Math.Max(baseHeight, Math.Max(leftHeight, rightHeight));
+                EnsureSpace(height + _spacingSmall);
+
+                var leftRect = new RectangleF(_marginLeft, _y, ContentWidth / 2f, height);
+                _graphics!.DrawString(row.Left, _textFont, Brushes.Black, leftRect, _formatLeft);
+
+                if (!string.IsNullOrWhiteSpace(rightText))
+                {
+                    var rightRect = new RectangleF(_marginLeft + ContentWidth / 2f, _y, ContentWidth / 2f, height);
+                    _graphics.DrawString(rightText, _textFont, Brushes.Black, rightRect, _formatRight);
+                }
+
+                _y += height + _spacingSmall * 0.5f;
+            }
+
+            _y += _spacingMedium;
+        }
+
+        private string FormatDeviceInfo()
+        {
+            if (_deviceInfo == null)
+                return string.Empty;
+
+            if (string.IsNullOrWhiteSpace(_deviceInfo.DeviceName) && string.IsNullOrWhiteSpace(_deviceInfo.SoftwareRev))
+                return string.Empty;
+
+            return $"Прибор: {_deviceInfo.DeviceName}, ПО: {_deviceInfo.SoftwareRev}";
+        }
+
+        private void DrawDescription()
+        {
+            if (_graphics == null || string.IsNullOrWhiteSpace(_patient.Description))
+                return;
+
+            var innerWidth = ContentWidth - _tableCellPadding * 2;
+            var titleHeight = MeasureText("Автоматическое заключение", _headerFont, innerWidth, _formatLeft);
+            var textHeight = MeasureText(_patient.Description, _textFont, innerWidth, _formatLeft);
+            var blockHeight = titleHeight + textHeight + _tableCellPadding * 3;
+
+            EnsureSpace(blockHeight + _spacingMedium);
+
+            var outerRect = new RectangleF(_marginLeft, _y, ContentWidth, blockHeight);
+            _graphics!.FillRectangle(_descriptionBackgroundBrush, outerRect);
+
+            var titleRect = new RectangleF(
+                _marginLeft + _tableCellPadding,
+                _y + _tableCellPadding,
+                innerWidth,
+                titleHeight);
+
+            _graphics.DrawString("Автоматическое заключение", _headerFont, Brushes.Black, titleRect, _formatLeft);
+
+            var textRect = new RectangleF(
+                _marginLeft + _tableCellPadding,
+                titleRect.Bottom + _tableCellPadding / 2f,
+                innerWidth,
+                textHeight);
+
+            _graphics.DrawString(_patient.Description, _textFont, Brushes.Black, textRect, _formatLeft);
+
+            _y += blockHeight + _spacingMedium;
+        }
+
+        private void DrawRawFilePath()
+        {
+            if (string.IsNullOrWhiteSpace(_rawFilePath))
+                return;
+
+            DrawParagraph($"Источник бинарных данных: {_rawFilePath}", _smallFont, _mutedBrush, 0, _spacingMedium);
+        }
+
+        private void DrawTestSection(int index, ErgTest test)
+        {
+            DrawParagraph($"Тест №{index + 1}: {test.TestName}", _sectionFont, Brushes.Black, _spacingLarge, _spacingSmall);
+            DrawParagraph($"Точек: {test.GraphNumPoints}, Δt: {test.GraphDt} мс, дискрет/мкВ: {test.GraphDiscrPerMkV}", _textFont, Brushes.Black, 0, _spacingSmall / 2f);
+            DrawParagraph($"Вспышка: {test.GraphFlashPosition} мс", _textFont, Brushes.Black, 0, _spacingSmall / 2f);
+            DrawParagraph($"Диапазон X: {test.GraphXScaleMin}…{test.GraphXScaleMax} мс (шаг {test.GraphXValueStep})", _textFont, Brushes.Black, 0, _spacingSmall / 2f);
+            DrawParagraph($"Диапазон Y: {test.GraphYScaleMin}…{test.GraphYScaleMax} мкВ (шаг {test.GraphYValueStep})", _textFont, Brushes.Black, 0, _spacingSmall / 2f);
+            DrawParagraph($"a-волна: {(test.AWaveExists ? "есть" : "нет")}, нормы ms: {FormatRange(test.AWaveMsNormalMin, test.AWaveMsNormalMax)}, мкВ: {FormatRange(test.AWaveMkVNormalMin, test.AWaveMkVNormalMax)}", _textFont, Brushes.Black, 0, _spacingSmall / 2f);
+            DrawParagraph($"b-волна нормы ms: {FormatRange(test.BWaveMsNormalMin, test.BWaveMsNormalMax)}, мкВ: {FormatRange(test.BWaveMkVNormalMin, test.BWaveMkVNormalMax)}", _textFont, Brushes.Black, 0, _spacingSmall);
+
+            DrawEyeTable(test);
+            DrawGraphSection(test);
+        }
+
+        private void DrawEyeTable(ErgTest test)
+        {
+            if (_graphics == null)
+                return;
+
+            var rows = GetEyeTableRows(test).ToList();
+            if (rows.Count == 0)
+                return;
+
+            var columnWidths = new[]
+            {
+                ContentWidth * 0.30f,
+                ContentWidth * 0.35f,
+                ContentWidth * 0.35f
+            };
+
+            var headerTexts = new[] { "Параметр", "Правый глаз", "Левый глаз" };
+            var headerFormats = new[] { _formatLeft, _formatCenter, _formatCenter };
+            var bodyFormats = new[] { _formatLeft, _formatLeft, _formatLeft };
+
+            float headerHeight = MeasureTableRow(headerTexts, _tableHeaderFont, columnWidths, headerFormats);
+            var rowHeights = new List<float>(rows.Count);
+            foreach (var row in rows)
+            {
+                var values = new[] { row.Caption, row.Right, row.Left };
+                rowHeights.Add(MeasureTableRow(values, _tableFont, columnWidths, bodyFormats));
+            }
+
+            float totalHeight = headerHeight + rowHeights.Sum();
+            EnsureSpace(totalHeight + _spacingMedium);
+
+            DrawTableRow(headerTexts, columnWidths, headerHeight, _tableHeaderFont, headerFormats, header: true);
+            _y += headerHeight;
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                var values = new[] { rows[i].Caption, rows[i].Right, rows[i].Left };
+                DrawTableRow(values, columnWidths, rowHeights[i], _tableFont, bodyFormats, header: false);
+                _y += rowHeights[i];
+            }
+
+            _y += _spacingMedium;
+        }
+
+        private float MeasureTableRow(string[] texts, System.Drawing.Font font, float[] widths, StringFormat[] formats)
+        {
+            float max = 0f;
+            for (int i = 0; i < texts.Length; i++)
+            {
+                var width = Math.Max(10f, widths[i] - _tableCellPadding * 2);
+                var height = MeasureText(texts[i], font, width, formats[i]) + _tableCellPadding * 2;
+                max = Math.Max(max, height);
+            }
+
+            return max;
+        }
+
+        private void DrawTableRow(string[] texts, float[] widths, float height, System.Drawing.Font font, StringFormat[] formats, bool header)
+        {
+            if (_graphics == null)
+                return;
+
+            float x = _marginLeft;
+            for (int i = 0; i < texts.Length; i++)
+            {
+                var rect = new RectangleF(x, _y, widths[i], height);
+                if (header)
+                {
+                    _graphics.FillRectangle(_headerBackgroundBrush, rect);
+                }
+
+                _graphics.DrawRectangle(_tablePen, rect.X, rect.Y, rect.Width, rect.Height);
+
+                var textRect = new RectangleF(
+                    rect.X + _tableCellPadding,
+                    rect.Y + _tableCellPadding / 2f,
+                    rect.Width - _tableCellPadding * 2,
+                    rect.Height - _tableCellPadding);
+
+                var text = string.IsNullOrWhiteSpace(texts[i]) ? "—" : texts[i];
+                _graphics.DrawString(text, font, Brushes.Black, textRect, formats[i]);
+
+                x += widths[i];
+            }
+        }
+
+        private void DrawGraphSection(ErgTest test)
+        {
+            if (_graphics == null)
+                return;
+
+            var rightGraph = TryRenderGraphImage(test, test.RightEye);
+            var leftGraph = TryRenderGraphImage(test, test.LeftEye);
+            var styles = DescribeGraphStyles(test);
+
+            var infoLine = $"Правый глаз: {test.RightEye.GraphCount} граф., левый глаз: {test.LeftEye.GraphCount} граф.";
+            var styleText = styles.Length > 0
+                ? "Стили графиков: " + string.Join("; ", styles)
+                : null;
+
+            var previewRight = "Первые 10 точек (правый глаз, график 1): " + BuildGraphPreview(test.RightEye.Graphs, test.GraphNumPoints);
+            var previewLeft = "Первые 10 точек (левый глаз, график 1): " + BuildGraphPreview(test.LeftEye.Graphs, test.GraphNumPoints);
+
+            var graphWidth = (ContentWidth - _graphGap) / 2f;
+            float graphHeight = 0f;
+            if (rightGraph != null)
+            {
+                graphHeight = Math.Max(graphHeight, (float)rightGraph.Height / rightGraph.Width * graphWidth);
+            }
+            if (leftGraph != null)
+            {
+                graphHeight = Math.Max(graphHeight, (float)leftGraph.Height / leftGraph.Width * graphWidth);
+            }
+            if (graphHeight <= 0f)
+            {
+                graphHeight = graphWidth * 0.55f;
+            }
+
+            var titleHeight = MeasureText("Графические данные", _sectionFont, ContentWidth);
+            var infoHeight = MeasureText(infoLine, _textFont, ContentWidth);
+            var styleHeight = string.IsNullOrWhiteSpace(styleText) ? 0f : MeasureText(styleText!, _smallFont, ContentWidth);
+            var labelHeight = _graphLabelFont.GetHeight(_graphics);
+            var previewHeight1 = MeasureText(previewRight, _smallFont, ContentWidth);
+            var previewHeight2 = MeasureText(previewLeft, _smallFont, ContentWidth);
+
+            var blockHeight = titleHeight + infoHeight + styleHeight + graphHeight + labelHeight + previewHeight1 + previewHeight2
+                               + _spacingMedium + _spacingSmall * 5f;
+
+            EnsureSpace(blockHeight);
+
+            DrawParagraphNoEnsure("Графические данные", _sectionFont, Brushes.Black, 0, _spacingSmall);
+            DrawParagraphNoEnsure(infoLine, _textFont, Brushes.Black, 0, _spacingSmall / 2f);
+            if (!string.IsNullOrWhiteSpace(styleText))
+            {
+                DrawParagraphNoEnsure(styleText!, _smallFont, _mutedBrush, 0, _spacingSmall / 2f);
+            }
+
+            var rowTop = _y;
+            var rightRect = new RectangleF(_marginLeft, rowTop, graphWidth, graphHeight + labelHeight + _spacingSmall);
+            var leftRect = new RectangleF(_marginLeft + graphWidth + _graphGap, rowTop, graphWidth, graphHeight + labelHeight + _spacingSmall);
+
+            DrawGraphWithLabel(rightRect, "Правый глаз", rightGraph);
+            DrawGraphWithLabel(leftRect, "Левый глаз", leftGraph);
+
+            _y = rowTop + graphHeight + labelHeight + _spacingSmall;
+
+            DrawParagraphNoEnsure(previewRight, _smallFont, _mutedBrush, _spacingSmall / 2f, _spacingSmall / 2f);
+            DrawParagraphNoEnsure(previewLeft, _smallFont, _mutedBrush, 0, _spacingMedium);
+        }
+
+        private void DrawGraphWithLabel(RectangleF rect, string label, GraphImage? image)
+        {
+            if (_graphics == null)
+                return;
+
+            var labelHeight = _graphLabelFont.GetHeight(_graphics);
+            var labelRect = new RectangleF(rect.X, rect.Y, rect.Width, labelHeight);
+            _graphics.DrawString(label, _graphLabelFont, Brushes.Black, labelRect, _formatLeft);
+
+            var imageTop = labelRect.Bottom + _spacingSmall / 4f;
+            var imageHeight = rect.Height - (labelHeight + _spacingSmall / 4f);
+
+            if (image != null)
+            {
+                using var stream = new MemoryStream(image.Data);
+                using var bitmap = System.Drawing.Image.FromStream(stream);
+                _graphics.DrawImage(bitmap, rect.X, imageTop, rect.Width, imageHeight);
+            }
+            else
+            {
+                var placeholderRect = new RectangleF(rect.X, imageTop, rect.Width, imageHeight);
+                using var dashedPen = new Pen(System.Drawing.Color.FromArgb(200, 200, 200)) { DashPattern = new[] { 4f, 4f } };
+                _graphics.DrawRectangle(dashedPen, placeholderRect.X, placeholderRect.Y, placeholderRect.Width, placeholderRect.Height);
+                _graphics.DrawString("Нет данных", _italicSmallFont, _mutedBrush, placeholderRect, _formatCenter);
+            }
+        }
     }
 
     private sealed class TestComponent : IComponent
@@ -316,6 +856,8 @@ public static class ErgReportBuilder
     {
     }
 
+    private sealed record GraphRenderContext(double[][] Graphs, int Curves, int DeclaredPointCount, double XMin, double XMax, double YMin, double YMax);
+
     private static IEnumerable<TableRowData> GetEyeTableRows(ErgTest test)
     {
         yield return new TableRowData("FLAT", BoolText(test.RightEye.IsFlat), BoolText(test.LeftEye.IsFlat));
@@ -442,30 +984,58 @@ public static class ErgReportBuilder
         if (!RenderingSupport.GraphRenderingSupported)
             return null;
 
+        if (!TryPrepareGraphData(test, eye, out var context))
+            return null;
+
+        return RenderingSupport.UseLegacyGraphRendering
+            ? TryRenderGraphImageWithGdi(test, context)
+            : TryRenderGraphImageWithSkia(test, context);
+    }
+
+    private static bool TryPrepareGraphData(ErgTest test, EyeData eye, out GraphRenderContext context)
+    {
+        context = default!;
+
+        var graphs = eye.Graphs;
+        if (graphs == null || graphs.Length == 0)
+            return false;
+
+        int curves = Math.Clamp(eye.GraphCount, 0, graphs.Length);
+        if (curves <= 0)
+            return false;
+
+        bool hasSamples = false;
+        for (int i = 0; i < curves; i++)
+        {
+            var samples = graphs[i];
+            if (samples is { Length: > 1 })
+            {
+                hasSamples = true;
+                break;
+            }
+        }
+
+        if (!hasSamples)
+            return false;
+
+        double xMin = test.GraphXScaleMin;
+        double xMax = test.GraphXScaleMax;
+        if (xMax <= xMin)
+            xMax = xMin + 1;
+
+        double yMin = test.GraphYScaleMin;
+        double yMax = test.GraphYScaleMax;
+        if (yMax <= yMin)
+            yMax = yMin + 1;
+
+        context = new GraphRenderContext(graphs, curves, test.GraphNumPoints, xMin, xMax, yMin, yMax);
+        return true;
+    }
+
+    private static GraphImage? TryRenderGraphImageWithSkia(ErgTest test, GraphRenderContext context)
+    {
         try
         {
-            var graphs = eye.Graphs;
-            if (graphs == null || graphs.Length == 0)
-                return null;
-
-            int curves = Math.Clamp(eye.GraphCount, 0, graphs.Length);
-            if (curves <= 0)
-                return null;
-
-            bool hasSamples = false;
-            for (int i = 0; i < curves; i++)
-            {
-                var samples = graphs[i];
-                if (samples is { Length: > 1 })
-                {
-                    hasSamples = true;
-                    break;
-                }
-            }
-
-            if (!hasSamples)
-                return null;
-
             const int width = 900;
             const int height = 360;
             var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
@@ -486,15 +1056,10 @@ public static class ErgReportBuilder
 
             var chartRect = new SKRect(marginLeft, marginTop, width - marginRight, height - marginBottom);
 
-            double xMin = test.GraphXScaleMin;
-            double xMax = test.GraphXScaleMax;
-            if (xMax <= xMin)
-                xMax = xMin + 1;
-
-            double yMin = test.GraphYScaleMin;
-            double yMax = test.GraphYScaleMax;
-            if (yMax <= yMin)
-                yMax = yMin + 1;
+            double xMin = context.XMin;
+            double xMax = context.XMax;
+            double yMin = context.YMin;
+            double yMax = context.YMax;
 
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
@@ -561,13 +1126,15 @@ public static class ErgReportBuilder
                 canvas.DrawLine(flashX, chartRect.Top, flashX, chartRect.Bottom, flashPaint);
             }
 
-            for (int graphIndex = 0; graphIndex < curves; graphIndex++)
+            var graphStyles = test.GraphStyles ?? Array.Empty<GraphStyle>();
+
+            for (int graphIndex = 0; graphIndex < context.Curves; graphIndex++)
             {
-                var samples = graphs[graphIndex];
+                var samples = context.Graphs[graphIndex];
                 if (samples == null || samples.Length == 0)
                     continue;
 
-                int count = test.GraphNumPoints > 1 ? Math.Min(test.GraphNumPoints, samples.Length) : samples.Length;
+                int count = context.DeclaredPointCount > 1 ? Math.Min(context.DeclaredPointCount, samples.Length) : samples.Length;
                 if (count < 2)
                     continue;
 
@@ -597,7 +1164,7 @@ public static class ErgReportBuilder
                 if (!hasPoint)
                     continue;
 
-                var style = graphIndex < test.GraphStyles.Length ? test.GraphStyles[graphIndex] : null;
+                var style = graphIndex < graphStyles.Length ? graphStyles[graphIndex] : null;
                 var color = style != null ? new SKColor(style.Red, style.Green, style.Blue) : new SKColor(56, 109, 179);
 
                 using var linePaint = new SKPaint { Color = color, StrokeWidth = 2f, IsAntialias = true, Style = SKPaintStyle.Stroke };
@@ -613,7 +1180,6 @@ public static class ErgReportBuilder
             {
                 var metrics = labelPaint.FontMetrics;
                 float textHeight = metrics.Descent - metrics.Ascent;
-                float centerOffset = textHeight / 2f - metrics.Descent;
 
                 if (xStep > 0)
                 {
@@ -636,8 +1202,7 @@ public static class ErgReportBuilder
                         if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
                             continue;
                         var text = FormatAxisValue(y);
-                        var textWidth = labelPaint.MeasureText(text);
-                        canvas.DrawText(text, chartRect.Left - textWidth - 8, py + centerOffset, labelPaint);
+                        canvas.DrawText(text, chartRect.Left - 10 - labelPaint.MeasureText(text), py + textHeight / 3f, labelPaint);
                     }
                 }
             }
@@ -672,7 +1237,190 @@ public static class ErgReportBuilder
         }
     }
 
-    private static double DetermineAxisStep(double min, double max, int valueStep, int lineStep)
+    private static GraphImage? TryRenderGraphImageWithGdi(ErgTest test, GraphRenderContext context)
+    {
+        const int width = 900;
+        const int height = 360;
+
+        try
+        {
+            using var bitmap = new Bitmap(width, height);
+            bitmap.SetResolution(96, 96);
+            using var graphics = Graphics.FromImage(bitmap);
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+            graphics.Clear(System.Drawing.Color.White);
+
+            const float marginLeft = 80f;
+            const float marginRight = 30f;
+            const float marginTop = 20f;
+            const float marginBottom = 60f;
+
+            var chartRect = new RectangleF(marginLeft, marginTop, width - marginLeft - marginRight, height - marginTop - marginBottom);
+
+            double xMin = context.XMin;
+            double xMax = context.XMax;
+            double yMin = context.YMin;
+            double yMax = context.YMax;
+
+            float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
+            float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
+
+            using (var backgroundBrush = new SolidBrush(System.Drawing.Color.FromArgb(248, 248, 248)))
+            {
+                graphics.FillRectangle(backgroundBrush, chartRect);
+            }
+
+            var xStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
+            var yStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
+
+            using (var gridPen = new Pen(System.Drawing.Color.FromArgb(215, 215, 215), 1f) { DashPattern = new[] { 4f, 4f } })
+            {
+                if (xStep > 0)
+                {
+                    for (double x = Math.Ceiling(xMin / xStep) * xStep, count = 0; x <= xMax + 1e-6 && count < 512; x += xStep, count++)
+                    {
+                        var px = TransformX(x);
+                        if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                            continue;
+                        graphics.DrawLine(gridPen, px, chartRect.Top, px, chartRect.Bottom);
+                    }
+                }
+
+                if (yStep > 0)
+                {
+                    for (double y = Math.Ceiling(yMin / yStep) * yStep, count = 0; y <= yMax + 1e-6 && count < 512; y += yStep, count++)
+                    {
+                        var py = TransformY(y);
+                        if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                            continue;
+                        graphics.DrawLine(gridPen, chartRect.Left, py, chartRect.Right, py);
+                    }
+                }
+            }
+
+            using (var axisPen = new Pen(System.Drawing.Color.FromArgb(120, 120, 120), 1.5f))
+            {
+                graphics.DrawLine(axisPen, chartRect.Left, chartRect.Bottom, chartRect.Right, chartRect.Bottom);
+                graphics.DrawLine(axisPen, chartRect.Left, chartRect.Top, chartRect.Left, chartRect.Bottom);
+            }
+
+            using (var dashedPen = new Pen(System.Drawing.Color.FromArgb(180, 180, 180), 1f) { DashPattern = new[] { 6f, 6f } })
+            {
+                if (yMin < 0 && yMax > 0)
+                {
+                    var zeroY = TransformY(0);
+                    graphics.DrawLine(dashedPen, chartRect.Left, zeroY, chartRect.Right, zeroY);
+                }
+
+                if (xMin < 0 && xMax > 0)
+                {
+                    var zeroX = TransformX(0);
+                    graphics.DrawLine(dashedPen, zeroX, chartRect.Top, zeroX, chartRect.Bottom);
+                }
+            }
+
+            if (test.GraphFlashPosition >= xMin && test.GraphFlashPosition <= xMax)
+            {
+                using var flashPen = new Pen(System.Drawing.Color.FromArgb(220, 0, 0), 1.5f) { DashPattern = new[] { 6f, 6f } };
+                var flashX = TransformX(test.GraphFlashPosition);
+                graphics.DrawLine(flashPen, flashX, chartRect.Top, flashX, chartRect.Bottom);
+            }
+
+            var graphStyles = test.GraphStyles ?? Array.Empty<GraphStyle>();
+
+            for (int graphIndex = 0; graphIndex < context.Curves; graphIndex++)
+            {
+                var samples = context.Graphs[graphIndex];
+                if (samples == null || samples.Length == 0)
+                    continue;
+
+                int count = context.DeclaredPointCount > 1 ? Math.Min(context.DeclaredPointCount, samples.Length) : samples.Length;
+                if (count < 2)
+                    continue;
+
+                var points = new List<PointF>(count);
+                for (int point = 0; point < count; point++)
+                {
+                    double xValue = count == 1 ? xMin : xMin + (xMax - xMin) * point / (count - 1);
+                    double yValue = samples[point];
+
+                    var px = TransformX(xValue);
+                    var py = TransformY(yValue);
+                    if (float.IsNaN(px) || float.IsNaN(py) || float.IsInfinity(px) || float.IsInfinity(py))
+                        continue;
+
+                    points.Add(new PointF(px, py));
+                }
+
+                if (points.Count < 2)
+                    continue;
+
+                var style = graphIndex < graphStyles.Length ? graphStyles[graphIndex] : null;
+                var color = style != null ? System.Drawing.Color.FromArgb(style.Red, style.Green, style.Blue) : System.Drawing.Color.FromArgb(56, 109, 179);
+
+                using var pen = new Pen(color, 2f) { LineJoin = LineJoin.Round };
+                if (style?.Dotted == true)
+                {
+                    pen.DashPattern = new[] { 6f, 4f };
+                }
+
+                graphics.DrawLines(pen, points.ToArray());
+            }
+
+            using var tickFont = new System.Drawing.Font("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
+
+            if (xStep > 0)
+            {
+                for (double x = Math.Ceiling(xMin / xStep) * xStep, count = 0; x <= xMax + 1e-6 && count < 512; x += xStep, count++)
+                {
+                    var px = TransformX(x);
+                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                        continue;
+                    var text = FormatAxisValue(x);
+                    var size = graphics.MeasureString(text, tickFont);
+                    graphics.DrawString(text, tickFont, Brushes.Black, px - size.Width / 2f, chartRect.Bottom + size.Height / 4f);
+                }
+            }
+
+            using var tickFormatLeft = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
+
+            if (yStep > 0)
+            {
+                for (double y = Math.Ceiling(yMin / yStep) * yStep, count = 0; y <= yMax + 1e-6 && count < 512; y += yStep, count++)
+                {
+                    var py = TransformY(y);
+                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                        continue;
+                    var rect = new RectangleF(chartRect.Left - 12f, py - tickFont.GetHeight(graphics) / 2f, 40f, tickFont.GetHeight(graphics));
+                    graphics.DrawString(FormatAxisValue(y), tickFont, Brushes.Black, rect, tickFormatLeft);
+                }
+            }
+
+            using var axisTitleFont = new System.Drawing.Font("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
+            var xLabelSize = graphics.MeasureString("Время, мс", axisTitleFont);
+            graphics.DrawString("Время, мс", axisTitleFont, Brushes.Black, chartRect.Left + (chartRect.Width - xLabelSize.Width) / 2f, height - xLabelSize.Height - 6f);
+
+            graphics.TranslateTransform(20f, chartRect.Top + chartRect.Height / 2f);
+            graphics.RotateTransform(-90f);
+            var yLabelSize = graphics.MeasureString("Амплитуда, мкВ", axisTitleFont);
+            graphics.DrawString("Амплитуда, мкВ", axisTitleFont, Brushes.Black, -yLabelSize.Width / 2f, -yLabelSize.Height / 2f);
+            graphics.ResetTransform();
+
+            using var ms = new MemoryStream();
+            bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+            return new GraphImage(ms.ToArray(), width, height);
+        }
+        catch (Exception ex) when (ex is ExternalException or ArgumentException or PlatformNotSupportedException)
+        {
+            RenderingSupport.DisableGraphRendering($"Построение графиков отключено: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static double DetermineAxisStep
+(double min, double max, int valueStep, int lineStep)
     {
         var range = max - min;
         if (range <= 0)
