@@ -323,7 +323,7 @@ public static class ErgReportBuilder
         yield return new TableRowData("Маркер a", FormatMarker(test.RightEye.AWaveMarker), FormatMarker(test.LeftEye.AWaveMarker));
         yield return new TableRowData("Маркер b", FormatMarker(test.RightEye.BWaveMarker), FormatMarker(test.LeftEye.BWaveMarker));
 
-        var maxValues = Math.Max(test.RightEye.ValueCount, test.LeftEye.ValueCount);
+        var maxValues = Math.Max(DetermineValueCount(test.RightEye), DetermineValueCount(test.LeftEye));
         for (int i = 0; i < maxValues; i++)
         {
             var right = FormatMeasurement(test.RightEye, i);
@@ -337,55 +337,73 @@ public static class ErgReportBuilder
 
     private static string BoolText(bool value) => value ? "Да" : "Нет";
 
-    private static string Quality(byte quality)
+    private static int DetermineValueCount(EyeData eye)
     {
-        quality = (byte)Math.Clamp(quality, (byte)0, (byte)3);
-        return new string('★', quality) + new string('☆', 3 - quality);
+        if (eye.ValueCount.HasValue)
+            return eye.ValueCount.Value;
+
+        int count = 0;
+        count = Math.Max(count, eye.AWaveMs?.Length ?? 0);
+        count = Math.Max(count, eye.AWaveMkV?.Length ?? 0);
+        count = Math.Max(count, eye.BWaveMs?.Length ?? 0);
+        count = Math.Max(count, eye.BWaveMkV?.Length ?? 0);
+        return count;
     }
 
-    private static string FormatMarker(byte marker) => marker == 255 ? "—" : $"{marker} мс";
+    private static string Quality(byte? quality)
+    {
+        if (!quality.HasValue)
+            return "—";
+
+        int value = Math.Clamp(quality.Value, 0, 3);
+        return new string('★', value) + new string('☆', 3 - value);
+    }
+
+    private static string FormatMarker(byte? marker)
+        => marker.HasValue ? $"{marker} мс" : "—";
 
     private static string? FormatMeasurement(EyeData eye, int index)
     {
-        if (index >= eye.ValueCount)
+        int valueCount = eye.ValueCount ?? DetermineValueCount(eye);
+        if (index >= valueCount)
             return null;
 
-        if (index >= eye.AWaveMs.Length || index >= eye.AWaveMkV.Length || index >= eye.BWaveMs.Length || index >= eye.BWaveMkV.Length)
-            return null;
+        var aMsArray = eye.AWaveMs ?? Array.Empty<ushort?>();
+        var aMkVArray = eye.AWaveMkV ?? Array.Empty<uint?>();
+        var bMsArray = eye.BWaveMs ?? Array.Empty<ushort?>();
+        var bMkVArray = eye.BWaveMkV ?? Array.Empty<uint?>();
 
-        var aMs = eye.AWaveMs[index];
-        var aMkV = eye.AWaveMkV[index];
-        var bMs = eye.BWaveMs[index];
-        var bMkV = eye.BWaveMkV[index];
+        var aMs = index < aMsArray.Length ? aMsArray[index] : null;
+        var aMkV = index < aMkVArray.Length ? aMkVArray[index] : null;
+        var bMs = index < bMsArray.Length ? bMsArray[index] : null;
+        var bMkV = index < bMkVArray.Length ? bMkVArray[index] : null;
 
-        bool hasA = aMs != 255 || (aMkV != 65535 && aMkV != uint.MaxValue);
-        bool hasB = bMs != 255 || (bMkV != 65535 && bMkV != uint.MaxValue);
+        bool hasA = aMs.HasValue || aMkV.HasValue;
+        bool hasB = bMs.HasValue || bMkV.HasValue;
 
         if (!hasA && !hasB)
             return null;
 
-        static string FormatMs(byte value) => value == 255 ? "—" : $"{value} мс";
-        static string FormatMkV(uint value) => (value == 65535 || value == uint.MaxValue) ? "—" : $"{value} мкВ";
+        static string FormatMs(ushort? value) => value.HasValue ? $"{value} мс" : "—";
+        static string FormatMkV(uint? value) => value.HasValue ? $"{value} мкВ" : "—";
 
         return $"a: {FormatMs(aMs)}, {FormatMkV(aMkV)}\n" +
                $"b: {FormatMs(bMs)}, {FormatMkV(bMkV)}";
     }
 
-    private static string FormatRange(byte min, byte max)
+    private static string FormatRange(byte? min, byte? max)
     {
-        if (min == 255 && max == 255) return "—";
-        if (min == 255) return $"≤ {max}";
-        if (max == 255) return $"≥ {min}";
+        if (!min.HasValue && !max.HasValue) return "—";
+        if (!min.HasValue) return $"≤ {max}";
+        if (!max.HasValue) return $"≥ {min}";
         return $"{min}…{max}";
     }
 
-    private static string FormatRange(uint min, uint max)
+    private static string FormatRange(uint? min, uint? max)
     {
-        bool minMissing = min == 65535 || min == uint.MaxValue;
-        bool maxMissing = max == 65535 || max == uint.MaxValue;
-        if (minMissing && maxMissing) return "—";
-        if (minMissing) return $"≤ {max}";
-        if (maxMissing) return $"≥ {min}";
+        if (!min.HasValue && !max.HasValue) return "—";
+        if (!min.HasValue) return $"≤ {max}";
+        if (!max.HasValue) return $"≥ {min}";
         return $"{min}…{max}";
     }
 
@@ -395,13 +413,13 @@ public static class ErgReportBuilder
             .Select(s => $"{s.Index + 1}: RGB({s.Red},{s.Green},{s.Blue}){(s.Dotted ? ", пунктир" : string.Empty)}")
             .ToArray() ?? Array.Empty<string>();
 
-    private static string BuildGraphPreview(int[][] graphs, int declaredPoints)
+    private static string BuildGraphPreview(double[][]? graphs, int declaredPoints)
     {
         if (graphs == null || graphs.Length == 0 || graphs[0] == null)
             return "нет данных";
 
         var samples = graphs[0];
-        if (samples.Length == 0)
+        if (samples == null || samples.Length == 0)
             return "нет данных";
 
         var count = declaredPoints <= 0 ? samples.Length : Math.Min(samples.Length, declaredPoints);
@@ -409,22 +427,23 @@ public static class ErgReportBuilder
         if (count <= 0)
             return "нет данных";
 
-        return string.Join(", ", samples.Take(count));
+        return string.Join(", ", samples.Take(count).Select(v => v.ToString("0.###", CultureInfo.InvariantCulture)));
     }
 
     private static GraphImage? TryRenderGraphImage(ErgTest test, EyeData eye)
     {
-        if (eye.Graphs == null || eye.Graphs.Length == 0)
+        var graphs = eye.Graphs;
+        if (graphs == null || graphs.Length == 0)
             return null;
 
-        int curves = Math.Clamp(eye.GraphCount, 0, eye.Graphs.Length);
+        int curves = Math.Clamp(eye.GraphCount, 0, graphs.Length);
         if (curves <= 0)
             return null;
 
         bool hasSamples = false;
         for (int i = 0; i < curves; i++)
         {
-            var samples = eye.Graphs[i];
+            var samples = graphs[i];
             if (samples is { Length: > 1 })
             {
                 hasSamples = true;
@@ -526,7 +545,7 @@ public static class ErgReportBuilder
 
         for (int graphIndex = 0; graphIndex < curves; graphIndex++)
         {
-            var samples = eye.Graphs[graphIndex];
+            var samples = graphs[graphIndex];
             if (samples == null || samples.Length == 0)
                 continue;
 
