@@ -154,11 +154,18 @@ public static class ErgDataParser
         var graphFlashPosition = reader.ReadByte();
         var graphXValueStep = reader.ReadByte();
         var graphXLineStep = reader.ReadByte();
+
+        reader.Align(4);
         var graphXScaleMin = reader.ReadInt32LittleEndian();
+        reader.Align(4);
         var graphXScaleMax = reader.ReadInt32LittleEndian();
+
         var graphYValueStep = reader.ReadByte();
         var graphYLineStep = reader.ReadByte();
+
+        reader.Align(4);
         var graphYScaleMin = reader.ReadInt32LittleEndian();
+        reader.Align(4);
         var graphYScaleMax = reader.ReadInt32LittleEndian();
 
         var styles = new GraphStyle[6];
@@ -183,14 +190,24 @@ public static class ErgDataParser
         var aWaveExists = reader.ReadByte() != 0;
         var aMsNormalMin = reader.ReadByte();
         var aMsNormalMax = reader.ReadByte();
+
+        reader.Align(4);
         var aMkVNormalMin = reader.ReadUInt32LittleEndian();
+        reader.Align(4);
         var aMkVNormalMax = reader.ReadUInt32LittleEndian();
+
         var bMsNormalMin = reader.ReadByte();
         var bMsNormalMax = reader.ReadByte();
+
+        reader.Align(4);
         var bMkVNormalMin = reader.ReadUInt32LittleEndian();
+        reader.Align(4);
         var bMkVNormalMax = reader.ReadUInt32LittleEndian();
+
         var rezerv1 = reader.ReadByte();
         var rezerv2 = reader.ReadByte();
+
+        reader.Align(4);
         var rezerv3 = reader.ReadInt32LittleEndian();
 
         var rightEye = ReadEye(ref reader);
@@ -235,14 +252,23 @@ public static class ErgDataParser
         var quality = reader.ReadByte();
         var valueCount = reader.ReadByte();
         var aMs = reader.ReadBytes(6).ToArray();
+
+        reader.Align(4);
         var aMkV = new uint[6];
-        for (int i = 0; i < aMkV.Length; i++) aMkV[i] = reader.ReadUInt32LittleEndian();
+        for (int i = 0; i < aMkV.Length; i++)
+            aMkV[i] = reader.ReadUInt32LittleEndian();
+
         var bMs = reader.ReadBytes(6).ToArray();
+
+        reader.Align(4);
         var bMkV = new uint[6];
-        for (int i = 0; i < bMkV.Length; i++) bMkV[i] = reader.ReadUInt32LittleEndian();
+        for (int i = 0; i < bMkV.Length; i++)
+            bMkV[i] = reader.ReadUInt32LittleEndian();
         var aMarker = reader.ReadByte();
         var bMarker = reader.ReadByte();
         var graphCount = reader.ReadByte();
+
+        reader.Align(4);
 
         var graphs = new int[6][];
         for (int curve = 0; curve < graphs.Length; curve++)
@@ -256,6 +282,7 @@ public static class ErgDataParser
 
         var rezerv1 = reader.ReadByte();
         var rezerv2 = reader.ReadByte();
+        reader.Align(4);
         var rezerv3 = reader.ReadInt32LittleEndian();
 
         return new EyeData
@@ -326,6 +353,19 @@ public static class ErgDataParser
             var slice = _span.Slice(_offset, count);
             _offset += count;
             return slice;
+        }
+
+        public void Align(int alignment)
+        {
+            if (alignment <= 0)
+                throw new InvalidDataException("Invalid alignment");
+
+            var misalignment = _offset % alignment;
+            if (misalignment == 0)
+                return;
+
+            var skip = alignment - misalignment;
+            Skip(skip);
         }
 
         public byte ReadByte()

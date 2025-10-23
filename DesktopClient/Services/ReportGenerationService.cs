@@ -197,32 +197,22 @@ public sealed class ReportGenerationService : IDisposable
                     _log.Debug($"Структурированные данные пациента #{index} сохранены: {jsonPath}");
 
                     var pdfPath = Path.Combine(sessionDir, $"patient_{index:000}.pdf");
-                    ErgReportBuilder.BuildPatientReport(patient, pdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath);
-                    _log.Info($"PDF-отчет для пациента #{index} создан: {pdfPath}");
-
                     var docxPath = Path.Combine(sessionDir, $"patient_{index:000}.docx");
-                    try
+
+                    bool pdfCreated = TryBuildPdf(portName, patient, finalRawPath, pdfPath, index);
+                    bool docxCreated = TryBuildDocx(portName, patient, finalRawPath, docxPath, index);
+
+                    if (pdfCreated)
                     {
-                        ErgReportBuilder.BuildPatientWordReport(patient, docxPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath);
-                        _log.Info($"Word-отчет для пациента #{index} создан: {docxPath}");
-                    }
-                    catch
-                    {
-                        try
-                        {
-                            if (File.Exists(pdfPath))
-                                File.Delete(pdfPath);
-                        }
-                        catch (Exception cleanupEx)
-                        {
-                            _log.Warn($"[{pdfPath}] не удалось удалить PDF после ошибки Word: {cleanupEx.Message}");
-                        }
-                        throw;
+                        ReportGenerated?.Invoke(this, pdfPath);
+                        generatedReports.Add(pdfPath);
                     }
 
-                    ReportGenerated?.Invoke(this, pdfPath);
-                    ReportGenerated?.Invoke(this, docxPath);
-                    generatedReports.Add(pdfPath);
+                    if (docxCreated)
+                    {
+                        ReportGenerated?.Invoke(this, docxPath);
+                    }
+
                     processedPatients++;
                     _telegram?.NotifyPatientProcessed(index, patient, finalRawPath, jsonPath, pdfPath, docxPath);
                 }
@@ -384,6 +374,53 @@ public sealed class ReportGenerationService : IDisposable
         Directory.CreateDirectory(sessionDir);
         _log.Info($"Отчеты будут сохранены в каталоге {sessionDir}.");
         return sessionDir;
+    }
+
+    private bool TryBuildPdf(string portName, ErgPatient patient, string rawPath, string pdfPath, int patientIndex)
+    {
+        try
+        {
+            ErgReportBuilder.BuildPatientReport(patient, pdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: rawPath);
+            _log.Info($"PDF-отчет для пациента #{patientIndex} создан: {pdfPath}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            patient.Warnings.Add($"Не удалось сформировать PDF-отчет: {ex.Message}");
+            _log.Error($"[{portName}] не удалось создать PDF-отчет для пациента #{patientIndex}: {ex.Message}");
+            SafeDeleteFile(portName, pdfPath, "PDF");
+            return false;
+        }
+    }
+
+    private bool TryBuildDocx(string portName, ErgPatient patient, string rawPath, string docxPath, int patientIndex)
+    {
+        try
+        {
+            ErgReportBuilder.BuildPatientWordReport(patient, docxPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: rawPath);
+            _log.Info($"Word-отчет для пациента #{patientIndex} создан: {docxPath}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            patient.Warnings.Add($"Не удалось сформировать Word-отчет: {ex.Message}");
+            _log.Error($"[{portName}] не удалось создать Word-отчет для пациента #{patientIndex}: {ex.Message}");
+            SafeDeleteFile(portName, docxPath, "Word");
+            return false;
+        }
+    }
+
+    private void SafeDeleteFile(string portName, string path, string artifact)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch (Exception cleanupEx)
+        {
+            _log.Warn($"[{portName}] не удалось удалить {artifact}-файл {path}: {cleanupEx.Message}");
+        }
     }
 
     private string SavePatientAttempt(string sessionDir, int patientIndex, int attempt, byte[] raw)

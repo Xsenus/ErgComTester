@@ -53,8 +53,21 @@ public sealed class ErgDataParserTests
         return frame;
     }
 
+    private static void Align(BinaryWriter writer, long basePosition, int alignment = 4)
+    {
+        var offset = writer.BaseStream.Position - basePosition;
+        var misalignment = offset % alignment;
+        if (misalignment == 0)
+            return;
+
+        var padding = alignment - misalignment;
+        for (int i = 0; i < padding; i++)
+            writer.Write((byte)0);
+    }
+
     private static void WriteTest(BinaryWriter writer)
     {
+        var basePosition = writer.BaseStream.Position;
         var enc = Encoding.GetEncoding(1251);
         WriteFixedString(writer, "DA 0.01", 100, enc);
         writer.Write((byte)128);
@@ -63,11 +76,15 @@ public sealed class ErgDataParserTests
         writer.Write((byte)12);
         writer.Write((byte)1);
         writer.Write((byte)5);
+        Align(writer, basePosition);
         writer.Write(-50);
+        Align(writer, basePosition);
         writer.Write(150);
         writer.Write((byte)2);
         writer.Write((byte)10);
+        Align(writer, basePosition);
         writer.Write(-100);
+        Align(writer, basePosition);
         writer.Write(180);
 
         var colors = new (byte R, byte G, byte B)[]
@@ -92,21 +109,26 @@ public sealed class ErgDataParserTests
         writer.Write((byte)1); // a wave exists
         writer.Write((byte)10);
         writer.Write((byte)20);
+        Align(writer, basePosition);
         writer.Write(50u);
+        Align(writer, basePosition);
         writer.Write(350u);
         writer.Write((byte)40);
         writer.Write((byte)80);
+        Align(writer, basePosition);
         writer.Write(20u);
+        Align(writer, basePosition);
         writer.Write(250u);
         writer.Write((byte)0);
         writer.Write((byte)0);
+        Align(writer, basePosition);
         writer.Write(0);
 
-        WriteEye(writer, flat: false);
-        WriteEye(writer, flat: true);
+        WriteEye(writer, basePosition, flat: false);
+        WriteEye(writer, basePosition, flat: true);
     }
 
-    private static void WriteEye(BinaryWriter writer, bool flat)
+    private static void WriteEye(BinaryWriter writer, long basePosition, bool flat)
     {
         writer.Write((byte)(flat ? 1 : 0));
         writer.Write((byte)(flat ? 1 : 3));
@@ -136,13 +158,17 @@ public sealed class ErgDataParserTests
         }
 
         writer.Write(aMs);
+        Align(writer, basePosition);
         foreach (var value in aMkV) writer.Write(value);
         writer.Write(bMs);
+        Align(writer, basePosition);
         foreach (var value in bMkV) writer.Write(value);
 
         writer.Write((byte)(flat ? 255 : 14));
         writer.Write((byte)(flat ? 255 : 56));
         writer.Write((byte)(flat ? 0 : 1));
+
+        Align(writer, basePosition);
 
         for (int graph = 0; graph < 6; graph++)
         {
@@ -155,6 +181,7 @@ public sealed class ErgDataParserTests
 
         writer.Write((byte)0);
         writer.Write((byte)0);
+        Align(writer, basePosition);
         writer.Write(0);
     }
 
