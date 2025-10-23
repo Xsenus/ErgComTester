@@ -63,12 +63,12 @@ public sealed class ErgDataParserTests
         writer.Write((byte)12);
         writer.Write((byte)1);
         writer.Write((byte)5);
-        writer.Write(-50);
-        writer.Write(150);
+        WriteInt16BigEndian(writer, -50);
+        WriteInt16BigEndian(writer, 150);
         writer.Write((byte)2);
         writer.Write((byte)10);
-        writer.Write(-100);
-        writer.Write(180);
+        WriteInt16BigEndian(writer, -100);
+        WriteInt16BigEndian(writer, 180);
 
         var colors = new (byte R, byte G, byte B)[]
         {
@@ -92,53 +92,82 @@ public sealed class ErgDataParserTests
         writer.Write((byte)1); // a wave exists
         writer.Write((byte)10);
         writer.Write((byte)20);
-        writer.Write(50u);
-        writer.Write(350u);
+        WriteUInt16BigEndian(writer, 50);
+        WriteUInt16BigEndian(writer, 350);
         writer.Write((byte)40);
         writer.Write((byte)80);
-        writer.Write(20u);
-        writer.Write(250u);
+        WriteUInt16BigEndian(writer, 20);
+        WriteUInt16BigEndian(writer, 250);
         writer.Write((byte)0);
         writer.Write((byte)0);
-        writer.Write(0);
+        WriteInt16BigEndian(writer, 0);
 
         WriteEye(writer, flat: false);
         WriteEye(writer, flat: true);
     }
 
+    private static void WriteInt16BigEndian(BinaryWriter writer, short value)
+    {
+        Span<byte> buffer = stackalloc byte[2];
+        BinaryPrimitives.WriteInt16BigEndian(buffer, value);
+        writer.Write(buffer);
+    }
+
+    private static void WriteUInt16BigEndian(BinaryWriter writer, ushort value)
+    {
+        Span<byte> buffer = stackalloc byte[2];
+        BinaryPrimitives.WriteUInt16BigEndian(buffer, value);
+        writer.Write(buffer);
+    }
+
     private static void WriteEye(BinaryWriter writer, bool flat)
     {
         writer.Write((byte)(flat ? 1 : 0));
-        writer.Write((byte)(flat ? 1 : 3));
-        writer.Write((byte)(flat ? 1 : 2));
+        writer.Write((byte)(flat ? 255 : 3));
+        writer.Write((byte)(flat ? 255 : 2));
 
-        var aMs = new byte[6];
-        var bMs = new byte[6];
-        var aMkV = new uint[6];
-        var bMkV = new uint[6];
+        var aMsBytes = new byte[6];
+        var bMsBytes = new byte[6];
+        var aMkV = new ushort[6];
+        var bMkV = new ushort[6];
 
         if (flat)
         {
+            for (int i = 0; i < 3; i++)
+            {
+                BinaryPrimitives.WriteUInt16BigEndian(aMsBytes.AsSpan(i * 2, 2), ushort.MaxValue);
+                BinaryPrimitives.WriteUInt16BigEndian(bMsBytes.AsSpan(i * 2, 2), ushort.MaxValue);
+            }
+
             for (int i = 0; i < 6; i++)
             {
-                aMs[i] = 255;
-                bMs[i] = 255;
-                aMkV[i] = 65535;
-                bMkV[i] = 65535;
+                aMkV[i] = ushort.MaxValue;
+                bMkV[i] = ushort.MaxValue;
             }
         }
         else
         {
-            aMs[0] = 15; aMs[1] = 16; for (int i = 2; i < 6; i++) aMs[i] = 255;
-            bMs[0] = 55; bMs[1] = 57; for (int i = 2; i < 6; i++) bMs[i] = 255;
-            aMkV[0] = 120; aMkV[1] = 110; for (int i = 2; i < 6; i++) aMkV[i] = 65535;
-            bMkV[0] = 200; bMkV[1] = 190; for (int i = 2; i < 6; i++) bMkV[i] = 65535;
+            BinaryPrimitives.WriteUInt16BigEndian(aMsBytes.AsSpan(0, 2), 15);
+            BinaryPrimitives.WriteUInt16BigEndian(aMsBytes.AsSpan(2, 2), 16);
+            BinaryPrimitives.WriteUInt16BigEndian(aMsBytes.AsSpan(4, 2), ushort.MaxValue);
+
+            BinaryPrimitives.WriteUInt16BigEndian(bMsBytes.AsSpan(0, 2), 55);
+            BinaryPrimitives.WriteUInt16BigEndian(bMsBytes.AsSpan(2, 2), 57);
+            BinaryPrimitives.WriteUInt16BigEndian(bMsBytes.AsSpan(4, 2), ushort.MaxValue);
+
+            aMkV[0] = 120;
+            aMkV[1] = 110;
+            for (int i = 2; i < 6; i++) aMkV[i] = ushort.MaxValue;
+
+            bMkV[0] = 200;
+            bMkV[1] = 190;
+            for (int i = 2; i < 6; i++) bMkV[i] = ushort.MaxValue;
         }
 
-        writer.Write(aMs);
-        foreach (var value in aMkV) writer.Write(value);
-        writer.Write(bMs);
-        foreach (var value in bMkV) writer.Write(value);
+        writer.Write(aMsBytes);
+        foreach (var value in aMkV) WriteUInt16BigEndian(writer, value);
+        writer.Write(bMsBytes);
+        foreach (var value in bMkV) WriteUInt16BigEndian(writer, value);
 
         writer.Write((byte)(flat ? 255 : 14));
         writer.Write((byte)(flat ? 255 : 56));
@@ -148,14 +177,14 @@ public sealed class ErgDataParserTests
         {
             for (int point = 0; point < 128; point++)
             {
-                int sample = flat ? 0 : (graph == 0 ? point - 64 : 0);
+                short sample = flat ? (short)0 : (short)(graph == 0 ? point - 64 : 0);
                 writer.Write(sample);
             }
         }
 
         writer.Write((byte)0);
         writer.Write((byte)0);
-        writer.Write(0);
+        WriteInt16BigEndian(writer, 0);
     }
 
     [Fact]
@@ -194,27 +223,48 @@ public sealed class ErgDataParserTests
         var test = patient.Tests.Single();
         Assert.Equal("DA 0.01", test.TestName);
         Assert.True(test.AWaveExists);
-        Assert.Equal((byte)10, test.AWaveMsNormalMin);
-        Assert.Equal((byte)20, test.AWaveMsNormalMax);
-        Assert.Equal((uint)50, test.AWaveMkVNormalMin);
-        Assert.Equal((uint)350, test.AWaveMkVNormalMax);
-        Assert.Equal((byte)40, test.BWaveMsNormalMin);
-        Assert.Equal((byte)80, test.BWaveMsNormalMax);
-        Assert.Equal((uint)20, test.BWaveMkVNormalMin);
-        Assert.Equal((uint)250, test.BWaveMkVNormalMax);
+        Assert.Equal<byte?>(10, test.AWaveMsNormalMin);
+        Assert.Equal<byte?>(20, test.AWaveMsNormalMax);
+        Assert.Equal<uint?>(50u, test.AWaveMkVNormalMin);
+        Assert.Equal<uint?>(350u, test.AWaveMkVNormalMax);
+        Assert.Equal<byte?>(40, test.BWaveMsNormalMin);
+        Assert.Equal<byte?>(80, test.BWaveMsNormalMax);
+        Assert.Equal<uint?>(20u, test.BWaveMkVNormalMin);
+        Assert.Equal<uint?>(250u, test.BWaveMkVNormalMax);
 
         Assert.False(test.RightEye.IsFlat);
         Assert.True(test.LeftEye.IsFlat);
-        Assert.Equal(2, test.RightEye.ValueCount);
-        Assert.Equal(1, test.LeftEye.ValueCount);
-        Assert.Equal((byte)14, test.RightEye.AWaveMarker);
-        Assert.Equal((byte)255, test.LeftEye.AWaveMarker);
-        Assert.Equal((byte)56, test.RightEye.BWaveMarker);
-        Assert.Equal((byte)255, test.LeftEye.BWaveMarker);
-        Assert.Equal(55, test.RightEye.BWaveMs[0]);
-        Assert.Equal((uint)200, test.RightEye.BWaveMkV[0]);
-        Assert.Equal(255, test.LeftEye.BWaveMs[0]);
-        Assert.Equal((uint)65535, test.LeftEye.BWaveMkV[0]);
+        Assert.Equal<byte?>(3, test.RightEye.QualityIndex);
+        Assert.Null(test.LeftEye.QualityIndex);
+        Assert.Equal<byte?>(2, test.RightEye.ValueCount);
+        Assert.Null(test.LeftEye.ValueCount);
+        Assert.Equal<byte?>(14, test.RightEye.AWaveMarker);
+        Assert.Null(test.LeftEye.AWaveMarker);
+        Assert.Equal<byte?>(56, test.RightEye.BWaveMarker);
+        Assert.Null(test.LeftEye.BWaveMarker);
+
+        Assert.NotNull(test.RightEye.AWaveMs);
+        Assert.Equal<ushort?>(15, test.RightEye.AWaveMs![0]);
+        Assert.Equal<ushort?>(16, test.RightEye.AWaveMs![1]);
+        Assert.Null(test.RightEye.AWaveMs![2]);
+        Assert.NotNull(test.RightEye.AWaveMkV);
+        Assert.Equal<uint?>(120u, test.RightEye.AWaveMkV![0]);
+        Assert.Equal<uint?>(110u, test.RightEye.AWaveMkV![1]);
+        Assert.Null(test.RightEye.AWaveMkV![2]);
+
+        Assert.NotNull(test.RightEye.BWaveMs);
+        Assert.Equal<ushort?>(55, test.RightEye.BWaveMs![0]);
+        Assert.Equal<ushort?>(57, test.RightEye.BWaveMs![1]);
+        Assert.Null(test.RightEye.BWaveMs![2]);
+        Assert.NotNull(test.RightEye.BWaveMkV);
+        Assert.Equal<uint?>(200u, test.RightEye.BWaveMkV![0]);
+        Assert.Equal<uint?>(190u, test.RightEye.BWaveMkV![1]);
+        Assert.Null(test.RightEye.BWaveMkV![2]);
+
+        Assert.NotNull(test.LeftEye.BWaveMs);
+        Assert.Null(test.LeftEye.BWaveMs![0]);
+        Assert.NotNull(test.LeftEye.BWaveMkV);
+        Assert.Null(test.LeftEye.BWaveMkV![0]);
 
         Assert.Equal(128, test.GraphNumPoints);
         Assert.Equal(5, test.GraphDt);
@@ -222,10 +272,15 @@ public sealed class ErgDataParserTests
         Assert.Equal(150, test.GraphXScaleMax);
         Assert.Equal(-100, test.GraphYScaleMin);
         Assert.Equal(180, test.GraphYScaleMax);
-        Assert.Equal(6, test.RightEye.Graphs.Length);
-        Assert.Equal(128, test.RightEye.Graphs[0].Length);
-        Assert.Equal(-64, test.RightEye.Graphs[0][0]);
-        Assert.Equal(63, test.RightEye.Graphs[0][127]);
+        Assert.Equal<byte>(1, test.RightEye.GraphCount);
+        Assert.NotNull(test.RightEye.Graphs);
+        Assert.Single(test.RightEye.Graphs!);
+        Assert.Equal(128, test.RightEye.Graphs![0].Length);
+        Assert.Equal(-32.0, test.RightEye.Graphs![0][0], 5);
+        Assert.Equal(31.5, test.RightEye.Graphs![0][127], 5);
+
+        Assert.Equal<byte>(0, test.LeftEye.GraphCount);
+        Assert.Null(test.LeftEye.Graphs);
     }
 
     private static void WriteFixedString(BinaryWriter writer, string value, int length, Encoding encoding)

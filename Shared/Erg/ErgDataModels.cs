@@ -46,22 +46,22 @@ public sealed class ErgTest
     public byte GraphFlashPosition { get; init; }
     public byte GraphXValueStep { get; init; }
     public byte GraphXLineStep { get; init; }
-    public int GraphXScaleMin { get; init; }
-    public int GraphXScaleMax { get; init; }
+    public short GraphXScaleMin { get; init; }
+    public short GraphXScaleMax { get; init; }
     public byte GraphYValueStep { get; init; }
     public byte GraphYLineStep { get; init; }
-    public int GraphYScaleMin { get; init; }
-    public int GraphYScaleMax { get; init; }
+    public short GraphYScaleMin { get; init; }
+    public short GraphYScaleMax { get; init; }
     public GraphStyle[] GraphStyles { get; init; } = Array.Empty<GraphStyle>();
     public bool AWaveExists { get; init; }
-    public byte AWaveMsNormalMin { get; init; }
-    public byte AWaveMsNormalMax { get; init; }
-    public uint AWaveMkVNormalMin { get; init; }
-    public uint AWaveMkVNormalMax { get; init; }
-    public byte BWaveMsNormalMin { get; init; }
-    public byte BWaveMsNormalMax { get; init; }
-    public uint BWaveMkVNormalMin { get; init; }
-    public uint BWaveMkVNormalMax { get; init; }
+    public byte? AWaveMsNormalMin { get; init; }
+    public byte? AWaveMsNormalMax { get; init; }
+    public uint? AWaveMkVNormalMin { get; init; }
+    public uint? AWaveMkVNormalMax { get; init; }
+    public byte? BWaveMsNormalMin { get; init; }
+    public byte? BWaveMsNormalMax { get; init; }
+    public uint? BWaveMkVNormalMin { get; init; }
+    public uint? BWaveMkVNormalMax { get; init; }
     public byte Rezerv1 { get; init; }
     public byte Rezerv2 { get; init; }
     public int Rezerv3 { get; init; }
@@ -81,16 +81,16 @@ public sealed record GraphStyle
 public sealed record EyeData
 {
     public bool IsFlat { get; init; }
-    public byte QualityIndex { get; init; }
-    public byte ValueCount { get; init; }
-    public byte[] AWaveMs { get; init; } = Array.Empty<byte>();
-    public uint[] AWaveMkV { get; init; } = Array.Empty<uint>();
-    public byte[] BWaveMs { get; init; } = Array.Empty<byte>();
-    public uint[] BWaveMkV { get; init; } = Array.Empty<uint>();
-    public byte AWaveMarker { get; init; }
-    public byte BWaveMarker { get; init; }
+    public byte? QualityIndex { get; init; }
+    public byte? ValueCount { get; init; }
+    public ushort?[]? AWaveMs { get; init; }
+    public uint?[]? AWaveMkV { get; init; }
+    public ushort?[]? BWaveMs { get; init; }
+    public uint?[]? BWaveMkV { get; init; }
+    public byte? AWaveMarker { get; init; }
+    public byte? BWaveMarker { get; init; }
     public byte GraphCount { get; init; }
-    public int[][] Graphs { get; init; } = Array.Empty<int[]>();
+    public double[][]? Graphs { get; init; }
     public byte Rezerv1 { get; init; }
     public byte Rezerv2 { get; init; }
     public int Rezerv3 { get; init; }

@@ -154,12 +154,12 @@ public static class ErgDataParser
         var graphFlashPosition = reader.ReadByte();
         var graphXValueStep = reader.ReadByte();
         var graphXLineStep = reader.ReadByte();
-        var graphXScaleMin = reader.ReadInt32LittleEndian();
-        var graphXScaleMax = reader.ReadInt32LittleEndian();
+        var graphXScaleMin = reader.ReadInt16BigEndian();
+        var graphXScaleMax = reader.ReadInt16BigEndian();
         var graphYValueStep = reader.ReadByte();
         var graphYLineStep = reader.ReadByte();
-        var graphYScaleMin = reader.ReadInt32LittleEndian();
-        var graphYScaleMax = reader.ReadInt32LittleEndian();
+        var graphYScaleMin = reader.ReadInt16BigEndian();
+        var graphYScaleMax = reader.ReadInt16BigEndian();
 
         var styles = new GraphStyle[6];
         for (int i = 0; i < styles.Length; i++)
@@ -181,20 +181,20 @@ public static class ErgDataParser
         }
 
         var aWaveExists = reader.ReadByte() != 0;
-        var aMsNormalMin = reader.ReadByte();
-        var aMsNormalMax = reader.ReadByte();
-        var aMkVNormalMin = reader.ReadUInt32LittleEndian();
-        var aMkVNormalMax = reader.ReadUInt32LittleEndian();
-        var bMsNormalMin = reader.ReadByte();
-        var bMsNormalMax = reader.ReadByte();
-        var bMkVNormalMin = reader.ReadUInt32LittleEndian();
-        var bMkVNormalMax = reader.ReadUInt32LittleEndian();
+        var aMsNormalMinRaw = reader.ReadByte();
+        var aMsNormalMaxRaw = reader.ReadByte();
+        var aMkVNormalMinRaw = reader.ReadUInt16BigEndian();
+        var aMkVNormalMaxRaw = reader.ReadUInt16BigEndian();
+        var bMsNormalMinRaw = reader.ReadByte();
+        var bMsNormalMaxRaw = reader.ReadByte();
+        var bMkVNormalMinRaw = reader.ReadUInt16BigEndian();
+        var bMkVNormalMaxRaw = reader.ReadUInt16BigEndian();
         var rezerv1 = reader.ReadByte();
         var rezerv2 = reader.ReadByte();
-        var rezerv3 = reader.ReadInt32LittleEndian();
+        var rezerv3 = reader.ReadInt16BigEndian();
 
-        var rightEye = ReadEye(ref reader);
-        var leftEye = ReadEye(ref reader);
+        var rightEye = ReadEye(ref reader, graphNumPoints, graphDiscr, aWaveExists);
+        var leftEye = ReadEye(ref reader, graphNumPoints, graphDiscr, aWaveExists);
 
         return new ErgTest
         {
@@ -213,14 +213,14 @@ public static class ErgDataParser
             GraphYScaleMax = graphYScaleMax,
             GraphStyles = styles,
             AWaveExists = aWaveExists,
-            AWaveMsNormalMin = aMsNormalMin,
-            AWaveMsNormalMax = aMsNormalMax,
-            AWaveMkVNormalMin = aMkVNormalMin,
-            AWaveMkVNormalMax = aMkVNormalMax,
-            BWaveMsNormalMin = bMsNormalMin,
-            BWaveMsNormalMax = bMsNormalMax,
-            BWaveMkVNormalMin = bMkVNormalMin,
-            BWaveMkVNormalMax = bMkVNormalMax,
+            AWaveMsNormalMin = aWaveExists ? NormalizeByte(aMsNormalMinRaw) : null,
+            AWaveMsNormalMax = aWaveExists ? NormalizeByte(aMsNormalMaxRaw) : null,
+            AWaveMkVNormalMin = aWaveExists ? NormalizeAmplitude(aMkVNormalMinRaw) : null,
+            AWaveMkVNormalMax = aWaveExists ? NormalizeAmplitude(aMkVNormalMaxRaw) : null,
+            BWaveMsNormalMin = NormalizeByte(bMsNormalMinRaw),
+            BWaveMsNormalMax = NormalizeByte(bMsNormalMaxRaw),
+            BWaveMkVNormalMin = NormalizeAmplitude(bMkVNormalMinRaw),
+            BWaveMkVNormalMax = NormalizeAmplitude(bMkVNormalMaxRaw),
             Rezerv1 = rezerv1,
             Rezerv2 = rezerv2,
             Rezerv3 = rezerv3,
@@ -229,52 +229,125 @@ public static class ErgDataParser
         };
     }
 
-    private static EyeData ReadEye(ref SpanReader reader)
+    private static EyeData ReadEye(ref SpanReader reader, int graphNumPoints, byte graphDiscrPerMkV, bool aWaveExists)
     {
         var isFlat = reader.ReadByte() != 0;
-        var quality = reader.ReadByte();
-        var valueCount = reader.ReadByte();
-        var aMs = reader.ReadBytes(6).ToArray();
-        var aMkV = new uint[6];
-        for (int i = 0; i < aMkV.Length; i++) aMkV[i] = reader.ReadUInt32LittleEndian();
-        var bMs = reader.ReadBytes(6).ToArray();
-        var bMkV = new uint[6];
-        for (int i = 0; i < bMkV.Length; i++) bMkV[i] = reader.ReadUInt32LittleEndian();
-        var aMarker = reader.ReadByte();
-        var bMarker = reader.ReadByte();
-        var graphCount = reader.ReadByte();
+        var qualityRaw = reader.ReadByte();
+        var valueCountRaw = reader.ReadByte();
 
-        var graphs = new int[6][];
-        for (int curve = 0; curve < graphs.Length; curve++)
-        {
-            graphs[curve] = new int[128];
-            for (int point = 0; point < graphs[curve].Length; point++)
-            {
-                graphs[curve][point] = reader.ReadInt32LittleEndian();
-            }
-        }
+        var aMsBytes = reader.ReadBytes(6);
+        var aMkV = new uint?[6];
+        for (int i = 0; i < aMkV.Length; i++)
+            aMkV[i] = NormalizeAmplitude(reader.ReadUInt16BigEndian());
+
+        var bMsBytes = reader.ReadBytes(6);
+        var bMkV = new uint?[6];
+        for (int i = 0; i < bMkV.Length; i++)
+            bMkV[i] = NormalizeAmplitude(reader.ReadUInt16BigEndian());
+
+        var aMarkerRaw = reader.ReadByte();
+        var bMarkerRaw = reader.ReadByte();
+        var graphCountRaw = reader.ReadByte();
+
+        var allGraphs = ReadGraphs(ref reader, graphNumPoints, graphDiscrPerMkV);
 
         var rezerv1 = reader.ReadByte();
         var rezerv2 = reader.ReadByte();
-        var rezerv3 = reader.ReadInt32LittleEndian();
+        var rezerv3 = reader.ReadInt16BigEndian();
+
+        var graphCount = ClampGraphCount(graphCountRaw, graphNumPoints);
+        var graphs = graphCount == 0 ? null : allGraphs[..graphCount];
 
         return new EyeData
         {
             IsFlat = isFlat,
-            QualityIndex = quality,
-            ValueCount = valueCount,
-            AWaveMs = aMs,
-            AWaveMkV = aMkV,
-            BWaveMs = bMs,
+            QualityIndex = NormalizeByte(qualityRaw),
+            ValueCount = NormalizeByte(valueCountRaw),
+            AWaveMs = aWaveExists ? ParseMarkers(aMsBytes) : null,
+            AWaveMkV = aWaveExists ? aMkV : null,
+            BWaveMs = ParseMarkers(bMsBytes),
             BWaveMkV = bMkV,
-            AWaveMarker = aMarker,
-            BWaveMarker = bMarker,
+            AWaveMarker = NormalizeByte(aMarkerRaw),
+            BWaveMarker = NormalizeByte(bMarkerRaw),
             GraphCount = graphCount,
             Graphs = graphs,
             Rezerv1 = rezerv1,
             Rezerv2 = rezerv2,
             Rezerv3 = rezerv3
         };
+    }
+
+    private static ushort?[] ParseMarkers(ReadOnlySpan<byte> data)
+    {
+        const int markerCount = 3;
+        var result = new ushort?[markerCount];
+        for (int i = 0; i < markerCount; i++)
+        {
+            int offset = i * 2;
+            if (offset + 1 >= data.Length)
+            {
+                result[i] = null;
+                continue;
+            }
+
+            ushort raw = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(offset, 2));
+            result[i] = raw == ushort.MaxValue ? null : raw;
+        }
+
+        return result;
+    }
+
+    private static double[][] ReadGraphs(ref SpanReader reader, int graphNumPoints, byte graphDiscrPerMkV)
+    {
+        const int graphSlots = 6;
+        const int graphCapacity = 128;
+        var divisor = graphDiscrPerMkV == 0 ? 1.0 : graphDiscrPerMkV;
+        var result = new double[graphSlots][];
+        int samplesToExpose = Math.Clamp(graphNumPoints, 0, graphCapacity);
+
+        for (int graph = 0; graph < graphSlots; graph++)
+        {
+            var rawSamples = new short[graphCapacity];
+            for (int point = 0; point < graphCapacity; point++)
+            {
+                rawSamples[point] = reader.ReadInt16LittleEndian();
+            }
+
+            if (samplesToExpose <= 0)
+            {
+                result[graph] = Array.Empty<double>();
+                continue;
+            }
+
+            var converted = new double[samplesToExpose];
+            for (int point = 0; point < samplesToExpose; point++)
+            {
+                converted[point] = rawSamples[point] / divisor;
+            }
+
+            result[graph] = converted;
+        }
+
+        return result;
+    }
+
+    private static byte ClampGraphCount(byte raw, int graphNumPoints)
+    {
+        if (graphNumPoints <= 0)
+            return 0;
+        if (raw == byte.MaxValue)
+            return 0;
+        return Math.Clamp(raw, (byte)0, (byte)6);
+    }
+
+    private static byte? NormalizeByte(byte value)
+        => value == byte.MaxValue ? null : value;
+
+    private static uint? NormalizeAmplitude(ushort value)
+    {
+        if (value == ushort.MaxValue)
+            return null;
+        return value;
     }
 
     private static string ReadZString(ref SpanReader reader, int maxBytes, Encoding encoding)
@@ -333,6 +406,15 @@ public static class ErgDataParser
 
         public ushort ReadUInt16LittleEndian()
             => BinaryPrimitives.ReadUInt16LittleEndian(ReadBytes(2));
+
+        public ushort ReadUInt16BigEndian()
+            => BinaryPrimitives.ReadUInt16BigEndian(ReadBytes(2));
+
+        public short ReadInt16BigEndian()
+            => BinaryPrimitives.ReadInt16BigEndian(ReadBytes(2));
+
+        public short ReadInt16LittleEndian()
+            => BinaryPrimitives.ReadInt16LittleEndian(ReadBytes(2));
 
         public int ReadInt32LittleEndian()
             => BinaryPrimitives.ReadInt32LittleEndian(ReadBytes(4));
