@@ -92,15 +92,15 @@ public sealed class ErgDataParserTests
         writer.Write((byte)1); // a wave exists
         writer.Write((byte)10);
         writer.Write((byte)20);
-        writer.Write(50u);
-        writer.Write(350u);
+        WriteUInt16BigEndian(writer, 50);
+        WriteUInt16BigEndian(writer, 350);
         writer.Write((byte)40);
         writer.Write((byte)80);
-        writer.Write(20u);
-        writer.Write(250u);
+        WriteUInt16BigEndian(writer, 20);
+        WriteUInt16BigEndian(writer, 250);
         writer.Write((byte)0);
         writer.Write((byte)0);
-        writer.Write(0);
+        WriteInt16BigEndian(writer, 0);
 
         WriteEye(writer, flat: false);
         WriteEye(writer, flat: true);
@@ -113,6 +113,13 @@ public sealed class ErgDataParserTests
         writer.Write(buffer);
     }
 
+    private static void WriteUInt16BigEndian(BinaryWriter writer, ushort value)
+    {
+        Span<byte> buffer = stackalloc byte[2];
+        BinaryPrimitives.WriteUInt16BigEndian(buffer, value);
+        writer.Write(buffer);
+    }
+
     private static void WriteEye(BinaryWriter writer, bool flat)
     {
         writer.Write((byte)(flat ? 1 : 0));
@@ -121,46 +128,46 @@ public sealed class ErgDataParserTests
 
         var aMsBytes = new byte[6];
         var bMsBytes = new byte[6];
-        var aMkV = new uint[6];
-        var bMkV = new uint[6];
+        var aMkV = new ushort[6];
+        var bMkV = new ushort[6];
 
         if (flat)
         {
             for (int i = 0; i < 3; i++)
             {
-                BinaryPrimitives.WriteUInt16LittleEndian(aMsBytes.AsSpan(i * 2, 2), ushort.MaxValue);
-                BinaryPrimitives.WriteUInt16LittleEndian(bMsBytes.AsSpan(i * 2, 2), ushort.MaxValue);
+                BinaryPrimitives.WriteUInt16BigEndian(aMsBytes.AsSpan(i * 2, 2), ushort.MaxValue);
+                BinaryPrimitives.WriteUInt16BigEndian(bMsBytes.AsSpan(i * 2, 2), ushort.MaxValue);
             }
 
             for (int i = 0; i < 6; i++)
             {
-                aMkV[i] = uint.MaxValue;
-                bMkV[i] = uint.MaxValue;
+                aMkV[i] = ushort.MaxValue;
+                bMkV[i] = ushort.MaxValue;
             }
         }
         else
         {
-            BinaryPrimitives.WriteUInt16LittleEndian(aMsBytes.AsSpan(0, 2), 15);
-            BinaryPrimitives.WriteUInt16LittleEndian(aMsBytes.AsSpan(2, 2), 16);
-            BinaryPrimitives.WriteUInt16LittleEndian(aMsBytes.AsSpan(4, 2), ushort.MaxValue);
+            BinaryPrimitives.WriteUInt16BigEndian(aMsBytes.AsSpan(0, 2), 15);
+            BinaryPrimitives.WriteUInt16BigEndian(aMsBytes.AsSpan(2, 2), 16);
+            BinaryPrimitives.WriteUInt16BigEndian(aMsBytes.AsSpan(4, 2), ushort.MaxValue);
 
-            BinaryPrimitives.WriteUInt16LittleEndian(bMsBytes.AsSpan(0, 2), 55);
-            BinaryPrimitives.WriteUInt16LittleEndian(bMsBytes.AsSpan(2, 2), 57);
-            BinaryPrimitives.WriteUInt16LittleEndian(bMsBytes.AsSpan(4, 2), ushort.MaxValue);
+            BinaryPrimitives.WriteUInt16BigEndian(bMsBytes.AsSpan(0, 2), 55);
+            BinaryPrimitives.WriteUInt16BigEndian(bMsBytes.AsSpan(2, 2), 57);
+            BinaryPrimitives.WriteUInt16BigEndian(bMsBytes.AsSpan(4, 2), ushort.MaxValue);
 
             aMkV[0] = 120;
             aMkV[1] = 110;
-            for (int i = 2; i < 6; i++) aMkV[i] = 0x0000FFFF;
+            for (int i = 2; i < 6; i++) aMkV[i] = ushort.MaxValue;
 
             bMkV[0] = 200;
             bMkV[1] = 190;
-            for (int i = 2; i < 6; i++) bMkV[i] = uint.MaxValue;
+            for (int i = 2; i < 6; i++) bMkV[i] = ushort.MaxValue;
         }
 
         writer.Write(aMsBytes);
-        foreach (var value in aMkV) writer.Write(value);
+        foreach (var value in aMkV) WriteUInt16BigEndian(writer, value);
         writer.Write(bMsBytes);
-        foreach (var value in bMkV) writer.Write(value);
+        foreach (var value in bMkV) WriteUInt16BigEndian(writer, value);
 
         writer.Write((byte)(flat ? 255 : 14));
         writer.Write((byte)(flat ? 255 : 56));
@@ -177,7 +184,7 @@ public sealed class ErgDataParserTests
 
         writer.Write((byte)0);
         writer.Write((byte)0);
-        writer.Write(0);
+        WriteInt16BigEndian(writer, 0);
     }
 
     [Fact]

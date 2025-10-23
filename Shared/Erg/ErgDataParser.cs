@@ -183,15 +183,15 @@ public static class ErgDataParser
         var aWaveExists = reader.ReadByte() != 0;
         var aMsNormalMinRaw = reader.ReadByte();
         var aMsNormalMaxRaw = reader.ReadByte();
-        var aMkVNormalMinRaw = reader.ReadUInt32LittleEndian();
-        var aMkVNormalMaxRaw = reader.ReadUInt32LittleEndian();
+        var aMkVNormalMinRaw = reader.ReadUInt16BigEndian();
+        var aMkVNormalMaxRaw = reader.ReadUInt16BigEndian();
         var bMsNormalMinRaw = reader.ReadByte();
         var bMsNormalMaxRaw = reader.ReadByte();
-        var bMkVNormalMinRaw = reader.ReadUInt32LittleEndian();
-        var bMkVNormalMaxRaw = reader.ReadUInt32LittleEndian();
+        var bMkVNormalMinRaw = reader.ReadUInt16BigEndian();
+        var bMkVNormalMaxRaw = reader.ReadUInt16BigEndian();
         var rezerv1 = reader.ReadByte();
         var rezerv2 = reader.ReadByte();
-        var rezerv3 = reader.ReadInt32LittleEndian();
+        var rezerv3 = reader.ReadInt16BigEndian();
 
         var rightEye = ReadEye(ref reader, graphNumPoints, graphDiscr, aWaveExists);
         var leftEye = ReadEye(ref reader, graphNumPoints, graphDiscr, aWaveExists);
@@ -238,12 +238,12 @@ public static class ErgDataParser
         var aMsBytes = reader.ReadBytes(6);
         var aMkV = new uint?[6];
         for (int i = 0; i < aMkV.Length; i++)
-            aMkV[i] = NormalizeAmplitude(reader.ReadUInt32LittleEndian());
+            aMkV[i] = NormalizeAmplitude(reader.ReadUInt16BigEndian());
 
         var bMsBytes = reader.ReadBytes(6);
         var bMkV = new uint?[6];
         for (int i = 0; i < bMkV.Length; i++)
-            bMkV[i] = NormalizeAmplitude(reader.ReadUInt32LittleEndian());
+            bMkV[i] = NormalizeAmplitude(reader.ReadUInt16BigEndian());
 
         var aMarkerRaw = reader.ReadByte();
         var bMarkerRaw = reader.ReadByte();
@@ -253,7 +253,7 @@ public static class ErgDataParser
 
         var rezerv1 = reader.ReadByte();
         var rezerv2 = reader.ReadByte();
-        var rezerv3 = reader.ReadInt32LittleEndian();
+        var rezerv3 = reader.ReadInt16BigEndian();
 
         var graphCount = ClampGraphCount(graphCountRaw, graphNumPoints);
         var graphs = graphCount == 0 ? null : allGraphs[..graphCount];
@@ -290,7 +290,7 @@ public static class ErgDataParser
                 continue;
             }
 
-            ushort raw = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(offset, 2));
+            ushort raw = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(offset, 2));
             result[i] = raw == ushort.MaxValue ? null : raw;
         }
 
@@ -343,9 +343,9 @@ public static class ErgDataParser
     private static byte? NormalizeByte(byte value)
         => value == byte.MaxValue ? null : value;
 
-    private static uint? NormalizeAmplitude(uint value)
+    private static uint? NormalizeAmplitude(ushort value)
     {
-        if (value == uint.MaxValue || value == 0x0000FFFF)
+        if (value == ushort.MaxValue)
             return null;
         return value;
     }
@@ -406,6 +406,9 @@ public static class ErgDataParser
 
         public ushort ReadUInt16LittleEndian()
             => BinaryPrimitives.ReadUInt16LittleEndian(ReadBytes(2));
+
+        public ushort ReadUInt16BigEndian()
+            => BinaryPrimitives.ReadUInt16BigEndian(ReadBytes(2));
 
         public short ReadInt16BigEndian()
             => BinaryPrimitives.ReadInt16BigEndian(ReadBytes(2));
