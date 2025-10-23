@@ -325,13 +325,27 @@ public sealed class TelegramNotificationService : IDisposable
         _settings.SettingsChanged -= OnSettingsChanged;
         _queue.Writer.TryComplete();
 
+        var completed = false;
         try
         {
-            _processorTask.Wait(TimeSpan.FromSeconds(15));
+            completed = _processorTask.Wait(TimeSpan.FromSeconds(15));
         }
-        catch (Exception)
+        catch (AggregateException)
         {
             _cts.Cancel();
+        }
+
+        if (!completed)
+        {
+            _cts.Cancel();
+            try
+            {
+                _processorTask.Wait(TimeSpan.FromSeconds(5));
+            }
+            catch (AggregateException)
+            {
+                // Игнорируем ошибки отмены фонового обработчика.
+            }
         }
 
         _httpClient.Dispose();
