@@ -439,220 +439,237 @@ public static class ErgReportBuilder
 
     private static GraphImage? TryRenderGraphImage(ErgTest test, EyeData eye)
     {
-        var graphs = eye.Graphs;
-        if (graphs == null || graphs.Length == 0)
+        if (!RenderingSupport.GraphRenderingSupported)
             return null;
 
-        int curves = Math.Clamp(eye.GraphCount, 0, graphs.Length);
-        if (curves <= 0)
-            return null;
-
-        bool hasSamples = false;
-        for (int i = 0; i < curves; i++)
+        try
         {
-            var samples = graphs[i];
-            if (samples is { Length: > 1 })
+            var graphs = eye.Graphs;
+            if (graphs == null || graphs.Length == 0)
+                return null;
+
+            int curves = Math.Clamp(eye.GraphCount, 0, graphs.Length);
+            if (curves <= 0)
+                return null;
+
+            bool hasSamples = false;
+            for (int i = 0; i < curves; i++)
             {
-                hasSamples = true;
-                break;
-            }
-        }
-
-        if (!hasSamples)
-            return null;
-
-        const int width = 900;
-        const int height = 360;
-        var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        using var surface = SKSurface.Create(info);
-        var canvas = surface.Canvas;
-        canvas.Clear(SKColors.White);
-
-        const float marginLeft = 80f;
-        const float marginRight = 30f;
-        const float marginTop = 20f;
-        const float marginBottom = 60f;
-
-        var chartRect = new SKRect(marginLeft, marginTop, width - marginRight, height - marginBottom);
-
-        double xMin = test.GraphXScaleMin;
-        double xMax = test.GraphXScaleMax;
-        if (xMax <= xMin)
-            xMax = xMin + 1;
-
-        double yMin = test.GraphYScaleMin;
-        double yMax = test.GraphYScaleMax;
-        if (yMax <= yMin)
-            yMax = yMin + 1;
-
-        float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
-        float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
-
-        using (var backgroundPaint = new SKPaint { Color = new SKColor(248, 248, 248), Style = SKPaintStyle.Fill })
-        {
-            canvas.DrawRect(chartRect, backgroundPaint);
-        }
-
-        var xStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
-        var yStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
-
-        using (var gridPaint = new SKPaint { Color = new SKColor(215, 215, 215), StrokeWidth = 1f, IsAntialias = true })
-        {
-            gridPaint.PathEffect = SKPathEffect.CreateDash(new[] { 4f, 4f }, 0);
-
-            if (xStep > 0)
-            {
-                for (double x = Math.Ceiling(xMin / xStep) * xStep, count = 0; x <= xMax + 1e-6 && count < 512; x += xStep, count++)
+                var samples = graphs[i];
+                if (samples is { Length: > 1 })
                 {
-                    var px = TransformX(x);
-                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
-                        continue;
-                    canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, gridPaint);
+                    hasSamples = true;
+                    break;
                 }
             }
 
-            if (yStep > 0)
+            if (!hasSamples)
+                return null;
+
+            const int width = 900;
+            const int height = 360;
+            var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using var surface = SKSurface.Create(info);
+            if (surface == null)
             {
-                for (double y = Math.Ceiling(yMin / yStep) * yStep, count = 0; y <= yMax + 1e-6 && count < 512; y += yStep, count++)
+                RenderingSupport.DisableGraphRendering("Не удалось инициализировать движок SkiaSharp для построения графиков.");
+                return null;
+            }
+
+            var canvas = surface.Canvas;
+            canvas.Clear(SKColors.White);
+
+            const float marginLeft = 80f;
+            const float marginRight = 30f;
+            const float marginTop = 20f;
+            const float marginBottom = 60f;
+
+            var chartRect = new SKRect(marginLeft, marginTop, width - marginRight, height - marginBottom);
+
+            double xMin = test.GraphXScaleMin;
+            double xMax = test.GraphXScaleMax;
+            if (xMax <= xMin)
+                xMax = xMin + 1;
+
+            double yMin = test.GraphYScaleMin;
+            double yMax = test.GraphYScaleMax;
+            if (yMax <= yMin)
+                yMax = yMin + 1;
+
+            float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
+            float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
+
+            using (var backgroundPaint = new SKPaint { Color = new SKColor(248, 248, 248), Style = SKPaintStyle.Fill })
+            {
+                canvas.DrawRect(chartRect, backgroundPaint);
+            }
+
+            var xStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
+            var yStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
+
+            using (var gridPaint = new SKPaint { Color = new SKColor(215, 215, 215), StrokeWidth = 1f, IsAntialias = true })
+            {
+                gridPaint.PathEffect = SKPathEffect.CreateDash(new[] { 4f, 4f }, 0);
+
+                if (xStep > 0)
                 {
-                    var py = TransformY(y);
-                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
-                        continue;
-                    canvas.DrawLine(chartRect.Left, py, chartRect.Right, py, gridPaint);
+                    for (double x = Math.Ceiling(xMin / xStep) * xStep, count = 0; x <= xMax + 1e-6 && count < 512; x += xStep, count++)
+                    {
+                        var px = TransformX(x);
+                        if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                            continue;
+                        canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, gridPaint);
+                    }
+                }
+
+                if (yStep > 0)
+                {
+                    for (double y = Math.Ceiling(yMin / yStep) * yStep, count = 0; y <= yMax + 1e-6 && count < 512; y += yStep, count++)
+                    {
+                        var py = TransformY(y);
+                        if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                            continue;
+                        canvas.DrawLine(chartRect.Left, py, chartRect.Right, py, gridPaint);
+                    }
                 }
             }
-        }
 
-        using (var axisPaint = new SKPaint { Color = new SKColor(120, 120, 120), StrokeWidth = 1.5f, IsAntialias = true })
-        {
-            canvas.DrawLine(chartRect.Left, chartRect.Bottom, chartRect.Right, chartRect.Bottom, axisPaint);
-            canvas.DrawLine(chartRect.Left, chartRect.Top, chartRect.Left, chartRect.Bottom, axisPaint);
-        }
-
-        if (yMin < 0 && yMax > 0)
-        {
-            using var zeroPaint = new SKPaint { Color = new SKColor(180, 180, 180), StrokeWidth = 1f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 6f }, 0) };
-            var zeroY = TransformY(0);
-            canvas.DrawLine(chartRect.Left, zeroY, chartRect.Right, zeroY, zeroPaint);
-        }
-
-        if (xMin < 0 && xMax > 0)
-        {
-            using var zeroPaint = new SKPaint { Color = new SKColor(180, 180, 180), StrokeWidth = 1f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 6f }, 0) };
-            var zeroX = TransformX(0);
-            canvas.DrawLine(zeroX, chartRect.Top, zeroX, chartRect.Bottom, zeroPaint);
-        }
-
-        if (test.GraphFlashPosition >= xMin && test.GraphFlashPosition <= xMax)
-        {
-            using var flashPaint = new SKPaint { Color = new SKColor(220, 0, 0), StrokeWidth = 1.5f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 6f }, 0) };
-            var flashX = TransformX(test.GraphFlashPosition);
-            canvas.DrawLine(flashX, chartRect.Top, flashX, chartRect.Bottom, flashPaint);
-        }
-
-        for (int graphIndex = 0; graphIndex < curves; graphIndex++)
-        {
-            var samples = graphs[graphIndex];
-            if (samples == null || samples.Length == 0)
-                continue;
-
-            int count = test.GraphNumPoints > 1 ? Math.Min(test.GraphNumPoints, samples.Length) : samples.Length;
-            if (count < 2)
-                continue;
-
-            using var path = new SKPath();
-            bool hasPoint = false;
-            for (int point = 0; point < count; point++)
+            using (var axisPaint = new SKPaint { Color = new SKColor(120, 120, 120), StrokeWidth = 1.5f, IsAntialias = true })
             {
-                double xValue = count == 1 ? xMin : xMin + (xMax - xMin) * point / (count - 1);
-                double yValue = samples[point];
+                canvas.DrawLine(chartRect.Left, chartRect.Bottom, chartRect.Right, chartRect.Bottom, axisPaint);
+                canvas.DrawLine(chartRect.Left, chartRect.Top, chartRect.Left, chartRect.Bottom, axisPaint);
+            }
 
-                var px = TransformX(xValue);
-                var py = TransformY(yValue);
-                if (double.IsNaN(px) || double.IsNaN(py) || double.IsInfinity(px) || double.IsInfinity(py))
+            if (yMin < 0 && yMax > 0)
+            {
+                using var zeroPaint = new SKPaint { Color = new SKColor(180, 180, 180), StrokeWidth = 1f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 6f }, 0) };
+                var zeroY = TransformY(0);
+                canvas.DrawLine(chartRect.Left, zeroY, chartRect.Right, zeroY, zeroPaint);
+            }
+
+            if (xMin < 0 && xMax > 0)
+            {
+                using var zeroPaint = new SKPaint { Color = new SKColor(180, 180, 180), StrokeWidth = 1f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 6f }, 0) };
+                var zeroX = TransformX(0);
+                canvas.DrawLine(zeroX, chartRect.Top, zeroX, chartRect.Bottom, zeroPaint);
+            }
+
+            if (test.GraphFlashPosition >= xMin && test.GraphFlashPosition <= xMax)
+            {
+                using var flashPaint = new SKPaint { Color = new SKColor(220, 0, 0), StrokeWidth = 1.5f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 6f }, 0) };
+                var flashX = TransformX(test.GraphFlashPosition);
+                canvas.DrawLine(flashX, chartRect.Top, flashX, chartRect.Bottom, flashPaint);
+            }
+
+            for (int graphIndex = 0; graphIndex < curves; graphIndex++)
+            {
+                var samples = graphs[graphIndex];
+                if (samples == null || samples.Length == 0)
                     continue;
 
+                int count = test.GraphNumPoints > 1 ? Math.Min(test.GraphNumPoints, samples.Length) : samples.Length;
+                if (count < 2)
+                    continue;
+
+                using var path = new SKPath();
+                bool hasPoint = false;
+                for (int point = 0; point < count; point++)
+                {
+                    double xValue = count == 1 ? xMin : xMin + (xMax - xMin) * point / (count - 1);
+                    double yValue = samples[point];
+
+                    var px = TransformX(xValue);
+                    var py = TransformY(yValue);
+                    if (double.IsNaN(px) || double.IsNaN(py) || double.IsInfinity(px) || double.IsInfinity(py))
+                        continue;
+
+                    if (!hasPoint)
+                    {
+                        path.MoveTo(px, py);
+                        hasPoint = true;
+                    }
+                    else
+                    {
+                        path.LineTo(px, py);
+                    }
+                }
+
                 if (!hasPoint)
+                    continue;
+
+                var style = graphIndex < test.GraphStyles.Length ? test.GraphStyles[graphIndex] : null;
+                var color = style != null ? new SKColor(style.Red, style.Green, style.Blue) : new SKColor(56, 109, 179);
+
+                using var linePaint = new SKPaint { Color = color, StrokeWidth = 2f, IsAntialias = true, Style = SKPaintStyle.Stroke };
+                if (style?.Dotted == true)
                 {
-                    path.MoveTo(px, py);
-                    hasPoint = true;
+                    linePaint.PathEffect = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0);
                 }
-                else
-                {
-                    path.LineTo(px, py);
-                }
+
+                canvas.DrawPath(path, linePaint);
             }
 
-            if (!hasPoint)
-                continue;
-
-            var style = graphIndex < test.GraphStyles.Length ? test.GraphStyles[graphIndex] : null;
-            var color = style != null ? new SKColor(style.Red, style.Green, style.Blue) : new SKColor(56, 109, 179);
-
-            using var linePaint = new SKPaint { Color = color, StrokeWidth = 2f, IsAntialias = true, Style = SKPaintStyle.Stroke };
-            if (style?.Dotted == true)
+            using (var labelPaint = new SKPaint { Color = SKColors.Black, TextSize = 16f, IsAntialias = true })
             {
-                linePaint.PathEffect = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0);
+                var metrics = labelPaint.FontMetrics;
+                float textHeight = metrics.Descent - metrics.Ascent;
+                float centerOffset = textHeight / 2f - metrics.Descent;
+
+                if (xStep > 0)
+                {
+                    for (double x = Math.Ceiling(xMin / xStep) * xStep, count = 0; x <= xMax + 1e-6 && count < 512; x += xStep, count++)
+                    {
+                        var px = TransformX(x);
+                        if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                            continue;
+                        var text = FormatAxisValue(x);
+                        var textWidth = labelPaint.MeasureText(text);
+                        canvas.DrawText(text, px - textWidth / 2f, chartRect.Bottom + textHeight, labelPaint);
+                    }
+                }
+
+                if (yStep > 0)
+                {
+                    for (double y = Math.Ceiling(yMin / yStep) * yStep, count = 0; y <= yMax + 1e-6 && count < 512; y += yStep, count++)
+                    {
+                        var py = TransformY(y);
+                        if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                            continue;
+                        var text = FormatAxisValue(y);
+                        var textWidth = labelPaint.MeasureText(text);
+                        canvas.DrawText(text, chartRect.Left - textWidth - 8, py + centerOffset, labelPaint);
+                    }
+                }
             }
 
-            canvas.DrawPath(path, linePaint);
-        }
+            using (var titlePaint = new SKPaint { Color = SKColors.Black, TextSize = 18f, IsAntialias = true })
+            {
+                var xLabel = "Время, мс";
+                var xWidth = titlePaint.MeasureText(xLabel);
+                var midX = (chartRect.Left + chartRect.Right) / 2f;
+                canvas.DrawText(xLabel, midX - xWidth / 2f, height - 12, titlePaint);
 
-        using (var labelPaint = new SKPaint { Color = SKColors.Black, TextSize = 16f, IsAntialias = true })
+                var yLabel = "Амплитуда, мкВ";
+                canvas.Save();
+                canvas.Translate(20, (chartRect.Top + chartRect.Bottom) / 2f);
+                canvas.RotateDegrees(-90);
+                var yWidth = titlePaint.MeasureText(yLabel);
+                canvas.DrawText(yLabel, -yWidth / 2f, 0, titlePaint);
+                canvas.Restore();
+            }
+
+            using var snapshot = surface.Snapshot();
+            using var data = snapshot.Encode(SKEncodedImageFormat.Png, 90);
+            if (data == null)
+                return null;
+
+            return new GraphImage(data.ToArray(), width, height);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or TypeInitializationException or NotSupportedException)
         {
-            var metrics = labelPaint.FontMetrics;
-            float textHeight = metrics.Descent - metrics.Ascent;
-            float centerOffset = textHeight / 2f - metrics.Descent;
-
-            if (xStep > 0)
-            {
-                for (double x = Math.Ceiling(xMin / xStep) * xStep, count = 0; x <= xMax + 1e-6 && count < 512; x += xStep, count++)
-                {
-                    var px = TransformX(x);
-                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
-                        continue;
-                    var text = FormatAxisValue(x);
-                    var textWidth = labelPaint.MeasureText(text);
-                    canvas.DrawText(text, px - textWidth / 2f, chartRect.Bottom + textHeight, labelPaint);
-                }
-            }
-
-            if (yStep > 0)
-            {
-                for (double y = Math.Ceiling(yMin / yStep) * yStep, count = 0; y <= yMax + 1e-6 && count < 512; y += yStep, count++)
-                {
-                    var py = TransformY(y);
-                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
-                        continue;
-                    var text = FormatAxisValue(y);
-                    var textWidth = labelPaint.MeasureText(text);
-                    canvas.DrawText(text, chartRect.Left - textWidth - 8, py + centerOffset, labelPaint);
-                }
-            }
-        }
-
-        using (var titlePaint = new SKPaint { Color = SKColors.Black, TextSize = 18f, IsAntialias = true })
-        {
-            var xLabel = "Время, мс";
-            var xWidth = titlePaint.MeasureText(xLabel);
-            var midX = (chartRect.Left + chartRect.Right) / 2f;
-            canvas.DrawText(xLabel, midX - xWidth / 2f, height - 12, titlePaint);
-
-            var yLabel = "Амплитуда, мкВ";
-            canvas.Save();
-            canvas.Translate(20, (chartRect.Top + chartRect.Bottom) / 2f);
-            canvas.RotateDegrees(-90);
-            var yWidth = titlePaint.MeasureText(yLabel);
-            canvas.DrawText(yLabel, -yWidth / 2f, 0, titlePaint);
-            canvas.Restore();
-        }
-
-        using var snapshot = surface.Snapshot();
-        using var data = snapshot.Encode(SKEncodedImageFormat.Png, 90);
-        if (data == null)
+            RenderingSupport.DisableGraphRendering($"Построение графиков отключено: {ex.Message}");
             return null;
-
-        return new GraphImage(data.ToArray(), width, height);
+        }
     }
 
     private static double DetermineAxisStep(double min, double max, int valueStep, int lineStep)
