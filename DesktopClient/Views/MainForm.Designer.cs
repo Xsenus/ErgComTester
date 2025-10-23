@@ -145,8 +145,7 @@ partial class MainForm
         // 
         mainLayout.ColumnCount = 1;
         mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        mainLayout.RowCount = 4;
-        mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        mainLayout.RowCount = 3;
         mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 26F));
@@ -154,9 +153,8 @@ partial class MainForm
         mainLayout.BackColor = Color.FromArgb(245, 248, 252);
         mainLayout.Padding = new Padding(20, 20, 20, 12);
         mainLayout.Controls.Add(CreateHeaderPanel(), 0, 0);
-        mainLayout.Controls.Add(CreateTopLayout(), 0, 1);
-        mainLayout.Controls.Add(CreateLogsGroup(), 0, 2);
-        mainLayout.Controls.Add(CreateStatusStrip(), 0, 3);
+        mainLayout.Controls.Add(CreateContentLayout(), 0, 1);
+        mainLayout.Controls.Add(CreateStatusStrip(), 0, 2);
         // 
         // MainForm
         // 
@@ -282,33 +280,53 @@ partial class MainForm
         label.BorderStyle = BorderStyle.None;
     }
 
-    private Control CreateTopLayout()
+    private Control CreateContentLayout()
     {
-        var topLayout = new TableLayoutPanel
+        var contentLayout = new TableLayoutPanel
         {
-            ColumnCount = 3,
+            ColumnCount = 2,
             Dock = DockStyle.Fill,
             Margin = new Padding(0, 0, 0, 16),
             BackColor = Color.Transparent,
             Padding = new Padding(0)
         };
-        topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));
-        topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));
-        topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));
-        topLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36F));
+        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 64F));
+        contentLayout.RowCount = 1;
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
         ConfigureConnectionGroup();
         ConfigureSettingsGroup();
         ConfigureUpdatesGroup();
 
-        connectionGroup.Margin = new Padding(0, 0, 16, 0);
-        settingsGroup.Margin = new Padding(0, 0, 16, 0);
+        connectionGroup.Margin = new Padding(0, 0, 0, 16);
+        settingsGroup.Margin = new Padding(0, 0, 0, 16);
         updatesGroup.Margin = new Padding(0);
 
-        topLayout.Controls.Add(connectionGroup, 0, 0);
-        topLayout.Controls.Add(settingsGroup, 1, 0);
-        topLayout.Controls.Add(updatesGroup, 2, 0);
-        return topLayout;
+        var leftColumnLayout = new TableLayoutPanel
+        {
+            ColumnCount = 1,
+            RowCount = 3,
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0, 0, 16, 0),
+            Padding = new Padding(0),
+            BackColor = Color.Transparent
+        };
+        leftColumnLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        leftColumnLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        leftColumnLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
+        leftColumnLayout.Controls.Add(connectionGroup, 0, 0);
+        leftColumnLayout.Controls.Add(settingsGroup, 0, 1);
+        leftColumnLayout.Controls.Add(updatesGroup, 0, 2);
+
+        contentLayout.Controls.Add(leftColumnLayout, 0, 0);
+
+        var logsPanel = CreateLogsGroup();
+        logsPanel.Margin = new Padding(0);
+        contentLayout.Controls.Add(logsPanel, 1, 0);
+
+        return contentLayout;
     }
 
     private void ConfigureConnectionGroup()
@@ -569,7 +587,7 @@ partial class MainForm
         logsGroup.Text = "Журнал";
         logsGroup.Dock = DockStyle.Fill;
         ApplyGroupBoxStyle(logsGroup);
-        logsGroup.Margin = new Padding(0, 0, 0, 16);
+        logsGroup.Margin = new Padding(0);
 
         logGridView.Dock = DockStyle.Fill;
         logGridView.ReadOnly = true;
