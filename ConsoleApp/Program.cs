@@ -124,6 +124,11 @@ internal class Program
         logger.Info($"Config     : baud={options.BaudRate}, retries={options.Retries}, quiet={options.QuietTimeMs}ms, readwin={options.MaxReadWindowMs}ms");
         logger.Info($"Lines      : DTR={(options.DtrEnable ? "on" : "off")}, RTS={(options.RtsEnable ? "on" : "off")}, toggleOnOpen={options.ToggleLinesOnOpen}");
         logger.Info($"Actions    : fetchPatients={!options.NoFetch}, rtcSync={options.Rtc}, zip={!options.NoZip}");
+
+        if (!string.IsNullOrWhiteSpace(RenderingSupport.LegacyRenderingNotice))
+        {
+            logger.Info(RenderingSupport.LegacyRenderingNotice);
+        }
     }
 
     static int RunAuto(CliOptions options, Logger logger)

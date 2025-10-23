@@ -38,6 +38,11 @@ public sealed class ReportGenerationService : IDisposable
         _telegram = telegram;
         _pdfGenerationEnabled = RenderingSupport.PdfSupported;
         _pdfGenerationIssue = RenderingSupport.PdfIssue;
+
+        if (!string.IsNullOrWhiteSpace(RenderingSupport.LegacyRenderingNotice))
+        {
+            _log.Info(RenderingSupport.LegacyRenderingNotice);
+        }
     }
 
     public void OnDeviceConnected(DeviceConnectionInfo info)

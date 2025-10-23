@@ -11,8 +11,10 @@ public static class RenderingSupport
 
         if (OperatingSystem.IsWindows() && !OperatingSystem.IsWindowsVersionAtLeast(6, 2))
         {
-            DisablePdf("Генерация PDF-отчетов недоступна на Windows 7. Требуется Windows 8 или новее.");
-            DisableGraphRendering("Построение графиков недоступно на Windows 7. Требуется Windows 8 или новее.");
+            UseLegacyPdfGeneration = true;
+            UseLegacyGraphRendering = true;
+            LegacyRenderingNotice =
+                "Обнаружена Windows 7. Включен совместимый режим построения графиков и генерации PDF-отчетов.";
         }
     }
 
@@ -23,6 +25,12 @@ public static class RenderingSupport
     public static bool GraphRenderingSupported { get; private set; }
 
     public static string? GraphIssue { get; private set; }
+
+    public static bool UseLegacyPdfGeneration { get; private set; }
+
+    public static bool UseLegacyGraphRendering { get; private set; }
+
+    public static string? LegacyRenderingNotice { get; private set; }
 
     public static void DisablePdf(string reason)
     {
