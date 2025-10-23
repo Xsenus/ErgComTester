@@ -293,8 +293,8 @@ partial class MainForm
             Padding = new Padding(0)
         };
         contentLayout.ColumnStyles.Clear();
-        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45F));
-        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55F));
+        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38F));
+        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62F));
         contentLayout.RowCount = 1;
         contentLayout.RowStyles.Clear();
         contentLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -307,7 +307,7 @@ partial class MainForm
             BackColor = Color.Transparent,
             AutoScroll = true,
             AutoScrollMargin = new Size(0, 16),
-            MinimumSize = new Size(360, 0)
+            MinimumSize = new Size(320, 0)
         };
 
         var detailsLayout = new TableLayoutPanel
@@ -436,12 +436,11 @@ partial class MainForm
         ApplyGroupBoxStyle(settingsGroup);
 
         settingsLayout.ColumnCount = 2;
-        settingsLayout.RowCount = 5;
+        settingsLayout.RowCount = 4;
         settingsLayout.ColumnStyles.Clear();
         settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         settingsLayout.RowStyles.Clear();
-        settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -496,21 +495,31 @@ partial class MainForm
         openReportsButton.Text = "Открыть каталог отчетов";
         StyleSecondaryButton(openReportsButton);
         openReportsButton.Click += OnOpenReportsClicked;
-        openReportsButton.Margin = new Padding(0, 14, 0, 0);
+        openReportsButton.Margin = new Padding(0, 0, 12, 0);
         convertBinButton.Text = "Конвертировать .bin в отчет";
         StylePrimaryButton(convertBinButton);
         convertBinButton.Click += OnConvertBinClicked;
-        convertBinButton.Margin = new Padding(0, 10, 0, 0);
+        convertBinButton.Margin = new Padding(0);
         settingsLayout.Controls.Add(scanIntervalLabel, 0, 0);
         settingsLayout.Controls.Add(scanIntervalTextBox, 1, 0);
         settingsLayout.Controls.Add(reconnectDelayLabel, 0, 1);
         settingsLayout.Controls.Add(reconnectDelayTextBox, 1, 1);
         settingsLayout.Controls.Add(backgroundSyncLabel, 0, 2);
         settingsLayout.Controls.Add(backgroundSyncTextBox, 1, 2);
-        settingsLayout.Controls.Add(openReportsButton, 0, 3);
-        settingsLayout.SetColumnSpan(openReportsButton, 2);
-        settingsLayout.Controls.Add(convertBinButton, 0, 4);
-        settingsLayout.SetColumnSpan(convertBinButton, 2);
+        var settingsButtonsPanel = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.LeftToRight,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.None,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left,
+            Margin = new Padding(0, 14, 0, 0),
+            WrapContents = false
+        };
+        settingsButtonsPanel.Controls.Add(openReportsButton);
+        settingsButtonsPanel.Controls.Add(convertBinButton);
+        settingsLayout.Controls.Add(settingsButtonsPanel, 0, 3);
+        settingsLayout.SetColumnSpan(settingsButtonsPanel, 2);
         settingsGroup.Controls.Add(settingsLayout);
     }
 
@@ -546,11 +555,16 @@ partial class MainForm
         updateStatusCaptionLabel.Text = "Статус обновлений:";
         StyleCaptionLabel(updateStatusCaptionLabel);
         updateStatusCaptionLabel.Margin = new Padding(0, 0, 16, 0);
-        updateStatusValueLabel.AutoSize = true;
+        updateStatusValueLabel.AutoSize = false;
         updateStatusValueLabel.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point);
         updateStatusValueLabel.ForeColor = Color.FromArgb(59, 179, 115);
-        updateStatusValueLabel.Margin = new Padding(0, 8, 0, 4);
+        updateStatusValueLabel.Margin = new Padding(0, 6, 0, 4);
         updateStatusValueLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        updateStatusValueLabel.Dock = DockStyle.Top;
+        updateStatusValueLabel.MinimumSize = new Size(0, 24);
+        updateStatusValueLabel.MaximumSize = new Size(0, 24);
+        updateStatusValueLabel.AutoEllipsis = true;
+        updateStatusValueLabel.TextAlign = ContentAlignment.MiddleLeft;
 
         checkUpdatesButton.Text = "Проверить";
         StyleSecondaryButton(checkUpdatesButton);
@@ -563,24 +577,21 @@ partial class MainForm
         updateIntervalLabel.Text = "Интервал проверки (мин):";
         StyleCaptionLabel(updateIntervalLabel);
         updateIntervalLabel.Margin = new Padding(0, 12, 16, 0);
-        updateIntervalTextBox.Width = 80;
         updateIntervalTextBox.BorderStyle = BorderStyle.FixedSingle;
         updateIntervalTextBox.Margin = new Padding(0, 4, 0, 0);
         updateIntervalTextBox.TextAlign = HorizontalAlignment.Center;
-        updateIntervalTextBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-        updateIntervalTextBox.MaximumSize = new Size(160, 0);
-        updateIntervalTextBox.MinimumSize = new Size(80, 0);
+        updateIntervalTextBox.Dock = DockStyle.Top;
+        updateIntervalTextBox.MinimumSize = new Size(180, 0);
         updateIntervalTextBox.Validating += OnNumericTextBoxValidating;
         updateIntervalTextBox.Validated += OnUpdateIntervalValidated;
 
         manifestUrlLabel.Text = "URL манифеста:";
         StyleCaptionLabel(manifestUrlLabel);
         manifestUrlLabel.Margin = new Padding(0, 12, 16, 0);
-        manifestUrlTextBox.Width = 260;
         manifestUrlTextBox.BorderStyle = BorderStyle.FixedSingle;
         manifestUrlTextBox.Margin = new Padding(0, 4, 0, 0);
-        manifestUrlTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-        manifestUrlTextBox.MinimumSize = new Size(120, 0);
+        manifestUrlTextBox.Dock = DockStyle.Top;
+        manifestUrlTextBox.MinimumSize = new Size(180, 0);
         manifestUrlTextBox.Validated += OnManifestUrlValidated;
 
         openLogsButton.Text = "Открыть каталог логов";
