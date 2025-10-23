@@ -293,8 +293,8 @@ partial class MainForm
             Padding = new Padding(0)
         };
         contentLayout.ColumnStyles.Clear();
-        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38F));
-        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62F));
+        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 44F));
+        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 56F));
         contentLayout.RowCount = 1;
         contentLayout.RowStyles.Clear();
         contentLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -304,10 +304,14 @@ partial class MainForm
             ColumnCount = 1,
             Dock = DockStyle.Fill,
             Margin = new Padding(0),
-            Padding = new Padding(0),
+            Padding = new Padding(0, 0, 12, 0),
             BackColor = Color.Transparent,
-            RowCount = 3
+            RowCount = 3,
+            AutoSize = false,
+            MinimumSize = new Size(420, 0)
         };
+        detailsLayout.ColumnStyles.Clear();
+        detailsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         detailsLayout.RowStyles.Clear();
         detailsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         detailsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -339,7 +343,7 @@ partial class MainForm
         connectionLayout.ColumnCount = 2;
         connectionLayout.RowCount = 7;
         connectionLayout.ColumnStyles.Clear();
-        connectionLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        connectionLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160F));
         connectionLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         connectionLayout.RowStyles.Clear();
         connectionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -350,10 +354,10 @@ partial class MainForm
         connectionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         connectionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         connectionLayout.Dock = DockStyle.Fill;
-        connectionLayout.AutoSize = true;
+        connectionLayout.AutoSize = false;
         connectionLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         connectionLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
-        connectionLayout.Padding = new Padding(0, 4, 0, 0);
+        connectionLayout.Padding = new Padding(0, 6, 0, 0);
         connectionLayout.Margin = new Padding(0);
         connectionLayout.BackColor = Color.White;
 
@@ -379,10 +383,14 @@ partial class MainForm
         StyleCaptionLabel(reportCaptionLabel);
         StyleValueLabel(reportValueLabel);
 
-        syncStatusLabel.AutoSize = true;
+        syncStatusLabel.AutoSize = false;
         syncStatusLabel.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
         syncStatusLabel.ForeColor = Color.FromArgb(54, 127, 151);
         syncStatusLabel.Margin = new Padding(0, 14, 0, 4);
+        syncStatusLabel.MinimumSize = new Size(0, 28);
+        syncStatusLabel.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        syncStatusLabel.AutoEllipsis = true;
+        syncStatusLabel.TextAlign = ContentAlignment.MiddleLeft;
 
         resetPortButton.Text = "Сбросить порт";
         StylePrimaryButton(resetPortButton);
@@ -415,7 +423,7 @@ partial class MainForm
         settingsLayout.ColumnCount = 2;
         settingsLayout.RowCount = 5;
         settingsLayout.ColumnStyles.Clear();
-        settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 210F));
         settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         settingsLayout.RowStyles.Clear();
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -424,9 +432,10 @@ partial class MainForm
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.Dock = DockStyle.Fill;
-        settingsLayout.Padding = new Padding(0, 4, 0, 0);
+        settingsLayout.Padding = new Padding(0, 6, 0, 0);
         settingsLayout.Margin = new Padding(0);
         settingsLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
+        settingsLayout.AutoSize = false;
         settingsLayout.BackColor = Color.White;
 
         scanIntervalLabel.Text = "Интервал поиска (с):";
@@ -498,7 +507,7 @@ partial class MainForm
         updatesLayout.ColumnCount = 2;
         updatesLayout.RowCount = 6;
         updatesLayout.ColumnStyles.Clear();
-        updatesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        updatesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 210F));
         updatesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         updatesLayout.RowStyles.Clear();
         updatesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -508,18 +517,23 @@ partial class MainForm
         updatesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         updatesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         updatesLayout.Dock = DockStyle.Fill;
-        updatesLayout.Padding = new Padding(0, 4, 0, 0);
+        updatesLayout.Padding = new Padding(0, 6, 0, 0);
         updatesLayout.Margin = new Padding(0);
         updatesLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
+        updatesLayout.AutoSize = false;
         updatesLayout.BackColor = Color.White;
 
         updateStatusCaptionLabel.Text = "Статус обновлений:";
         StyleCaptionLabel(updateStatusCaptionLabel);
         updateStatusCaptionLabel.Margin = new Padding(0, 0, 16, 0);
-        updateStatusValueLabel.AutoSize = true;
+        updateStatusValueLabel.AutoSize = false;
         updateStatusValueLabel.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point);
         updateStatusValueLabel.ForeColor = Color.FromArgb(59, 179, 115);
         updateStatusValueLabel.Margin = new Padding(0, 8, 0, 0);
+        updateStatusValueLabel.MinimumSize = new Size(0, 26);
+        updateStatusValueLabel.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        updateStatusValueLabel.AutoEllipsis = true;
+        updateStatusValueLabel.TextAlign = ContentAlignment.MiddleLeft;
 
         checkUpdatesButton.Text = "Проверить";
         StyleSecondaryButton(checkUpdatesButton);
@@ -548,7 +562,9 @@ partial class MainForm
         manifestUrlTextBox.Width = 260;
         manifestUrlTextBox.BorderStyle = BorderStyle.FixedSingle;
         manifestUrlTextBox.Margin = new Padding(0, 4, 0, 0);
-        manifestUrlTextBox.Dock = DockStyle.Fill;
+        manifestUrlTextBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        manifestUrlTextBox.MinimumSize = new Size(260, 0);
+        manifestUrlTextBox.MaximumSize = new Size(640, 0);
         manifestUrlTextBox.Validated += OnManifestUrlValidated;
 
         openLogsButton.Text = "Открыть каталог логов";
@@ -588,7 +604,7 @@ partial class MainForm
         logsGroup.Text = "Журнал";
         logsGroup.Dock = DockStyle.Fill;
         ApplyGroupBoxStyle(logsGroup);
-        logsGroup.Margin = new Padding(16, 0, 0, 0);
+        logsGroup.Margin = new Padding(12, 0, 0, 0);
 
         logGridView.Dock = DockStyle.Fill;
         logGridView.ReadOnly = true;
