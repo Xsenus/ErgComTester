@@ -337,7 +337,7 @@ public static class ErgDataParser
             return 0;
         if (raw == byte.MaxValue)
             return 0;
-        return (byte)Math.Clamp(raw, 0, 6);
+        return Math.Clamp(raw, (byte)0, (byte)6);
     }
 
     private static byte? NormalizeByte(byte value)

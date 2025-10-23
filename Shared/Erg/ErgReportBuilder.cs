@@ -355,7 +355,7 @@ public static class ErgReportBuilder
         if (!quality.HasValue)
             return "—";
 
-        int value = Math.Clamp(quality.Value, 0, 3);
+        int value = Math.Clamp((int)quality.Value, 0, 3);
         return new string('★', value) + new string('☆', 3 - value);
     }
 
