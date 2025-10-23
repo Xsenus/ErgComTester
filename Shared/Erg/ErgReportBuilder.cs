@@ -10,6 +10,9 @@ using QuestPDF.Drawing;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using QuestDocument = QuestPDF.Fluent.Document;
+using WordColor = DocumentFormat.OpenXml.Wordprocessing.Color;
+using WordDocument = DocumentFormat.OpenXml.Wordprocessing.Document;
 using SkiaSharp;
 using A = DocumentFormat.OpenXml.Drawing;
 using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
@@ -33,7 +36,7 @@ public static class ErgReportBuilder
             ? "Отчет по результатам ЭРГ-исследования сетчатки"
             : clinicName;
 
-        Document.Create(container =>
+        QuestDocument.Create(container =>
         {
             container.Page(page =>
             {
@@ -117,7 +120,7 @@ public static class ErgReportBuilder
 
         using var document = WordprocessingDocument.Create(docxPath, WordprocessingDocumentType.Document);
         var mainPart = document.AddMainDocumentPart();
-        mainPart.Document = new Document(new Body());
+        mainPart.Document = new WordDocument(new Body());
         var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
         body.Append(CreateParagraph(headerTitle, fontSizePt: 16, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(12)));
@@ -311,7 +314,8 @@ public static class ErgReportBuilder
 
     private sealed record GraphImage(byte[] Data, int Width, int Height)
     {
-        public ImageSource ToImageSource() => ImageSource.FromBinary(() => new MemoryStream(Data));
+        public QuestPDF.Infrastructure.ImageSource ToImageSource()
+            => QuestPDF.Helpers.ImageSource.FromBinary(() => new MemoryStream(Data));
     }
 
     private static IEnumerable<TableRowData> GetEyeTableRows(ErgTest test)
@@ -584,8 +588,8 @@ public static class ErgReportBuilder
                     if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
                         continue;
                     var text = FormatAxisValue(x);
-                    var width = labelPaint.MeasureText(text);
-                    canvas.DrawText(text, px - width / 2f, chartRect.Bottom + textHeight, labelPaint);
+                    var textWidth = labelPaint.MeasureText(text);
+                    canvas.DrawText(text, px - textWidth / 2f, chartRect.Bottom + textHeight, labelPaint);
                 }
             }
 
@@ -597,8 +601,8 @@ public static class ErgReportBuilder
                     if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
                         continue;
                     var text = FormatAxisValue(y);
-                    var width = labelPaint.MeasureText(text);
-                    canvas.DrawText(text, chartRect.Left - width - 8, py + centerOffset, labelPaint);
+                    var textWidth = labelPaint.MeasureText(text);
+                    canvas.DrawText(text, chartRect.Left - textWidth - 8, py + centerOffset, labelPaint);
                 }
             }
         }
@@ -938,7 +942,7 @@ public static class ErgReportBuilder
         if (italic)
             runProps.Append(new Italic());
         if (!string.IsNullOrEmpty(colorHex))
-            runProps.Append(new Color { Val = colorHex });
+            runProps.Append(new WordColor { Val = colorHex });
         runProps.Append(new FontSize { Val = ((int)Math.Round(fontSizePt * 2)).ToString(CultureInfo.InvariantCulture) });
         runProps.Append(new RunFonts { Ascii = "Calibri", HighAnsi = "Calibri", EastAsia = "Calibri", ComplexScript = "Calibri" });
         run.RunProperties = runProps;
