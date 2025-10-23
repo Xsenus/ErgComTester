@@ -5,6 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>ErgComTester</AssemblyName>
+    <AssemblyVersion>1.0.0.5</AssemblyVersion>
+    <FileVersion>1.0.0.5</FileVersion>
+    <ApplicationIcon Condition="Exists('..\DesktopClient\Resources\microlux-connect.ico')">..\DesktopClient\Resources\microlux-connect.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.IO.Ports" Version="9.0.9" />

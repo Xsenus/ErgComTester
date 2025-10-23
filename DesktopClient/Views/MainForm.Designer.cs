@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
+using MicroluxErgConnect.Branding;
 using MicroluxErgConnect.Models;
 
 namespace MicroluxErgConnect.Views;
@@ -9,6 +10,17 @@ partial class MainForm
 {
     private IContainer components = null!;
     private TableLayoutPanel mainLayout;
+    private Panel headerPanel;
+    private TableLayoutPanel headerLayout;
+    private PictureBox headerIconPictureBox;
+    private TableLayoutPanel headerTextLayout;
+    private Label headerTitleLabel;
+    private Label headerSubtitleLabel;
+    private FlowLayoutPanel headerBadgesPanel;
+    private Label headerStatusLabel;
+    private Label headerDeviceLabel;
+    private Label headerPortLabel;
+    private Label headerSyncLabel;
     private GroupBox connectionGroup;
     private TableLayoutPanel connectionLayout;
     private Label statusCaptionLabel;
@@ -59,6 +71,17 @@ partial class MainForm
     {
         components = new Container();
         mainLayout = new TableLayoutPanel();
+        headerPanel = new Panel();
+        headerLayout = new TableLayoutPanel();
+        headerIconPictureBox = new PictureBox();
+        headerTextLayout = new TableLayoutPanel();
+        headerTitleLabel = new Label();
+        headerSubtitleLabel = new Label();
+        headerBadgesPanel = new FlowLayoutPanel();
+        headerStatusLabel = new Label();
+        headerDeviceLabel = new Label();
+        headerPortLabel = new Label();
+        headerSyncLabel = new Label();
         connectionGroup = new GroupBox();
         connectionLayout = new TableLayoutPanel();
         statusCaptionLabel = new Label();
@@ -104,6 +127,7 @@ partial class MainForm
         trayMenu = new ContextMenuStrip(components);
         trayOpenMenuItem = new ToolStripMenuItem();
         trayExitMenuItem = new ToolStripMenuItem();
+        ((ISupportInitialize)headerIconPictureBox).BeginInit();
         mainLayout.SuspendLayout();
         connectionGroup.SuspendLayout();
         connectionLayout.SuspendLayout();
@@ -116,31 +140,37 @@ partial class MainForm
         mainStatusStrip.SuspendLayout();
         trayMenu.SuspendLayout();
         SuspendLayout();
-        // 
+        //
         // mainLayout
         // 
         mainLayout.ColumnCount = 1;
+        mainLayout.ColumnStyles.Clear();
         mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         mainLayout.RowCount = 3;
-        mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 220F));
+        mainLayout.RowStyles.Clear();
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 26F));
         mainLayout.Dock = DockStyle.Fill;
-        mainLayout.Padding = new Padding(8);
-        mainLayout.Controls.Add(CreateTopLayout(), 0, 0);
-        mainLayout.Controls.Add(CreateLogsGroup(), 0, 1);
+        mainLayout.BackColor = Color.FromArgb(245, 248, 252);
+        mainLayout.Padding = new Padding(20, 20, 20, 12);
+        mainLayout.Controls.Add(CreateHeaderPanel(), 0, 0);
+        mainLayout.Controls.Add(CreateContentLayout(), 0, 1);
         mainLayout.Controls.Add(CreateStatusStrip(), 0, 2);
         // 
         // MainForm
         // 
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
+        BackColor = Color.FromArgb(245, 248, 252);
+        Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
         ClientSize = new Size(1200, 720);
         Controls.Add(mainLayout);
-        MinimumSize = new Size(900, 600);
+        Icon = AppBranding.CreateWindowIcon();
+        MinimumSize = new Size(960, 620);
         Name = "MainForm";
         StartPosition = FormStartPosition.CenterScreen;
-        Text = "Микролюкс ERG-Connect";
+        Text = "Microlux ERG-Connect";
         FormClosing += OnFormClosing;
         Load += OnFormLoaded;
         Resize += OnFormResized;
@@ -160,42 +190,177 @@ partial class MainForm
         mainStatusStrip.ResumeLayout(false);
         mainStatusStrip.PerformLayout();
         trayMenu.ResumeLayout(false);
+        ((ISupportInitialize)headerIconPictureBox).EndInit();
         ConfigureTrayIcon();
         ResumeLayout(false);
     }
 
-    private Control CreateTopLayout()
+    private Control CreateHeaderPanel()
     {
-        var topLayout = new TableLayoutPanel
+        headerPanel.BackColor = Color.FromArgb(26, 38, 55);
+        headerPanel.Dock = DockStyle.Fill;
+        headerPanel.Padding = new Padding(24, 18, 24, 18);
+        headerPanel.Margin = new Padding(0, 0, 0, 16);
+
+        headerLayout.ColumnCount = 2;
+        headerLayout.ColumnStyles.Clear();
+        headerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        headerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        headerLayout.RowCount = 1;
+        headerLayout.RowStyles.Clear();
+        headerLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        headerLayout.Dock = DockStyle.Fill;
+        headerLayout.Margin = new Padding(0);
+
+        headerIconPictureBox.Size = new Size(88, 88);
+        headerIconPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+        headerIconPictureBox.Margin = new Padding(0, 0, 24, 0);
+        headerIconPictureBox.Image = AppBranding.GetHeaderImage();
+
+        headerTextLayout.ColumnCount = 1;
+        headerTextLayout.ColumnStyles.Clear();
+        headerTextLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        headerTextLayout.RowCount = 3;
+        headerTextLayout.RowStyles.Clear();
+        headerTextLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        headerTextLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        headerTextLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        headerTextLayout.Dock = DockStyle.Fill;
+        headerTextLayout.Margin = new Padding(0);
+
+        headerTitleLabel.AutoSize = true;
+        headerTitleLabel.Font = new Font("Segoe UI Semibold", 20F, FontStyle.Bold, GraphicsUnit.Point);
+        headerTitleLabel.ForeColor = Color.White;
+        headerTitleLabel.Text = "Microlux ERG-Connect";
+
+        headerSubtitleLabel.AutoSize = true;
+        headerSubtitleLabel.Font = new Font("Segoe UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
+        headerSubtitleLabel.ForeColor = Color.FromArgb(189, 206, 223);
+        headerSubtitleLabel.Margin = new Padding(0, 6, 0, 12);
+        headerSubtitleLabel.Text = "Мониторинг и синхронизация оборудования Microlux";
+
+        headerBadgesPanel.AutoSize = true;
+        headerBadgesPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        headerBadgesPanel.Dock = DockStyle.Fill;
+        headerBadgesPanel.FlowDirection = FlowDirection.LeftToRight;
+        headerBadgesPanel.Margin = new Padding(0, 10, 0, 0);
+        headerBadgesPanel.Padding = new Padding(0);
+        headerBadgesPanel.WrapContents = true;
+
+        ConfigureHeaderBadge(headerStatusLabel, "Статус: -");
+        ConfigureHeaderBadge(headerDeviceLabel, "Устройство: -");
+        ConfigureHeaderBadge(headerPortLabel, "Порт: -");
+        ConfigureHeaderBadge(headerSyncLabel, "Синхронизация: -");
+        headerDeviceLabel.BackColor = Color.FromArgb(60, 87, 119);
+        headerPortLabel.BackColor = Color.FromArgb(74, 102, 135);
+
+        headerBadgesPanel.Controls.Add(headerStatusLabel);
+        headerBadgesPanel.Controls.Add(headerDeviceLabel);
+        headerBadgesPanel.Controls.Add(headerPortLabel);
+        headerBadgesPanel.Controls.Add(headerSyncLabel);
+
+        headerTextLayout.Controls.Add(headerTitleLabel, 0, 0);
+        headerTextLayout.Controls.Add(headerSubtitleLabel, 0, 1);
+        headerTextLayout.Controls.Add(headerBadgesPanel, 0, 2);
+
+        headerLayout.Controls.Add(headerIconPictureBox, 0, 0);
+        headerLayout.Controls.Add(headerTextLayout, 1, 0);
+
+        headerPanel.Controls.Add(headerLayout);
+        return headerPanel;
+    }
+
+    private static void ConfigureHeaderBadge(Label label, string text)
+    {
+        label.AutoSize = true;
+        label.Text = text;
+        label.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point);
+        label.ForeColor = Color.White;
+        label.BackColor = Color.FromArgb(48, 149, 177);
+        label.Margin = new Padding(0, 0, 12, 8);
+        label.Padding = new Padding(12, 6, 12, 6);
+        label.BorderStyle = BorderStyle.None;
+    }
+
+    private Control CreateContentLayout()
+    {
+        var contentLayout = new TableLayoutPanel
         {
-            ColumnCount = 3,
+            ColumnCount = 2,
             Dock = DockStyle.Fill,
-            Margin = new Padding(0, 0, 0, 8)
+            Margin = new Padding(0, 0, 0, 16),
+            BackColor = Color.Transparent,
+            Padding = new Padding(0)
         };
-        topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));
-        topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));
-        topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));
+        contentLayout.ColumnStyles.Clear();
+        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45F));
+        contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55F));
+        contentLayout.RowCount = 1;
+        contentLayout.RowStyles.Clear();
+        contentLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
+        var detailsContainer = new Panel
+        {
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+            BackColor = Color.Transparent,
+            AutoScroll = true,
+            AutoScrollMargin = new Size(0, 16),
+            MinimumSize = new Size(360, 0)
+        };
+
+        var detailsLayout = new TableLayoutPanel
+        {
+            ColumnCount = 1,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Top,
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+            BackColor = Color.Transparent,
+            RowCount = 3
+        };
+        detailsLayout.RowStyles.Clear();
+        detailsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        detailsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        detailsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        detailsLayout.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
 
         ConfigureConnectionGroup();
         ConfigureSettingsGroup();
         ConfigureUpdatesGroup();
 
-        topLayout.Controls.Add(connectionGroup, 0, 0);
-        topLayout.Controls.Add(settingsGroup, 1, 0);
-        topLayout.Controls.Add(updatesGroup, 2, 0);
-        return topLayout;
+        connectionGroup.Margin = new Padding(0, 0, 0, 16);
+        settingsGroup.Margin = new Padding(0, 0, 0, 16);
+        updatesGroup.Margin = new Padding(0);
+
+        detailsLayout.Controls.Add(connectionGroup, 0, 0);
+        detailsLayout.Controls.Add(settingsGroup, 0, 1);
+        detailsLayout.Controls.Add(updatesGroup, 0, 2);
+
+        detailsContainer.Controls.Add(detailsLayout);
+
+        contentLayout.Controls.Add(detailsContainer, 0, 0);
+        contentLayout.Controls.Add(CreateLogsGroup(), 1, 0);
+        return contentLayout;
     }
 
     private void ConfigureConnectionGroup()
     {
         connectionGroup.Text = "Подключение";
-        connectionGroup.Dock = DockStyle.Fill;
-        connectionGroup.Padding = new Padding(10);
+        connectionGroup.AutoSize = true;
+        connectionGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        connectionGroup.Dock = DockStyle.Top;
+        connectionGroup.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        ApplyGroupBoxStyle(connectionGroup);
 
         connectionLayout.ColumnCount = 2;
         connectionLayout.RowCount = 7;
+        connectionLayout.ColumnStyles.Clear();
         connectionLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         connectionLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        connectionLayout.RowStyles.Clear();
         connectionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         connectionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         connectionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -204,36 +369,45 @@ partial class MainForm
         connectionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         connectionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         connectionLayout.Dock = DockStyle.Fill;
-        connectionLayout.Padding = new Padding(0, 0, 0, 8);
+        connectionLayout.AutoSize = true;
+        connectionLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        connectionLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
+        connectionLayout.Padding = new Padding(0, 4, 0, 8);
+        connectionLayout.Margin = new Padding(0);
+        connectionLayout.BackColor = Color.White;
 
         statusCaptionLabel.Text = "Статус:";
-        statusCaptionLabel.AutoSize = true;
-        statusValueLabel.AutoSize = true;
-        statusValueLabel.MaximumSize = new Size(0, 0);
+        StyleCaptionLabel(statusCaptionLabel);
+        statusCaptionLabel.Margin = new Padding(0, 0, 16, 0);
+        StyleValueLabel(statusValueLabel, accent: true);
+        statusValueLabel.Margin = new Padding(8, 6, 0, 4);
 
         portCaptionLabel.Text = "Порт:";
-        portCaptionLabel.AutoSize = true;
-        portValueLabel.AutoSize = true;
+        StyleCaptionLabel(portCaptionLabel);
+        StyleValueLabel(portValueLabel);
 
         deviceCaptionLabel.Text = "Прибор:";
-        deviceCaptionLabel.AutoSize = true;
-        deviceValueLabel.AutoSize = true;
+        StyleCaptionLabel(deviceCaptionLabel);
+        StyleValueLabel(deviceValueLabel);
 
         softwareCaptionLabel.Text = "ПО:";
-        softwareCaptionLabel.AutoSize = true;
-        softwareValueLabel.AutoSize = true;
+        StyleCaptionLabel(softwareCaptionLabel);
+        StyleValueLabel(softwareValueLabel);
 
         reportCaptionLabel.Text = "Отчет:";
-        reportCaptionLabel.AutoSize = true;
-        reportValueLabel.AutoSize = true;
+        StyleCaptionLabel(reportCaptionLabel);
+        StyleValueLabel(reportValueLabel);
 
         syncStatusLabel.AutoSize = true;
-        syncStatusLabel.Margin = new Padding(0, 6, 0, 6);
+        syncStatusLabel.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+        syncStatusLabel.ForeColor = Color.FromArgb(54, 127, 151);
+        syncStatusLabel.Margin = new Padding(0, 14, 0, 4);
+        syncStatusLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
         resetPortButton.Text = "Сбросить порт";
-        resetPortButton.AutoSize = true;
-        resetPortButton.Margin = new Padding(0, 6, 0, 0);
+        StylePrimaryButton(resetPortButton);
         resetPortButton.Click += OnResetPortClicked;
+        resetPortButton.Margin = new Padding(0, 16, 0, 0);
 
         connectionLayout.Controls.Add(statusCaptionLabel, 0, 0);
         connectionLayout.Controls.Add(statusValueLabel, 1, 0);
@@ -255,46 +429,78 @@ partial class MainForm
     private void ConfigureSettingsGroup()
     {
         settingsGroup.Text = "Настройки опроса";
-        settingsGroup.Dock = DockStyle.Fill;
-        settingsGroup.Padding = new Padding(10);
+        settingsGroup.AutoSize = true;
+        settingsGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        settingsGroup.Dock = DockStyle.Top;
+        settingsGroup.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        ApplyGroupBoxStyle(settingsGroup);
 
         settingsLayout.ColumnCount = 2;
         settingsLayout.RowCount = 5;
-        settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60F));
-        settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));
+        settingsLayout.ColumnStyles.Clear();
+        settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        settingsLayout.RowStyles.Clear();
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.Dock = DockStyle.Fill;
-        settingsLayout.Padding = new Padding(0, 0, 0, 8);
+        settingsLayout.Padding = new Padding(0, 4, 0, 8);
+        settingsLayout.Margin = new Padding(0);
         settingsLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
+        settingsLayout.AutoSize = true;
+        settingsLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        settingsLayout.BackColor = Color.White;
 
         scanIntervalLabel.Text = "Интервал поиска (с):";
-        scanIntervalLabel.AutoSize = true;
+        StyleCaptionLabel(scanIntervalLabel);
+        scanIntervalLabel.Margin = new Padding(0, 0, 16, 0);
         scanIntervalTextBox.Width = 80;
+        scanIntervalTextBox.BorderStyle = BorderStyle.FixedSingle;
+        scanIntervalTextBox.Margin = new Padding(0, 4, 0, 0);
+        scanIntervalTextBox.TextAlign = HorizontalAlignment.Center;
+        scanIntervalTextBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        scanIntervalTextBox.MaximumSize = new Size(160, 0);
+        scanIntervalTextBox.MinimumSize = new Size(80, 0);
         scanIntervalTextBox.Validating += OnNumericTextBoxValidating;
         scanIntervalTextBox.Validated += OnScanIntervalValidated;
 
         reconnectDelayLabel.Text = "Задержка перепроверки (с):";
-        reconnectDelayLabel.AutoSize = true;
+        StyleCaptionLabel(reconnectDelayLabel);
+        reconnectDelayLabel.Margin = new Padding(0, 10, 16, 0);
         reconnectDelayTextBox.Width = 80;
+        reconnectDelayTextBox.BorderStyle = BorderStyle.FixedSingle;
+        reconnectDelayTextBox.Margin = new Padding(0, 4, 0, 0);
+        reconnectDelayTextBox.TextAlign = HorizontalAlignment.Center;
+        reconnectDelayTextBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        reconnectDelayTextBox.MaximumSize = new Size(160, 0);
+        reconnectDelayTextBox.MinimumSize = new Size(80, 0);
         reconnectDelayTextBox.Validating += OnNumericTextBoxValidating;
         reconnectDelayTextBox.Validated += OnReconnectDelayValidated;
 
         backgroundSyncLabel.Text = "Период синхронизации (мин):";
-        backgroundSyncLabel.AutoSize = true;
+        StyleCaptionLabel(backgroundSyncLabel);
+        backgroundSyncLabel.Margin = new Padding(0, 10, 16, 0);
         backgroundSyncTextBox.Width = 80;
+        backgroundSyncTextBox.BorderStyle = BorderStyle.FixedSingle;
+        backgroundSyncTextBox.Margin = new Padding(0, 4, 0, 0);
+        backgroundSyncTextBox.TextAlign = HorizontalAlignment.Center;
+        backgroundSyncTextBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        backgroundSyncTextBox.MaximumSize = new Size(160, 0);
+        backgroundSyncTextBox.MinimumSize = new Size(80, 0);
         backgroundSyncTextBox.Validating += OnNumericTextBoxValidating;
         backgroundSyncTextBox.Validated += OnBackgroundSyncValidated;
 
         openReportsButton.Text = "Открыть каталог отчетов";
-        openReportsButton.AutoSize = true;
+        StyleSecondaryButton(openReportsButton);
         openReportsButton.Click += OnOpenReportsClicked;
+        openReportsButton.Margin = new Padding(0, 14, 0, 0);
         convertBinButton.Text = "Конвертировать .bin в отчет";
-        convertBinButton.AutoSize = true;
+        StylePrimaryButton(convertBinButton);
         convertBinButton.Click += OnConvertBinClicked;
+        convertBinButton.Margin = new Padding(0, 10, 0, 0);
         settingsLayout.Controls.Add(scanIntervalLabel, 0, 0);
         settingsLayout.Controls.Add(scanIntervalTextBox, 1, 0);
         settingsLayout.Controls.Add(reconnectDelayLabel, 0, 1);
@@ -311,48 +517,76 @@ partial class MainForm
     private void ConfigureUpdatesGroup()
     {
         updatesGroup.Text = "Обновления";
-        updatesGroup.Dock = DockStyle.Fill;
-        updatesGroup.Padding = new Padding(10);
+        updatesGroup.AutoSize = true;
+        updatesGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        updatesGroup.Dock = DockStyle.Top;
+        updatesGroup.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        ApplyGroupBoxStyle(updatesGroup);
 
         updatesLayout.ColumnCount = 2;
-        updatesLayout.RowCount = 5;
-        updatesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60F));
-        updatesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));
+        updatesLayout.RowCount = 6;
+        updatesLayout.ColumnStyles.Clear();
+        updatesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        updatesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        updatesLayout.RowStyles.Clear();
+        updatesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         updatesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         updatesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         updatesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         updatesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         updatesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         updatesLayout.Dock = DockStyle.Fill;
-        updatesLayout.Padding = new Padding(0, 0, 0, 8);
+        updatesLayout.Padding = new Padding(0, 4, 0, 8);
+        updatesLayout.Margin = new Padding(0);
+        updatesLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
+        updatesLayout.AutoSize = true;
+        updatesLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        updatesLayout.BackColor = Color.White;
 
         updateStatusCaptionLabel.Text = "Статус обновлений:";
-        updateStatusCaptionLabel.AutoSize = true;
+        StyleCaptionLabel(updateStatusCaptionLabel);
+        updateStatusCaptionLabel.Margin = new Padding(0, 0, 16, 0);
         updateStatusValueLabel.AutoSize = true;
-        updateStatusValueLabel.MaximumSize = new Size(0, 0);
+        updateStatusValueLabel.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point);
+        updateStatusValueLabel.ForeColor = Color.FromArgb(59, 179, 115);
+        updateStatusValueLabel.Margin = new Padding(0, 8, 0, 4);
+        updateStatusValueLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
         checkUpdatesButton.Text = "Проверить";
-        checkUpdatesButton.AutoSize = true;
+        StyleSecondaryButton(checkUpdatesButton);
         checkUpdatesButton.Click += OnCheckUpdatesClicked;
 
         installUpdateButton.Text = "Установить";
-        installUpdateButton.AutoSize = true;
+        StylePrimaryButton(installUpdateButton);
         installUpdateButton.Click += OnInstallUpdateClicked;
 
         updateIntervalLabel.Text = "Интервал проверки (мин):";
-        updateIntervalLabel.AutoSize = true;
+        StyleCaptionLabel(updateIntervalLabel);
+        updateIntervalLabel.Margin = new Padding(0, 12, 16, 0);
         updateIntervalTextBox.Width = 80;
+        updateIntervalTextBox.BorderStyle = BorderStyle.FixedSingle;
+        updateIntervalTextBox.Margin = new Padding(0, 4, 0, 0);
+        updateIntervalTextBox.TextAlign = HorizontalAlignment.Center;
+        updateIntervalTextBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        updateIntervalTextBox.MaximumSize = new Size(160, 0);
+        updateIntervalTextBox.MinimumSize = new Size(80, 0);
         updateIntervalTextBox.Validating += OnNumericTextBoxValidating;
         updateIntervalTextBox.Validated += OnUpdateIntervalValidated;
 
         manifestUrlLabel.Text = "URL манифеста:";
-        manifestUrlLabel.AutoSize = true;
+        StyleCaptionLabel(manifestUrlLabel);
+        manifestUrlLabel.Margin = new Padding(0, 12, 16, 0);
         manifestUrlTextBox.Width = 260;
+        manifestUrlTextBox.BorderStyle = BorderStyle.FixedSingle;
+        manifestUrlTextBox.Margin = new Padding(0, 4, 0, 0);
+        manifestUrlTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        manifestUrlTextBox.MinimumSize = new Size(120, 0);
         manifestUrlTextBox.Validated += OnManifestUrlValidated;
 
         openLogsButton.Text = "Открыть каталог логов";
-        openLogsButton.AutoSize = true;
+        StyleSecondaryButton(openLogsButton);
         openLogsButton.Click += OnOpenLogsClicked;
+        openLogsButton.Margin = new Padding(0, 14, 0, 0);
 
         updatesLayout.Controls.Add(updateStatusCaptionLabel, 0, 0);
         updatesLayout.Controls.Add(updateStatusValueLabel, 0, 1);
@@ -363,8 +597,9 @@ partial class MainForm
             FlowDirection = FlowDirection.LeftToRight,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Dock = DockStyle.Fill,
-            Margin = new Padding(0, 4, 0, 4)
+            Dock = DockStyle.None,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left,
+            Margin = new Padding(0, 10, 0, 6)
         };
         buttonsPanel.Controls.Add(checkUpdatesButton);
         buttonsPanel.Controls.Add(installUpdateButton);
@@ -384,7 +619,8 @@ partial class MainForm
     {
         logsGroup.Text = "Журнал";
         logsGroup.Dock = DockStyle.Fill;
-        logsGroup.Padding = new Padding(10);
+        ApplyGroupBoxStyle(logsGroup);
+        logsGroup.Margin = new Padding(24, 0, 0, 0);
 
         logGridView.Dock = DockStyle.Fill;
         logGridView.ReadOnly = true;
@@ -396,6 +632,40 @@ partial class MainForm
         logGridView.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         logGridView.MultiSelect = false;
         logGridView.DataSource = logsBindingSource;
+        logGridView.BackgroundColor = Color.White;
+        logGridView.BorderStyle = BorderStyle.None;
+        logGridView.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+        logGridView.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
+        logGridView.EnableHeadersVisualStyles = false;
+        logGridView.RowTemplate.Height = 28;
+        logGridView.GridColor = Color.FromArgb(230, 236, 244);
+
+        logGridView.ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle
+        {
+            BackColor = Color.FromArgb(26, 38, 55),
+            ForeColor = Color.White,
+            SelectionBackColor = Color.FromArgb(26, 38, 55),
+            SelectionForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point)
+        };
+
+        logGridView.DefaultCellStyle = new DataGridViewCellStyle
+        {
+            BackColor = Color.White,
+            ForeColor = Color.FromArgb(33, 37, 41),
+            SelectionBackColor = Color.FromArgb(220, 244, 247),
+            SelectionForeColor = Color.FromArgb(33, 37, 41),
+            Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point),
+            WrapMode = DataGridViewTriState.False
+        };
+
+        logGridView.AlternatingRowsDefaultCellStyle = new DataGridViewCellStyle
+        {
+            BackColor = Color.FromArgb(245, 249, 252),
+            ForeColor = Color.FromArgb(33, 37, 41),
+            SelectionBackColor = Color.FromArgb(210, 238, 242),
+            SelectionForeColor = Color.FromArgb(33, 37, 41)
+        };
 
         var timestampColumn = new DataGridViewTextBoxColumn
         {
@@ -428,18 +698,95 @@ partial class MainForm
     {
         mainStatusStrip.Dock = DockStyle.Fill;
         mainStatusStrip.SizingGrip = false;
-        appNameStatusLabel.Text = "Микролюкс ERG-Connect";
+        mainStatusStrip.GripStyle = ToolStripGripStyle.Hidden;
+        mainStatusStrip.BackColor = Color.FromArgb(26, 38, 55);
+        mainStatusStrip.ForeColor = Color.White;
+        mainStatusStrip.Padding = new Padding(12, 0, 12, 0);
+        mainStatusStrip.ImageScalingSize = new Size(16, 16);
+        mainStatusStrip.RenderMode = ToolStripRenderMode.System;
+        appNameStatusLabel.Text = "Microlux ERG-Connect";
         appNameStatusLabel.Spring = true;
+        appNameStatusLabel.ForeColor = Color.White;
+        appNameStatusLabel.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
         versionStatusLabel.Text = "Версия:";
+        versionStatusLabel.ForeColor = Color.FromArgb(189, 206, 223);
+        versionStatusLabel.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
         mainStatusStrip.Items.AddRange(new ToolStripItem[] { appNameStatusLabel, versionStatusLabel });
         return mainStatusStrip;
     }
 
+    private static void ApplyGroupBoxStyle(GroupBox groupBox)
+    {
+        groupBox.BackColor = Color.White;
+        groupBox.ForeColor = Color.FromArgb(33, 37, 41);
+        groupBox.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold, GraphicsUnit.Point);
+        groupBox.Padding = new Padding(16, 20, 16, 16);
+    }
+
+    private static void StyleCaptionLabel(Label label)
+    {
+        label.AutoSize = true;
+        label.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+        label.ForeColor = Color.FromArgb(120, 128, 145);
+        label.Margin = new Padding(0, 8, 16, 0);
+        label.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+        label.TextAlign = ContentAlignment.MiddleLeft;
+    }
+
+    private static void StyleValueLabel(Label label, bool accent = false)
+    {
+        label.AutoSize = true;
+        label.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold, GraphicsUnit.Point);
+        label.ForeColor = accent ? Color.FromArgb(34, 158, 189) : Color.FromArgb(33, 37, 41);
+        label.Margin = new Padding(8, 6, 0, 4);
+        label.MinimumSize = new Size(0, 24);
+        label.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        label.AutoEllipsis = false;
+        label.UseMnemonic = false;
+        label.TextAlign = ContentAlignment.TopLeft;
+    }
+
+    private static void StylePrimaryButton(Button button)
+    {
+        button.AutoSize = true;
+        button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        button.MinimumSize = new Size(140, 36);
+        button.FlatStyle = FlatStyle.Flat;
+        button.FlatAppearance.BorderSize = 0;
+        button.FlatAppearance.MouseOverBackColor = Color.FromArgb(44, 182, 214);
+        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(24, 138, 166);
+        button.BackColor = Color.FromArgb(34, 158, 189);
+        button.ForeColor = Color.White;
+        button.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point);
+        button.Margin = new Padding(0, 10, 0, 0);
+        button.Padding = new Padding(10, 6, 10, 6);
+        button.Cursor = Cursors.Hand;
+        button.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+    }
+
+    private static void StyleSecondaryButton(Button button)
+    {
+        button.AutoSize = true;
+        button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        button.MinimumSize = new Size(140, 36);
+        button.FlatStyle = FlatStyle.Flat;
+        button.FlatAppearance.BorderSize = 0;
+        button.FlatAppearance.MouseOverBackColor = Color.FromArgb(225, 236, 242);
+        button.FlatAppearance.MouseDownBackColor = Color.FromArgb(212, 228, 236);
+        button.BackColor = Color.FromArgb(239, 246, 249);
+        button.ForeColor = Color.FromArgb(33, 37, 41);
+        button.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
+        button.Margin = new Padding(0, 10, 0, 0);
+        button.Padding = new Padding(10, 6, 10, 6);
+        button.Cursor = Cursors.Hand;
+        button.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+    }
+
     private void ConfigureTrayIcon()
     {
-        trayIcon.Icon = System.Drawing.SystemIcons.Application;
+        trayIcon.Icon = AppBranding.CreateTrayIcon();
         trayIcon.Visible = true;
-        trayIcon.Text = "Микролюкс ERG-Connect";
+        trayIcon.Text = "Microlux ERG-Connect";
 
         trayOpenMenuItem.Text = "Открыть";
         trayOpenMenuItem.Click += (_, _) => RestoreFromTray();
