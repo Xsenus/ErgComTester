@@ -30,7 +30,7 @@ public static class AppServices
         if (_initialized) return;
 
         Settings = new SettingsService();
-        Task.Run(() => Settings.LoadAsync()).GetAwaiter().GetResult();
+        Settings.LoadAsync().GetAwaiter().GetResult();
 
         Log = new LogService(Settings);
         Log.Section("Microlux ERG-Connect Desktop");

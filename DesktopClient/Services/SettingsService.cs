@@ -32,7 +32,7 @@ public sealed class SettingsService
         if (File.Exists(SettingsPath))
         {
             await using var fs = File.OpenRead(SettingsPath);
-            var loaded = await JsonSerializer.DeserializeAsync<AppSettings>(fs, JsonOptions);
+            var loaded = await JsonSerializer.DeserializeAsync<AppSettings>(fs, JsonOptions).ConfigureAwait(false);
             if (loaded != null)
             {
                 _settings = loaded;
@@ -69,18 +69,18 @@ public sealed class SettingsService
 
         if (saveRequired)
         {
-            await SaveAsync();
+            await SaveAsync().ConfigureAwait(false);
         }
     }
 
     public async Task SaveAsync()
     {
-        await _mutex.WaitAsync();
+        await _mutex.WaitAsync().ConfigureAwait(false);
         try
         {
             Directory.CreateDirectory(BaseDirectory);
             await using var fs = File.Open(SettingsPath, FileMode.Create, FileAccess.Write, FileShare.Read);
-            await JsonSerializer.SerializeAsync(fs, _settings, JsonOptions);
+            await JsonSerializer.SerializeAsync(fs, _settings, JsonOptions).ConfigureAwait(false);
         }
         finally
         {
@@ -91,7 +91,7 @@ public sealed class SettingsService
 
     public async Task UpdateAsync(Action<AppSettings> update)
     {
-        await _mutex.WaitAsync();
+        await _mutex.WaitAsync().ConfigureAwait(false);
         try
         {
             update(_settings);
@@ -100,6 +100,6 @@ public sealed class SettingsService
         {
             _mutex.Release();
         }
-        await SaveAsync();
+        await SaveAsync().ConfigureAwait(false);
     }
 }
