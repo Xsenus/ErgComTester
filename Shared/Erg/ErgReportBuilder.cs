@@ -7,6 +7,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
+using System.Runtime.InteropServices;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -217,15 +218,15 @@ public static class ErgReportBuilder
 
         private float ContentWidth => PageWidth - _marginLeft - _marginRight;
 
-        private readonly Font _titleFont = new("Arial", 26f, FontStyle.Bold, GraphicsUnit.Point);
-        private readonly Font _sectionFont = new("Arial", 14f, FontStyle.Bold, GraphicsUnit.Point);
-        private readonly Font _headerFont = new("Arial", 12f, FontStyle.Bold, GraphicsUnit.Point);
-        private readonly Font _textFont = new("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
-        private readonly Font _smallFont = new("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
-        private readonly Font _italicSmallFont = new("Arial", 10f, FontStyle.Italic, GraphicsUnit.Point);
-        private readonly Font _tableHeaderFont = new("Arial", 11f, FontStyle.Bold, GraphicsUnit.Point);
-        private readonly Font _tableFont = new("Arial", 11f, FontStyle.Regular, GraphicsUnit.Point);
-        private readonly Font _graphLabelFont = new("Arial", 11f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _titleFont = new("Arial", 26f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _sectionFont = new("Arial", 14f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _headerFont = new("Arial", 12f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _textFont = new("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _smallFont = new("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _italicSmallFont = new("Arial", 10f, FontStyle.Italic, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _tableHeaderFont = new("Arial", 11f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _tableFont = new("Arial", 11f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly System.Drawing.Font _graphLabelFont = new("Arial", 11f, FontStyle.Bold, GraphicsUnit.Point);
 
         private readonly StringFormat _formatLeft = new(StringFormatFlags.LineLimit)
         {
@@ -248,10 +249,10 @@ public static class ErgReportBuilder
             Trimming = StringTrimming.Word
         };
 
-        private readonly SolidBrush _mutedBrush = new(Color.FromArgb(90, 90, 90));
-        private readonly SolidBrush _descriptionBackgroundBrush = new(Color.FromArgb(245, 245, 245));
-        private readonly SolidBrush _headerBackgroundBrush = new(Color.FromArgb(232, 232, 232));
-        private readonly Pen _tablePen = new(Color.FromArgb(200, 200, 200));
+        private readonly SolidBrush _mutedBrush = new(System.Drawing.Color.FromArgb(90, 90, 90));
+        private readonly SolidBrush _descriptionBackgroundBrush = new(System.Drawing.Color.FromArgb(245, 245, 245));
+        private readonly SolidBrush _headerBackgroundBrush = new(System.Drawing.Color.FromArgb(232, 232, 232));
+        private readonly Pen _tablePen = new(System.Drawing.Color.FromArgb(200, 200, 200));
 
         public LegacyPdfRenderer(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
         {
@@ -312,7 +313,7 @@ public static class ErgReportBuilder
             _graphics = Graphics.FromImage(_bitmap);
             _graphics.SmoothingMode = SmoothingMode.AntiAlias;
             _graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-            _graphics.Clear(Color.White);
+            _graphics.Clear(System.Drawing.Color.White);
             _y = _marginTop;
         }
 
@@ -323,7 +324,7 @@ public static class ErgReportBuilder
 
             _graphics.Dispose();
             using var ms = new MemoryStream();
-            _bitmap.Save(ms, ImageFormat.Png);
+            _bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
             _pages.Add(ms.ToArray());
             _bitmap.Dispose();
             _bitmap = null;
@@ -336,7 +337,7 @@ public static class ErgReportBuilder
             foreach (var pageImage in _pages)
             {
                 var page = document.AddPage();
-                page.Size = PageSize.A4;
+                page.Size = PdfSharpCore.PageSize.A4;
                 using var gfx = XGraphics.FromPdfPage(page);
                 using var image = XImage.FromStream(() => new MemoryStream(pageImage));
                 gfx.DrawImage(image, 0, 0, page.Width, page.Height);
@@ -357,7 +358,7 @@ public static class ErgReportBuilder
             StartNewPage();
         }
 
-        private float MeasureText(string text, Font font, float width, StringFormat? format = null)
+        private float MeasureText(string text, System.Drawing.Font font, float width, StringFormat? format = null)
         {
             if (_graphics == null || string.IsNullOrWhiteSpace(text))
                 return 0f;
@@ -367,7 +368,7 @@ public static class ErgReportBuilder
             return size.Height;
         }
 
-        private void DrawParagraph(string text, Font font, Brush brush, float spacingBefore, float spacingAfter, StringFormat? format = null)
+        private void DrawParagraph(string text, System.Drawing.Font font, System.Drawing.Brush brush, float spacingBefore, float spacingAfter, StringFormat? format = null)
         {
             if (_graphics == null)
                 return;
@@ -387,7 +388,7 @@ public static class ErgReportBuilder
             _y += height + spacingAfter;
         }
 
-        private void DrawParagraphNoEnsure(string text, Font font, Brush brush, float spacingBefore, float spacingAfter, StringFormat? format = null)
+        private void DrawParagraphNoEnsure(string text, System.Drawing.Font font, System.Drawing.Brush brush, float spacingBefore, float spacingAfter, StringFormat? format = null)
         {
             if (_graphics == null)
                 return;
@@ -562,7 +563,7 @@ public static class ErgReportBuilder
             _y += _spacingMedium;
         }
 
-        private float MeasureTableRow(string[] texts, Font font, float[] widths, StringFormat[] formats)
+        private float MeasureTableRow(string[] texts, System.Drawing.Font font, float[] widths, StringFormat[] formats)
         {
             float max = 0f;
             for (int i = 0; i < texts.Length; i++)
@@ -575,7 +576,7 @@ public static class ErgReportBuilder
             return max;
         }
 
-        private void DrawTableRow(string[] texts, float[] widths, float height, Font font, StringFormat[] formats, bool header)
+        private void DrawTableRow(string[] texts, float[] widths, float height, System.Drawing.Font font, StringFormat[] formats, bool header)
         {
             if (_graphics == null)
                 return;
@@ -683,13 +684,13 @@ public static class ErgReportBuilder
             if (image != null)
             {
                 using var stream = new MemoryStream(image.Data);
-                using var bitmap = Image.FromStream(stream);
+                using var bitmap = System.Drawing.Image.FromStream(stream);
                 _graphics.DrawImage(bitmap, rect.X, imageTop, rect.Width, imageHeight);
             }
             else
             {
                 var placeholderRect = new RectangleF(rect.X, imageTop, rect.Width, imageHeight);
-                using var dashedPen = new Pen(Color.FromArgb(200, 200, 200)) { DashPattern = new[] { 4f, 4f } };
+                using var dashedPen = new Pen(System.Drawing.Color.FromArgb(200, 200, 200)) { DashPattern = new[] { 4f, 4f } };
                 _graphics.DrawRectangle(dashedPen, placeholderRect.X, placeholderRect.Y, placeholderRect.Width, placeholderRect.Height);
                 _graphics.DrawString("Нет данных", _italicSmallFont, _mutedBrush, placeholderRect, _formatCenter);
             }
@@ -1249,7 +1250,7 @@ public static class ErgReportBuilder
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
             graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
             graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-            graphics.Clear(Color.White);
+            graphics.Clear(System.Drawing.Color.White);
 
             const float marginLeft = 80f;
             const float marginRight = 30f;
@@ -1266,7 +1267,7 @@ public static class ErgReportBuilder
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
 
-            using (var backgroundBrush = new SolidBrush(Color.FromArgb(248, 248, 248)))
+            using (var backgroundBrush = new SolidBrush(System.Drawing.Color.FromArgb(248, 248, 248)))
             {
                 graphics.FillRectangle(backgroundBrush, chartRect);
             }
@@ -1274,7 +1275,7 @@ public static class ErgReportBuilder
             var xStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
             var yStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
 
-            using (var gridPen = new Pen(Color.FromArgb(215, 215, 215), 1f) { DashPattern = new[] { 4f, 4f } })
+            using (var gridPen = new Pen(System.Drawing.Color.FromArgb(215, 215, 215), 1f) { DashPattern = new[] { 4f, 4f } })
             {
                 if (xStep > 0)
                 {
@@ -1299,13 +1300,13 @@ public static class ErgReportBuilder
                 }
             }
 
-            using (var axisPen = new Pen(Color.FromArgb(120, 120, 120), 1.5f))
+            using (var axisPen = new Pen(System.Drawing.Color.FromArgb(120, 120, 120), 1.5f))
             {
                 graphics.DrawLine(axisPen, chartRect.Left, chartRect.Bottom, chartRect.Right, chartRect.Bottom);
                 graphics.DrawLine(axisPen, chartRect.Left, chartRect.Top, chartRect.Left, chartRect.Bottom);
             }
 
-            using (var dashedPen = new Pen(Color.FromArgb(180, 180, 180), 1f) { DashPattern = new[] { 6f, 6f } })
+            using (var dashedPen = new Pen(System.Drawing.Color.FromArgb(180, 180, 180), 1f) { DashPattern = new[] { 6f, 6f } })
             {
                 if (yMin < 0 && yMax > 0)
                 {
@@ -1322,7 +1323,7 @@ public static class ErgReportBuilder
 
             if (test.GraphFlashPosition >= xMin && test.GraphFlashPosition <= xMax)
             {
-                using var flashPen = new Pen(Color.FromArgb(220, 0, 0), 1.5f) { DashPattern = new[] { 6f, 6f } };
+                using var flashPen = new Pen(System.Drawing.Color.FromArgb(220, 0, 0), 1.5f) { DashPattern = new[] { 6f, 6f } };
                 var flashX = TransformX(test.GraphFlashPosition);
                 graphics.DrawLine(flashPen, flashX, chartRect.Top, flashX, chartRect.Bottom);
             }
@@ -1357,7 +1358,7 @@ public static class ErgReportBuilder
                     continue;
 
                 var style = graphIndex < graphStyles.Length ? graphStyles[graphIndex] : null;
-                var color = style != null ? Color.FromArgb(style.Red, style.Green, style.Blue) : Color.FromArgb(56, 109, 179);
+                var color = style != null ? System.Drawing.Color.FromArgb(style.Red, style.Green, style.Blue) : System.Drawing.Color.FromArgb(56, 109, 179);
 
                 using var pen = new Pen(color, 2f) { LineJoin = LineJoin.Round };
                 if (style?.Dotted == true)
@@ -1368,7 +1369,7 @@ public static class ErgReportBuilder
                 graphics.DrawLines(pen, points.ToArray());
             }
 
-            using var tickFont = new Font("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
+            using var tickFont = new System.Drawing.Font("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
 
             if (xStep > 0)
             {
@@ -1397,7 +1398,7 @@ public static class ErgReportBuilder
                 }
             }
 
-            using var axisTitleFont = new Font("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
+            using var axisTitleFont = new System.Drawing.Font("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
             var xLabelSize = graphics.MeasureString("Время, мс", axisTitleFont);
             graphics.DrawString("Время, мс", axisTitleFont, Brushes.Black, chartRect.Left + (chartRect.Width - xLabelSize.Width) / 2f, height - xLabelSize.Height - 6f);
 
@@ -1408,7 +1409,7 @@ public static class ErgReportBuilder
             graphics.ResetTransform();
 
             using var ms = new MemoryStream();
-            bitmap.Save(ms, ImageFormat.Png);
+            bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
             return new GraphImage(ms.ToArray(), width, height);
         }
         catch (Exception ex) when (ex is ExternalException or ArgumentException or PlatformNotSupportedException)
