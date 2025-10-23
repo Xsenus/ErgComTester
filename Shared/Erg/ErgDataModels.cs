@@ -46,12 +46,12 @@ public sealed class ErgTest
     public byte GraphFlashPosition { get; init; }
     public byte GraphXValueStep { get; init; }
     public byte GraphXLineStep { get; init; }
-    public int GraphXScaleMin { get; init; }
-    public int GraphXScaleMax { get; init; }
+    public short GraphXScaleMin { get; init; }
+    public short GraphXScaleMax { get; init; }
     public byte GraphYValueStep { get; init; }
     public byte GraphYLineStep { get; init; }
-    public int GraphYScaleMin { get; init; }
-    public int GraphYScaleMax { get; init; }
+    public short GraphYScaleMin { get; init; }
+    public short GraphYScaleMax { get; init; }
     public GraphStyle[] GraphStyles { get; init; } = Array.Empty<GraphStyle>();
     public bool AWaveExists { get; init; }
     public byte AWaveMsNormalMin { get; init; }

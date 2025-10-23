@@ -63,12 +63,12 @@ public sealed class ErgDataParserTests
         writer.Write((byte)12);
         writer.Write((byte)1);
         writer.Write((byte)5);
-        writer.Write(-50);
-        writer.Write(150);
+        WriteInt16BigEndian(writer, -50);
+        WriteInt16BigEndian(writer, 150);
         writer.Write((byte)2);
         writer.Write((byte)10);
-        writer.Write(-100);
-        writer.Write(180);
+        WriteInt16BigEndian(writer, -100);
+        WriteInt16BigEndian(writer, 180);
 
         var colors = new (byte R, byte G, byte B)[]
         {
@@ -104,6 +104,13 @@ public sealed class ErgDataParserTests
 
         WriteEye(writer, flat: false);
         WriteEye(writer, flat: true);
+    }
+
+    private static void WriteInt16BigEndian(BinaryWriter writer, short value)
+    {
+        Span<byte> buffer = stackalloc byte[2];
+        BinaryPrimitives.WriteInt16BigEndian(buffer, value);
+        writer.Write(buffer);
     }
 
     private static void WriteEye(BinaryWriter writer, bool flat)

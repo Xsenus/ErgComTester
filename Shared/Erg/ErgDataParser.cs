@@ -154,12 +154,12 @@ public static class ErgDataParser
         var graphFlashPosition = reader.ReadByte();
         var graphXValueStep = reader.ReadByte();
         var graphXLineStep = reader.ReadByte();
-        var graphXScaleMin = reader.ReadInt32LittleEndian();
-        var graphXScaleMax = reader.ReadInt32LittleEndian();
+        var graphXScaleMin = reader.ReadInt16BigEndian();
+        var graphXScaleMax = reader.ReadInt16BigEndian();
         var graphYValueStep = reader.ReadByte();
         var graphYLineStep = reader.ReadByte();
-        var graphYScaleMin = reader.ReadInt32LittleEndian();
-        var graphYScaleMax = reader.ReadInt32LittleEndian();
+        var graphYScaleMin = reader.ReadInt16BigEndian();
+        var graphYScaleMax = reader.ReadInt16BigEndian();
 
         var styles = new GraphStyle[6];
         for (int i = 0; i < styles.Length; i++)
@@ -333,6 +333,9 @@ public static class ErgDataParser
 
         public ushort ReadUInt16LittleEndian()
             => BinaryPrimitives.ReadUInt16LittleEndian(ReadBytes(2));
+
+        public short ReadInt16BigEndian()
+            => BinaryPrimitives.ReadInt16BigEndian(ReadBytes(2));
 
         public int ReadInt32LittleEndian()
             => BinaryPrimitives.ReadInt32LittleEndian(ReadBytes(4));
