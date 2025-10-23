@@ -38,7 +38,7 @@ public static class ErgReportBuilder
                     column.Item().Row(row =>
                     {
                         row.RelativeItem().Text($"ID пациента: {patient.PatientId}");
-                        row.RelativeItem().AlignRight().Text($"Животное: {patient.Animal}");
+                        row.RelativeItem().AlignRight().Text($"Животное: {FormatAnimal(patient.Animal)}");
                     });
                     column.Item().Row(row =>
                     {
@@ -214,7 +214,7 @@ public static class ErgReportBuilder
             string FormatMs(byte value) => value == 255 ? "—" : $"{value} мс";
             string FormatMkV(uint value) => (value == 65535 || value == uint.MaxValue) ? "—" : $"{value} мкВ";
 
-            return $"a: {FormatMs(aMs)}, {FormatMkV(aMkV)}" +
+            return $"a: {FormatMs(aMs)}, {FormatMkV(aMkV)}\n" +
                    $"b: {FormatMs(bMs)}, {FormatMkV(bMkV)}";
         }
 
@@ -254,17 +254,37 @@ public static class ErgReportBuilder
                     column.Item().Text("Стили графиков: " + string.Join("; ", styleDescriptions)).FontSize(10);
                 }
 
-                column.Item().Text("Первые 10 точек (правый глаз, график 1): " + Preview(_test.RightEye.Graphs));
-                column.Item().Text("Первые 10 точек (левый глаз, график 1): " + Preview(_test.LeftEye.Graphs));
+                column.Item().Text("Первые 10 точек (правый глаз, график 1): " + Preview(_test.RightEye.Graphs, _test.GraphNumPoints));
+                column.Item().Text("Первые 10 точек (левый глаз, график 1): " + Preview(_test.LeftEye.Graphs, _test.GraphNumPoints));
             });
         }
 
-        private static string Preview(int[][] graphs)
+        private static string Preview(int[][] graphs, int declaredPoints)
         {
             if (graphs == null || graphs.Length == 0 || graphs[0] == null)
                 return "нет данных";
 
-            return string.Join(", ", graphs[0].Take(10));
+            var samples = graphs[0];
+            if (samples.Length == 0)
+                return "нет данных";
+
+            var count = declaredPoints <= 0 ? samples.Length : Math.Min(samples.Length, declaredPoints);
+            count = Math.Min(count, 10);
+            if (count <= 0)
+                return "нет данных";
+
+            return string.Join(", ", samples.Take(count));
         }
     }
+
+    private static string FormatAnimal(AnimalKind animal)
+        => animal switch
+        {
+            AnimalKind.Cat => "Кошка",
+            AnimalKind.Dog => "Собака",
+            AnimalKind.Rabbit => "Кролик",
+            AnimalKind.Horse => "Лошадь",
+            AnimalKind.Other => "Прочие",
+            _ => animal.ToString()
+        };
 }
