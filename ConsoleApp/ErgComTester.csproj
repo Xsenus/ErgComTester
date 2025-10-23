@@ -5,13 +5,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>ErgComTester</AssemblyName>
-    <AssemblyVersion>1.0.0.5</AssemblyVersion>
-    <FileVersion>1.0.0.5</FileVersion>
+    <AssemblyVersion>1.0.0.6</AssemblyVersion>
+    <FileVersion>1.0.0.6</FileVersion>
     <ApplicationIcon Condition="Exists('..\DesktopClient\Resources\microlux-connect.ico')">..\DesktopClient\Resources\microlux-connect.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="System.IO.Ports" Version="9.0.9" />
-    <PackageReference Include="QuestPDF" Version="2024.3.0" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.3.0" />
+    <PackageReference Include="System.IO.Ports" Version="9.0.10" />
+    <PackageReference Include="QuestPDF" Version="2025.7.3" />
+    <PackageReference Include="SkiaSharp" Version="3.119.1" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Shared/ILog.cs" Link="Logging/ILog.cs" />

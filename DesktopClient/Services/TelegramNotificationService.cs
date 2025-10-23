@@ -185,7 +185,7 @@ public sealed class TelegramNotificationService : IDisposable
         }
     }
 
-    public void NotifyPatientProcessed(int patientIndex, ErgPatient patient, string rawPath, string jsonPath, string pdfPath)
+    public void NotifyPatientProcessed(int patientIndex, ErgPatient patient, string rawPath, string jsonPath, string pdfPath, string docxPath)
     {
         var summary = new StringBuilder()
             .AppendLine($"✅ Пациент #{patientIndex:000} обработан")
@@ -202,6 +202,7 @@ public sealed class TelegramNotificationService : IDisposable
         summary.AppendLine($"RAW: {rawPath}");
         summary.AppendLine($"JSON: {jsonPath}");
         summary.AppendLine($"PDF: {pdfPath}");
+        summary.AppendLine($"Word: {docxPath}");
 
         if (patient.Warnings is { Count: > 0 })
         {
@@ -230,9 +231,17 @@ public sealed class TelegramNotificationService : IDisposable
             EnqueueDocument(jsonPath, $"patient_{patientIndex:000}.json");
         }
 
-        if (settings.ForwardReports && File.Exists(pdfPath))
+        if (settings.ForwardReports)
         {
-            EnqueueDocument(pdfPath, $"patient_{patientIndex:000}.pdf");
+            if (File.Exists(pdfPath))
+            {
+                EnqueueDocument(pdfPath, $"patient_{patientIndex:000}.pdf");
+            }
+
+            if (File.Exists(docxPath))
+            {
+                EnqueueDocument(docxPath, $"patient_{patientIndex:000}.docx");
+            }
         }
     }
 
@@ -264,7 +273,7 @@ public sealed class TelegramNotificationService : IDisposable
         EnqueueMessage(message);
     }
 
-    public void NotifyManualConversionSucceeded(string filePath, ErgPatient patient, string jsonPath, string pdfPath)
+    public void NotifyManualConversionSucceeded(string filePath, ErgPatient patient, string jsonPath, string pdfPath, string docxPath)
     {
         var message = new StringBuilder()
             .AppendLine("✅ Ручное преобразование завершено успешно")
@@ -273,7 +282,8 @@ public sealed class TelegramNotificationService : IDisposable
             .AppendLine($"Животное: {patient.Animal}")
             .AppendLine($"Тестов: {patient.Tests.Count}/{patient.TotalNumTests}")
             .AppendLine($"JSON: {jsonPath}")
-            .AppendLine($"PDF: {pdfPath}");
+            .AppendLine($"PDF: {pdfPath}")
+            .AppendLine($"Word: {docxPath}");
 
         if (!string.IsNullOrWhiteSpace(patient.Description))
         {
@@ -304,9 +314,17 @@ public sealed class TelegramNotificationService : IDisposable
         {
             EnqueueDocument(jsonPath, Path.GetFileName(jsonPath));
         }
-        if (settings.ForwardReports && File.Exists(pdfPath))
+        if (settings.ForwardReports)
         {
-            EnqueueDocument(pdfPath, Path.GetFileName(pdfPath));
+            if (File.Exists(pdfPath))
+            {
+                EnqueueDocument(pdfPath, Path.GetFileName(pdfPath));
+            }
+
+            if (File.Exists(docxPath))
+            {
+                EnqueueDocument(docxPath, Path.GetFileName(docxPath));
+            }
         }
     }
 

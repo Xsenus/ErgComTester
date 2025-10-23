@@ -225,9 +225,11 @@ internal class Program
                         var outDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "out", "raw"));
                         var jsonDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "out", "structured"));
                         var pdfDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "out", "pdf"));
+                        var docxDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "out", "docx"));
                         Directory.CreateDirectory(outDir);
                         Directory.CreateDirectory(jsonDir);
                         Directory.CreateDirectory(pdfDir);
+                        Directory.CreateDirectory(docxDir);
                         logger.Info($"Fetching up to {Math.Max(1, common.TotalNumId)} patient(s)...");
 
                         for (int i = 1; i <= Math.Max(1, common.TotalNumId); i++)
@@ -277,6 +279,25 @@ internal class Program
                                     var pdfPath = Path.Combine(pdfDir, $"patient_{i:000}.pdf");
                                     ErgReportBuilder.BuildPatientReport(pinfo, pdfPath, common, clinicName: opt.ClinicName, rawFilePath: rawPath);
                                     logger.Info($"Saved PDF    : {pdfPath}");
+
+                                    var docxPath = Path.Combine(docxDir, $"patient_{i:000}.docx");
+                                    try
+                                    {
+                                        ErgReportBuilder.BuildPatientWordReport(pinfo, docxPath, common, clinicName: opt.ClinicName, rawFilePath: rawPath);
+                                        logger.Info($"Saved Word   : {docxPath}");
+                                    }
+                                    catch
+                                    {
+                                        try
+                                        {
+                                            if (File.Exists(pdfPath))
+                                            {
+                                                File.Delete(pdfPath);
+                                            }
+                                        }
+                                        catch { }
+                                        throw;
+                                    }
                                 }
                                 else logger.Warn($"Patient parse warning: {perr}");
                             }
@@ -365,6 +386,14 @@ internal class Program
             Directory.CreateDirectory(Path.GetDirectoryName(pdfPath)!);
             ErgReportBuilder.BuildPatientReport(patient, pdfPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath);
             logger.Info($"PDF saved : {pdfPath}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.DocxOutputPath))
+        {
+            var docxPath = Path.GetFullPath(options.DocxOutputPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(docxPath)!);
+            ErgReportBuilder.BuildPatientWordReport(patient, docxPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath);
+            logger.Info($"Word saved: {docxPath}");
         }
 
         return 0;

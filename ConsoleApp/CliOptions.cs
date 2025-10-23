@@ -21,6 +21,7 @@ internal sealed class CliOptions
                 case "--parse": o.Mode = RunMode.Parse; o.ParseInputPath = val; break;
                 case "--json-out": o.JsonOutputPath = val; break;
                 case "--pdf-out": o.PdfOutputPath = val; break;
+                case "--docx-out": o.DocxOutputPath = val; break;
                 case "--clinic": o.ClinicName = val; break;
                 case "--baud": if (int.TryParse(val, out var b)) o.BaudRate = b; break;
                 case "--retries": if (int.TryParse(val, out var r)) o.Retries = r; break;
@@ -52,6 +53,7 @@ internal sealed class CliOptions
     public string? ParseInputPath { get; private set; }
     public string? JsonOutputPath { get; private set; }
     public string? PdfOutputPath { get; private set; }
+    public string? DocxOutputPath { get; private set; }
     public string? ClinicName { get; private set; }
     public int QuietTimeMs { get; private set; } = 120;
     public int ReadTimeoutMs { get; private set; } = 400;
