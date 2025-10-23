@@ -232,6 +232,7 @@ internal class Program
                         Directory.CreateDirectory(docxDir);
                         logger.Info($"Fetching up to {Math.Max(1, common.TotalNumId)} patient(s)...");
 
+                        string? lastPdfWarning = null;
                         for (int i = 1; i <= Math.Max(1, common.TotalNumId); i++)
                         {
                             logger.Info($"GET (0xE5) block #{i}");
@@ -276,9 +277,36 @@ internal class Program
                                     ErgDataSerializer.SaveJson(jsonPath, pinfo);
                                     logger.Info($"Saved JSON   : {jsonPath}");
 
-                                    var pdfPath = Path.Combine(pdfDir, $"patient_{i:000}.pdf");
-                                    ErgReportBuilder.BuildPatientReport(pinfo, pdfPath, common, clinicName: opt.ClinicName, rawFilePath: rawPath);
-                                    logger.Info($"Saved PDF    : {pdfPath}");
+                                    if (RenderingSupport.PdfSupported)
+                                    {
+                                        var pdfPath = Path.Combine(pdfDir, $"patient_{i:000}.pdf");
+                                        try
+                                        {
+                                            ErgReportBuilder.BuildPatientReport(pinfo, pdfPath, common, clinicName: opt.ClinicName, rawFilePath: rawPath);
+                                            logger.Info($"Saved PDF    : {pdfPath}");
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            logger.Warn($"PDF generation failed: {ex.Message}");
+                                            var reason = $"Не удалось создать PDF-отчет: {ex.Message}";
+                                            RenderingSupport.DisablePdf(reason);
+                                            var warning = RenderingSupport.PdfIssue ?? reason;
+                                            if (!string.Equals(lastPdfWarning, warning, StringComparison.Ordinal))
+                                            {
+                                                logger.Warn($"PDF generation disabled: {warning}");
+                                                lastPdfWarning = warning;
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        var warning = RenderingSupport.PdfIssue ?? "Генерация PDF отключена.";
+                                        if (!string.Equals(lastPdfWarning, warning, StringComparison.Ordinal))
+                                        {
+                                            logger.Warn($"PDF generation skipped: {warning}");
+                                            lastPdfWarning = warning;
+                                        }
+                                    }
 
                                     var docxPath = Path.Combine(docxDir, $"patient_{i:000}.docx");
                                     try
@@ -286,17 +314,9 @@ internal class Program
                                         ErgReportBuilder.BuildPatientWordReport(pinfo, docxPath, common, clinicName: opt.ClinicName, rawFilePath: rawPath);
                                         logger.Info($"Saved Word   : {docxPath}");
                                     }
-                                    catch
+                                    catch (Exception ex)
                                     {
-                                        try
-                                        {
-                                            if (File.Exists(pdfPath))
-                                            {
-                                                File.Delete(pdfPath);
-                                            }
-                                        }
-                                        catch { }
-                                        throw;
+                                        logger.Warn($"Word export failed: {ex.Message}");
                                     }
                                 }
                                 else logger.Warn($"Patient parse warning: {perr}");
@@ -384,16 +404,40 @@ internal class Program
         {
             var pdfPath = Path.GetFullPath(options.PdfOutputPath);
             Directory.CreateDirectory(Path.GetDirectoryName(pdfPath)!);
-            ErgReportBuilder.BuildPatientReport(patient, pdfPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath);
-            logger.Info($"PDF saved : {pdfPath}");
+            if (RenderingSupport.PdfSupported)
+            {
+                try
+                {
+                    ErgReportBuilder.BuildPatientReport(patient, pdfPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath);
+                    logger.Info($"PDF saved : {pdfPath}");
+                }
+                catch (Exception ex)
+                {
+                    logger.Warn($"PDF export failed: {ex.Message}");
+                    var reason = $"Не удалось создать PDF-отчет: {ex.Message}";
+                    RenderingSupport.DisablePdf(reason);
+                    logger.Warn($"PDF generation disabled: {RenderingSupport.PdfIssue ?? reason}");
+                }
+            }
+            else
+            {
+                logger.Warn($"PDF export skipped: {RenderingSupport.PdfIssue ?? "Генерация PDF отключена."}");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(options.DocxOutputPath))
         {
             var docxPath = Path.GetFullPath(options.DocxOutputPath);
             Directory.CreateDirectory(Path.GetDirectoryName(docxPath)!);
-            ErgReportBuilder.BuildPatientWordReport(patient, docxPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath);
-            logger.Info($"Word saved: {docxPath}");
+            try
+            {
+                ErgReportBuilder.BuildPatientWordReport(patient, docxPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath);
+                logger.Info($"Word saved: {docxPath}");
+            }
+            catch (Exception ex)
+            {
+                logger.Warn($"Word export failed: {ex.Message}");
+            }
         }
 
         return 0;

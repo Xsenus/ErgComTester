@@ -18,6 +18,9 @@ public sealed class ReportGenerationService : IDisposable
     private Task? _loopTask;
     private string? _activePort;
     private DeviceConnectionInfo? _lastDeviceInfo;
+    private bool _pdfGenerationEnabled;
+    private string? _pdfGenerationIssue;
+    private string? _lastPdfWarningMessage;
 
     public event EventHandler<string>? ReportGenerated;
     public event EventHandler<string>? SyncStateChanged;
@@ -33,6 +36,8 @@ public sealed class ReportGenerationService : IDisposable
         _settings = settings;
         _log = log;
         _telegram = telegram;
+        _pdfGenerationEnabled = RenderingSupport.PdfSupported;
+        _pdfGenerationIssue = RenderingSupport.PdfIssue;
     }
 
     public void OnDeviceConnected(DeviceConnectionInfo info)
@@ -103,7 +108,8 @@ public sealed class ReportGenerationService : IDisposable
 
         _log.Info($"[{portName}] запрос данных пациентов");
         string? sessionDir = null;
-        var generatedReports = new List<string>();
+        var generatedPdfReports = new List<string>();
+        var generatedWordReports = new List<string>();
         int maxPatients = Math.Max(1, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 1);
         bool sessionAnnounced = false;
         int processedPatients = 0;
@@ -196,35 +202,53 @@ public sealed class ReportGenerationService : IDisposable
                     ErgDataSerializer.SaveJson(jsonPath, patient);
                     _log.Debug($"Структурированные данные пациента #{index} сохранены: {jsonPath}");
 
-                    var pdfPath = Path.Combine(sessionDir, $"patient_{index:000}.pdf");
-                    ErgReportBuilder.BuildPatientReport(patient, pdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath);
-                    _log.Info($"PDF-отчет для пациента #{index} создан: {pdfPath}");
-
-                    var docxPath = Path.Combine(sessionDir, $"patient_{index:000}.docx");
-                    try
+                    string? pdfPath = null;
+                    if (_pdfGenerationEnabled)
                     {
-                        ErgReportBuilder.BuildPatientWordReport(patient, docxPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath);
-                        _log.Info($"Word-отчет для пациента #{index} создан: {docxPath}");
-                    }
-                    catch
-                    {
+                        var candidatePdfPath = Path.Combine(sessionDir, $"patient_{index:000}.pdf");
                         try
                         {
-                            if (File.Exists(pdfPath))
-                                File.Delete(pdfPath);
+                            ErgReportBuilder.BuildPatientReport(patient, candidatePdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath);
+                            _log.Info($"PDF-отчет для пациента #{index} создан: {candidatePdfPath}");
+                            pdfPath = candidatePdfPath;
+                            ReportGenerated?.Invoke(this, pdfPath);
+                            generatedPdfReports.Add(pdfPath);
                         }
-                        catch (Exception cleanupEx)
+                        catch (Exception ex)
                         {
-                            _log.Warn($"[{pdfPath}] не удалось удалить PDF после ошибки Word: {cleanupEx.Message}");
+                            var reason = $"Не удалось создать PDF-отчет: {ex.Message}";
+                            _log.Error($"[{portName}] не удалось создать PDF-отчет для пациента #{index}: {ex}");
+                            RenderingSupport.DisablePdf(reason);
+                            _pdfGenerationEnabled = false;
+                            _pdfGenerationIssue = RenderingSupport.PdfIssue ?? reason;
+                            LogPdfGenerationDisabled(portName);
                         }
-                        throw;
+                    }
+                    else
+                    {
+                        LogPdfGenerationDisabled(portName);
                     }
 
-                    ReportGenerated?.Invoke(this, pdfPath);
-                    ReportGenerated?.Invoke(this, docxPath);
-                    generatedReports.Add(pdfPath);
+                    string? docxPath = null;
+                    var candidateDocx = Path.Combine(sessionDir, $"patient_{index:000}.docx");
+                    try
+                    {
+                        ErgReportBuilder.BuildPatientWordReport(patient, candidateDocx, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath);
+                        _log.Info($"Word-отчет для пациента #{index} создан: {candidateDocx}");
+                        docxPath = candidateDocx;
+                        ReportGenerated?.Invoke(this, docxPath);
+                        generatedWordReports.Add(docxPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.Warn($"[{portName}] не удалось создать Word-отчет для пациента #{index}: {ex.Message}");
+                        _telegram?.NotifyMessage($"⚠️ Не удалось создать Word-отчет пациента #{index:000}: {ex.Message}");
+                    }
+
                     processedPatients++;
-                    _telegram?.NotifyPatientProcessed(index, patient, finalRawPath, jsonPath, pdfPath, docxPath);
+                    var pdfPathForNotification = pdfPath ?? "<не создан>";
+                    var docxPathForNotification = docxPath ?? "<не создан>";
+                    _telegram?.NotifyPatientProcessed(index, patient, finalRawPath, jsonPath, pdfPathForNotification, docxPathForNotification);
                 }
 
                 requestNextPatient = true;
@@ -242,25 +266,40 @@ public sealed class ReportGenerationService : IDisposable
             }
         }
 
-        if (generatedReports.Count == 0)
+        var totalReports = generatedPdfReports.Count + generatedWordReports.Count;
+        if (totalReports == 0)
         {
             if (sessionDir != null)
             {
                 _log.Warn($"Сырые данные пациентов сохранены в {sessionDir}, но обработка не выполнена.");
-                _telegram?.NotifySessionCompleted(portName, sessionDir, processedPatients, generatedReports.Count);
+                _telegram?.NotifySessionCompleted(portName, sessionDir, processedPatients, totalReports);
             }
             else
             {
                 _log.Info("Новых данных пациентов не обнаружено.");
                 _telegram?.NotifyNoPatients(portName);
-                _telegram?.NotifySessionCompleted(portName, null, processedPatients, generatedReports.Count);
+                _telegram?.NotifySessionCompleted(portName, null, processedPatients, totalReports);
             }
         }
         else
         {
-            _log.Info($"Создано {generatedReports.Count} отчет(ов).");
+            string summary;
+            if (generatedPdfReports.Count > 0 && generatedWordReports.Count > 0)
+            {
+                summary = $"Создано {generatedPdfReports.Count} PDF и {generatedWordReports.Count} Word отчет(ов).";
+            }
+            else if (generatedPdfReports.Count > 0)
+            {
+                summary = $"Создано {generatedPdfReports.Count} PDF-отчет(ов).";
+            }
+            else
+            {
+                summary = $"Создано {generatedWordReports.Count} Word-отчет(ов).";
+            }
+
+            _log.Info(summary);
             TryPlayNotificationSound();
-            _telegram?.NotifySessionCompleted(portName, sessionDir, processedPatients, generatedReports.Count);
+            _telegram?.NotifySessionCompleted(portName, sessionDir, processedPatients, totalReports);
         }
 
         if (options.EnableRtcSynchronization)
@@ -404,6 +443,28 @@ public sealed class ReportGenerationService : IDisposable
             _log.Debug($"Финальные данные пациента #{patientIndex} сохранены: {finalPath}");
         }
         return finalPath;
+    }
+
+    private void LogPdfGenerationDisabled(string portName)
+    {
+        var reason = RenderingSupport.PdfIssue ?? _pdfGenerationIssue ?? "Генерация PDF отключена.";
+        _pdfGenerationIssue = reason;
+        if (string.Equals(reason, _lastPdfWarningMessage, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(portName))
+        {
+            _log.Warn($"[{portName}] {reason}");
+        }
+        else
+        {
+            _log.Warn(reason);
+        }
+
+        _telegram?.NotifyMessage($"⚠️ {reason}");
+        _lastPdfWarningMessage = reason;
     }
 
     private static void TryPlayNotificationSound()

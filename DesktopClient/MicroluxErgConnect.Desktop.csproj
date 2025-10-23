@@ -29,5 +29,6 @@
     <Compile Include="../Shared/Erg/ErgDataParser.cs" Link="Erg/ErgDataParser.cs" />
     <Compile Include="../Shared/Erg/ErgDataSerializer.cs" Link="Erg/ErgDataSerializer.cs" />
     <Compile Include="../Shared/Erg/ErgReportBuilder.cs" Link="Erg/ErgReportBuilder.cs" />
+    <Compile Include="../Shared/Erg/RenderingSupport.cs" Link="Erg/RenderingSupport.cs" />
   </ItemGroup>
 </Project>
