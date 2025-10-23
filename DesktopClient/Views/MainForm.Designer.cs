@@ -243,7 +243,7 @@ partial class MainForm
         headerBadgesPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         headerBadgesPanel.Dock = DockStyle.Fill;
         headerBadgesPanel.FlowDirection = FlowDirection.LeftToRight;
-        headerBadgesPanel.Margin = new Padding(0, 6, 0, 0);
+        headerBadgesPanel.Margin = new Padding(0, 10, 0, 0);
         headerBadgesPanel.Padding = new Padding(0);
         headerBadgesPanel.WrapContents = true;
 
@@ -302,8 +302,8 @@ partial class MainForm
         ConfigureUpdatesGroup();
 
         connectionGroup.Margin = new Padding(0, 0, 16, 0);
-        settingsGroup.Margin = new Padding(16, 0, 16, 0);
-        updatesGroup.Margin = new Padding(16, 0, 0, 0);
+        settingsGroup.Margin = new Padding(0, 0, 16, 0);
+        updatesGroup.Margin = new Padding(0);
 
         topLayout.Controls.Add(connectionGroup, 0, 0);
         topLayout.Controls.Add(settingsGroup, 1, 0);
@@ -331,44 +331,44 @@ partial class MainForm
         connectionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         connectionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         connectionLayout.Dock = DockStyle.Fill;
-        connectionLayout.Padding = new Padding(0);
+        connectionLayout.AutoSize = true;
+        connectionLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        connectionLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
+        connectionLayout.Padding = new Padding(0, 4, 0, 0);
         connectionLayout.Margin = new Padding(0);
         connectionLayout.BackColor = Color.White;
 
         statusCaptionLabel.Text = "Статус:";
         StyleCaptionLabel(statusCaptionLabel);
-        statusCaptionLabel.Margin = new Padding(0, 0, 0, 0);
+        statusCaptionLabel.Margin = new Padding(0, 0, 16, 0);
         StyleValueLabel(statusValueLabel, accent: true);
         statusValueLabel.Margin = new Padding(8, 0, 0, 0);
 
         portCaptionLabel.Text = "Порт:";
         StyleCaptionLabel(portCaptionLabel);
-        portValueLabel.Margin = new Padding(8, 6, 0, 0);
         StyleValueLabel(portValueLabel);
 
         deviceCaptionLabel.Text = "Прибор:";
         StyleCaptionLabel(deviceCaptionLabel);
-        deviceValueLabel.Margin = new Padding(8, 6, 0, 0);
         StyleValueLabel(deviceValueLabel);
 
         softwareCaptionLabel.Text = "ПО:";
         StyleCaptionLabel(softwareCaptionLabel);
-        softwareValueLabel.Margin = new Padding(8, 6, 0, 0);
         StyleValueLabel(softwareValueLabel);
 
         reportCaptionLabel.Text = "Отчет:";
         StyleCaptionLabel(reportCaptionLabel);
-        reportValueLabel.Margin = new Padding(8, 6, 0, 0);
         StyleValueLabel(reportValueLabel);
 
         syncStatusLabel.AutoSize = true;
         syncStatusLabel.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
         syncStatusLabel.ForeColor = Color.FromArgb(54, 127, 151);
-        syncStatusLabel.Margin = new Padding(0, 12, 0, 4);
+        syncStatusLabel.Margin = new Padding(0, 14, 0, 4);
 
         resetPortButton.Text = "Сбросить порт";
         StylePrimaryButton(resetPortButton);
         resetPortButton.Click += OnResetPortClicked;
+        resetPortButton.Margin = new Padding(0, 16, 0, 0);
 
         connectionLayout.Controls.Add(statusCaptionLabel, 0, 0);
         connectionLayout.Controls.Add(statusValueLabel, 1, 0);
@@ -396,8 +396,8 @@ partial class MainForm
         settingsLayout.ColumnCount = 2;
         settingsLayout.RowCount = 5;
         settingsLayout.ColumnStyles.Clear();
-        settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55F));
-        settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45F));
+        settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         settingsLayout.RowStyles.Clear();
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -405,50 +405,58 @@ partial class MainForm
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.Dock = DockStyle.Fill;
-        settingsLayout.Padding = new Padding(0);
+        settingsLayout.Padding = new Padding(0, 4, 0, 0);
         settingsLayout.Margin = new Padding(0);
         settingsLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
         settingsLayout.BackColor = Color.White;
 
         scanIntervalLabel.Text = "Интервал поиска (с):";
         StyleCaptionLabel(scanIntervalLabel);
-        scanIntervalLabel.Margin = new Padding(0, 0, 12, 0);
+        scanIntervalLabel.Margin = new Padding(0, 0, 16, 0);
         scanIntervalTextBox.Width = 80;
         scanIntervalTextBox.BorderStyle = BorderStyle.FixedSingle;
-        scanIntervalTextBox.Margin = new Padding(0, 6, 0, 0);
+        scanIntervalTextBox.Margin = new Padding(0, 4, 0, 0);
         scanIntervalTextBox.TextAlign = HorizontalAlignment.Center;
-        scanIntervalTextBox.Dock = DockStyle.Fill;
+        scanIntervalTextBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        scanIntervalTextBox.MaximumSize = new Size(160, 0);
+        scanIntervalTextBox.MinimumSize = new Size(80, 0);
         scanIntervalTextBox.Validating += OnNumericTextBoxValidating;
         scanIntervalTextBox.Validated += OnScanIntervalValidated;
 
         reconnectDelayLabel.Text = "Задержка перепроверки (с):";
         StyleCaptionLabel(reconnectDelayLabel);
-        reconnectDelayLabel.Margin = new Padding(0, 10, 12, 0);
+        reconnectDelayLabel.Margin = new Padding(0, 10, 16, 0);
         reconnectDelayTextBox.Width = 80;
         reconnectDelayTextBox.BorderStyle = BorderStyle.FixedSingle;
-        reconnectDelayTextBox.Margin = new Padding(0, 6, 0, 0);
+        reconnectDelayTextBox.Margin = new Padding(0, 4, 0, 0);
         reconnectDelayTextBox.TextAlign = HorizontalAlignment.Center;
-        reconnectDelayTextBox.Dock = DockStyle.Fill;
+        reconnectDelayTextBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        reconnectDelayTextBox.MaximumSize = new Size(160, 0);
+        reconnectDelayTextBox.MinimumSize = new Size(80, 0);
         reconnectDelayTextBox.Validating += OnNumericTextBoxValidating;
         reconnectDelayTextBox.Validated += OnReconnectDelayValidated;
 
         backgroundSyncLabel.Text = "Период синхронизации (мин):";
         StyleCaptionLabel(backgroundSyncLabel);
-        backgroundSyncLabel.Margin = new Padding(0, 10, 12, 0);
+        backgroundSyncLabel.Margin = new Padding(0, 10, 16, 0);
         backgroundSyncTextBox.Width = 80;
         backgroundSyncTextBox.BorderStyle = BorderStyle.FixedSingle;
-        backgroundSyncTextBox.Margin = new Padding(0, 6, 0, 0);
+        backgroundSyncTextBox.Margin = new Padding(0, 4, 0, 0);
         backgroundSyncTextBox.TextAlign = HorizontalAlignment.Center;
-        backgroundSyncTextBox.Dock = DockStyle.Fill;
+        backgroundSyncTextBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        backgroundSyncTextBox.MaximumSize = new Size(160, 0);
+        backgroundSyncTextBox.MinimumSize = new Size(80, 0);
         backgroundSyncTextBox.Validating += OnNumericTextBoxValidating;
         backgroundSyncTextBox.Validated += OnBackgroundSyncValidated;
 
         openReportsButton.Text = "Открыть каталог отчетов";
         StyleSecondaryButton(openReportsButton);
         openReportsButton.Click += OnOpenReportsClicked;
+        openReportsButton.Margin = new Padding(0, 14, 0, 0);
         convertBinButton.Text = "Конвертировать .bin в отчет";
         StylePrimaryButton(convertBinButton);
         convertBinButton.Click += OnConvertBinClicked;
+        convertBinButton.Margin = new Padding(0, 10, 0, 0);
         settingsLayout.Controls.Add(scanIntervalLabel, 0, 0);
         settingsLayout.Controls.Add(scanIntervalTextBox, 1, 0);
         settingsLayout.Controls.Add(reconnectDelayLabel, 0, 1);
@@ -471,8 +479,8 @@ partial class MainForm
         updatesLayout.ColumnCount = 2;
         updatesLayout.RowCount = 6;
         updatesLayout.ColumnStyles.Clear();
-        updatesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55F));
-        updatesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45F));
+        updatesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        updatesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         updatesLayout.RowStyles.Clear();
         updatesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         updatesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -481,13 +489,14 @@ partial class MainForm
         updatesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         updatesLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         updatesLayout.Dock = DockStyle.Fill;
-        updatesLayout.Padding = new Padding(0);
+        updatesLayout.Padding = new Padding(0, 4, 0, 0);
         updatesLayout.Margin = new Padding(0);
+        updatesLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
         updatesLayout.BackColor = Color.White;
 
         updateStatusCaptionLabel.Text = "Статус обновлений:";
         StyleCaptionLabel(updateStatusCaptionLabel);
-        updateStatusCaptionLabel.Margin = new Padding(0, 0, 12, 0);
+        updateStatusCaptionLabel.Margin = new Padding(0, 0, 16, 0);
         updateStatusValueLabel.AutoSize = true;
         updateStatusValueLabel.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point);
         updateStatusValueLabel.ForeColor = Color.FromArgb(59, 179, 115);
@@ -503,27 +512,30 @@ partial class MainForm
 
         updateIntervalLabel.Text = "Интервал проверки (мин):";
         StyleCaptionLabel(updateIntervalLabel);
-        updateIntervalLabel.Margin = new Padding(0, 12, 12, 0);
+        updateIntervalLabel.Margin = new Padding(0, 12, 16, 0);
         updateIntervalTextBox.Width = 80;
         updateIntervalTextBox.BorderStyle = BorderStyle.FixedSingle;
-        updateIntervalTextBox.Margin = new Padding(0, 6, 0, 0);
+        updateIntervalTextBox.Margin = new Padding(0, 4, 0, 0);
         updateIntervalTextBox.TextAlign = HorizontalAlignment.Center;
-        updateIntervalTextBox.Dock = DockStyle.Fill;
+        updateIntervalTextBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        updateIntervalTextBox.MaximumSize = new Size(160, 0);
+        updateIntervalTextBox.MinimumSize = new Size(80, 0);
         updateIntervalTextBox.Validating += OnNumericTextBoxValidating;
         updateIntervalTextBox.Validated += OnUpdateIntervalValidated;
 
         manifestUrlLabel.Text = "URL манифеста:";
         StyleCaptionLabel(manifestUrlLabel);
-        manifestUrlLabel.Margin = new Padding(0, 12, 12, 0);
+        manifestUrlLabel.Margin = new Padding(0, 12, 16, 0);
         manifestUrlTextBox.Width = 260;
         manifestUrlTextBox.BorderStyle = BorderStyle.FixedSingle;
-        manifestUrlTextBox.Margin = new Padding(0, 6, 0, 0);
+        manifestUrlTextBox.Margin = new Padding(0, 4, 0, 0);
         manifestUrlTextBox.Dock = DockStyle.Fill;
         manifestUrlTextBox.Validated += OnManifestUrlValidated;
 
         openLogsButton.Text = "Открыть каталог логов";
         StyleSecondaryButton(openLogsButton);
         openLogsButton.Click += OnOpenLogsClicked;
+        openLogsButton.Margin = new Padding(0, 14, 0, 0);
 
         updatesLayout.Controls.Add(updateStatusCaptionLabel, 0, 0);
         updatesLayout.Controls.Add(updateStatusValueLabel, 0, 1);
@@ -534,7 +546,8 @@ partial class MainForm
             FlowDirection = FlowDirection.LeftToRight,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.None,
+            Anchor = AnchorStyles.Left,
             Margin = new Padding(0, 10, 0, 6)
         };
         buttonsPanel.Controls.Add(checkUpdatesButton);
@@ -664,7 +677,9 @@ partial class MainForm
         label.AutoSize = true;
         label.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
         label.ForeColor = Color.FromArgb(120, 128, 145);
-        label.Margin = new Padding(0, 6, 0, 0);
+        label.Margin = new Padding(0, 8, 16, 0);
+        label.Anchor = AnchorStyles.Left;
+        label.TextAlign = ContentAlignment.MiddleLeft;
     }
 
     private static void StyleValueLabel(Label label, bool accent = false)
@@ -672,14 +687,17 @@ partial class MainForm
         label.AutoSize = true;
         label.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold, GraphicsUnit.Point);
         label.ForeColor = accent ? Color.FromArgb(34, 158, 189) : Color.FromArgb(33, 37, 41);
-        label.Margin = new Padding(8, 6, 0, 0);
+        label.Margin = new Padding(8, 8, 0, 0);
+        label.Anchor = AnchorStyles.Left;
+        label.AutoEllipsis = true;
+        label.TextAlign = ContentAlignment.MiddleLeft;
     }
 
     private static void StylePrimaryButton(Button button)
     {
-        button.AutoSize = false;
+        button.AutoSize = true;
+        button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         button.MinimumSize = new Size(140, 36);
-        button.Size = new Size(160, 36);
         button.FlatStyle = FlatStyle.Flat;
         button.FlatAppearance.BorderSize = 0;
         button.FlatAppearance.MouseOverBackColor = Color.FromArgb(44, 182, 214);
@@ -689,15 +707,15 @@ partial class MainForm
         button.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point);
         button.Margin = new Padding(0, 10, 0, 0);
         button.Padding = new Padding(10, 6, 10, 6);
-        button.Dock = DockStyle.Fill;
         button.Cursor = Cursors.Hand;
+        button.Anchor = AnchorStyles.Left;
     }
 
     private static void StyleSecondaryButton(Button button)
     {
-        button.AutoSize = false;
+        button.AutoSize = true;
+        button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         button.MinimumSize = new Size(140, 36);
-        button.Size = new Size(160, 36);
         button.FlatStyle = FlatStyle.Flat;
         button.FlatAppearance.BorderSize = 0;
         button.FlatAppearance.MouseOverBackColor = Color.FromArgb(225, 236, 242);
@@ -707,8 +725,8 @@ partial class MainForm
         button.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
         button.Margin = new Padding(0, 10, 0, 0);
         button.Padding = new Padding(10, 6, 10, 6);
-        button.Dock = DockStyle.Fill;
         button.Cursor = Cursors.Hand;
+        button.Anchor = AnchorStyles.Left;
     }
 
     private void ConfigureTrayIcon()
