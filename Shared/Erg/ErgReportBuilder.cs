@@ -1480,7 +1480,18 @@ public static class ErgReportBuilder
     }
 
     private static string GetClientDeviceName(CommonInfo? info)
-        => string.IsNullOrWhiteSpace(info?.DeviceName) ? "—" : info.DeviceName;
+    {
+        if (info == null)
+            return "—";
+
+        if (!string.IsNullOrWhiteSpace(info.DeviceName))
+            return info.DeviceName;
+
+        if (!string.IsNullOrWhiteSpace(info.ReportName))
+            return info.ReportName;
+
+        return "—";
+    }
 
     private static string? GetClientSoftwareVersion(CommonInfo? info)
         => string.IsNullOrWhiteSpace(info?.SoftwareRev) ? null : info!.SoftwareRev;
@@ -1514,6 +1525,9 @@ public static class ErgReportBuilder
         normalized = normalized.Replace(" :", ":", StringComparison.InvariantCulture);
         normalized = normalized.Replace(" ,", ",", StringComparison.InvariantCulture);
         normalized = normalized.Replace("  ", " ", StringComparison.InvariantCulture);
+
+        normalized = normalized.Replace("(", " (", StringComparison.InvariantCulture);
+        normalized = normalized.Replace(" )", ")", StringComparison.InvariantCulture);
 
         normalized = normalized.Replace("Гц", " Гц", StringComparison.InvariantCulture);
         normalized = normalized.Replace("кд·с/м²", " кд·с/м²", StringComparison.InvariantCulture);
@@ -1656,6 +1670,8 @@ public static class ErgReportBuilder
             const float marginRight = 30f;
             const float marginTop = 20f;
             const float marginBottom = 60f;
+            const float tickInside = 4f;
+            const float tickOutside = 6f;
 
             var chartRect = new SKRect(marginLeft, marginTop, width - marginRight, height - marginBottom);
 
@@ -1667,54 +1683,30 @@ public static class ErgReportBuilder
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
 
-            using (var backgroundPaint = new SKPaint { Color = new SKColor(248, 248, 248), Style = SKPaintStyle.Fill })
-            {
-                canvas.DrawRect(chartRect, backgroundPaint);
-            }
-
             var xStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
             var yStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
             var xTicks = BuildAxisTicks(xMin, xMax, xStep);
             var yTicks = BuildAxisTicks(yMin, yMax, yStep);
 
-            using (var gridPaint = new SKPaint { Color = new SKColor(220, 220, 220), StrokeWidth = 1f, IsAntialias = true })
-            {
-                for (int i = 1; i < xTicks.Length - 1; i++)
-                {
-                    var px = TransformX(xTicks[i]);
-                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
-                        continue;
-                    canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, gridPaint);
-                }
-
-                for (int i = 1; i < yTicks.Length - 1; i++)
-                {
-                    var py = TransformY(yTicks[i]);
-                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
-                        continue;
-                    canvas.DrawLine(chartRect.Left, py, chartRect.Right, py, gridPaint);
-                }
-            }
-
-            using (var borderPaint = new SKPaint { Color = new SKColor(200, 200, 200), StrokeWidth = 1f, IsAntialias = true, Style = SKPaintStyle.Stroke })
+            using (var borderPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.5f, IsAntialias = true, Style = SKPaintStyle.Stroke })
             {
                 canvas.DrawRect(chartRect, borderPaint);
             }
 
-            using (var axisPaint = new SKPaint { Color = new SKColor(100, 100, 100), StrokeWidth = 1.5f, IsAntialias = true })
+            using (var axisPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.8f, IsAntialias = true })
             {
                 canvas.DrawLine(chartRect.Left, chartRect.Bottom, chartRect.Right, chartRect.Bottom, axisPaint);
                 canvas.DrawLine(chartRect.Left, chartRect.Top, chartRect.Left, chartRect.Bottom, axisPaint);
             }
 
-            using (var tickPaint = new SKPaint { Color = new SKColor(100, 100, 100), StrokeWidth = 1.2f, IsAntialias = true })
+            using (var tickPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.2f, IsAntialias = true })
             {
                 foreach (var tick in xTicks)
                 {
                     var px = TransformX(tick);
                     if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
                         continue;
-                    canvas.DrawLine(px, chartRect.Bottom, px, chartRect.Bottom + 6f, tickPaint);
+                    canvas.DrawLine(px, chartRect.Bottom - tickInside, px, chartRect.Bottom + tickOutside, tickPaint);
                 }
 
                 foreach (var tick in yTicks)
@@ -1722,27 +1714,28 @@ public static class ErgReportBuilder
                     var py = TransformY(tick);
                     if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
                         continue;
-                    canvas.DrawLine(chartRect.Left - 6f, py, chartRect.Left, py, tickPaint);
+                    canvas.DrawLine(chartRect.Left - tickOutside, py, chartRect.Left + tickInside, py, tickPaint);
                 }
             }
 
-            if (yMin < 0 && yMax > 0)
+            using (var zeroPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.2f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 4f, 4f }, 0) })
             {
-                using var zeroPaint = new SKPaint { Color = new SKColor(180, 180, 180), StrokeWidth = 1f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 6f }, 0) };
-                var zeroY = TransformY(0);
-                canvas.DrawLine(chartRect.Left, zeroY, chartRect.Right, zeroY, zeroPaint);
-            }
+                if (yMin < 0 && yMax > 0)
+                {
+                    var zeroY = TransformY(0);
+                    canvas.DrawLine(chartRect.Left, zeroY, chartRect.Right, zeroY, zeroPaint);
+                }
 
-            if (xMin < 0 && xMax > 0)
-            {
-                using var zeroPaint = new SKPaint { Color = new SKColor(180, 180, 180), StrokeWidth = 1f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 6f }, 0) };
-                var zeroX = TransformX(0);
-                canvas.DrawLine(zeroX, chartRect.Top, zeroX, chartRect.Bottom, zeroPaint);
+                if (xMin < 0 && xMax > 0)
+                {
+                    var zeroX = TransformX(0);
+                    canvas.DrawLine(zeroX, chartRect.Top, zeroX, chartRect.Bottom, zeroPaint);
+                }
             }
 
             if (test.GraphFlashPosition >= xMin && test.GraphFlashPosition <= xMax)
             {
-                using var flashPaint = new SKPaint { Color = new SKColor(220, 0, 0), StrokeWidth = 1.5f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 6f }, 0) };
+                using var flashPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.5f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0) };
                 var flashX = TransformX(test.GraphFlashPosition);
                 canvas.DrawLine(flashX, chartRect.Top, flashX, chartRect.Bottom, flashPaint);
             }
@@ -1788,6 +1781,9 @@ public static class ErgReportBuilder
                     canvas.DrawText(label, px - textWidth / 2f, labelY, labelPaint);
                 }
             }
+
+            canvas.Save();
+            canvas.ClipRect(chartRect);
 
             double graphDt = test.GraphDt;
             bool hasGraphDt = graphDt > 0;
@@ -1857,7 +1853,9 @@ public static class ErgReportBuilder
                 canvas.DrawPath(path, linePaint);
             }
 
-            using (var labelPaint = new SKPaint { Color = SKColors.Black, TextSize = 16f, IsAntialias = true })
+            canvas.Restore();
+
+            using (var labelPaint = new SKPaint { Color = SKColors.Black, TextSize = 14f, IsAntialias = true })
             {
                 var metrics = labelPaint.FontMetrics;
                 float textHeight = metrics.Descent - metrics.Ascent;
@@ -1869,7 +1867,7 @@ public static class ErgReportBuilder
                         continue;
                     var text = FormatAxisValue(tick);
                     var textWidth = labelPaint.MeasureText(text);
-                    canvas.DrawText(text, px - textWidth / 2f, chartRect.Bottom + textHeight + 2f, labelPaint);
+                    canvas.DrawText(text, px - textWidth / 2f, chartRect.Bottom + textHeight, labelPaint);
                 }
 
                 foreach (var tick in yTicks)
@@ -1879,18 +1877,18 @@ public static class ErgReportBuilder
                         continue;
                     var text = FormatAxisValue(tick);
                     var textWidth = labelPaint.MeasureText(text);
-                    canvas.DrawText(text, chartRect.Left - 8f - textWidth, py + textHeight / 3f, labelPaint);
+                    canvas.DrawText(text, chartRect.Left - 10f - textWidth, py + textHeight / 3f, labelPaint);
                 }
             }
 
-            using (var titlePaint = new SKPaint { Color = SKColors.Black, TextSize = 18f, IsAntialias = true })
+            using (var titlePaint = new SKPaint { Color = SKColors.Black, TextSize = 16f, IsAntialias = true })
             {
-                var xLabel = "Время (мс)";
+                var xLabel = "ms";
                 var xWidth = titlePaint.MeasureText(xLabel);
                 var midX = (chartRect.Left + chartRect.Right) / 2f;
                 canvas.DrawText(xLabel, midX - xWidth / 2f, height - 12, titlePaint);
 
-                var yLabel = "Амплитуда (мкВ)";
+                var yLabel = "µV";
                 canvas.Save();
                 canvas.Translate(20, (chartRect.Top + chartRect.Bottom) / 2f);
                 canvas.RotateDegrees(-90);
@@ -1932,6 +1930,8 @@ public static class ErgReportBuilder
             const float marginRight = 30f;
             const float marginTop = 20f;
             const float marginBottom = 60f;
+            const float tickInside = 4f;
+            const float tickOutside = 6f;
 
             var chartRect = new RectangleF(marginLeft, marginTop, width - marginLeft - marginRight, height - marginTop - marginBottom);
 
@@ -1943,54 +1943,30 @@ public static class ErgReportBuilder
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
 
-            using (var backgroundBrush = new SolidBrush(System.Drawing.Color.FromArgb(248, 248, 248)))
-            {
-                graphics.FillRectangle(backgroundBrush, chartRect);
-            }
-
             var xStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
             var yStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
             var xTicks = BuildAxisTicks(xMin, xMax, xStep);
             var yTicks = BuildAxisTicks(yMin, yMax, yStep);
 
-            using (var gridPen = new Pen(System.Drawing.Color.FromArgb(220, 220, 220), 1f))
-            {
-                for (int i = 1; i < xTicks.Length - 1; i++)
-                {
-                    var px = TransformX(xTicks[i]);
-                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
-                        continue;
-                    graphics.DrawLine(gridPen, px, chartRect.Top, px, chartRect.Bottom);
-                }
-
-                for (int i = 1; i < yTicks.Length - 1; i++)
-                {
-                    var py = TransformY(yTicks[i]);
-                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
-                        continue;
-                    graphics.DrawLine(gridPen, chartRect.Left, py, chartRect.Right, py);
-                }
-            }
-
-            using (var borderPen = new Pen(System.Drawing.Color.FromArgb(200, 200, 200), 1f))
+            using (var borderPen = new Pen(System.Drawing.Color.Black, 1.5f))
             {
                 graphics.DrawRectangle(borderPen, chartRect.X, chartRect.Y, chartRect.Width, chartRect.Height);
             }
 
-            using (var axisPen = new Pen(System.Drawing.Color.FromArgb(100, 100, 100), 1.5f))
+            using (var axisPen = new Pen(System.Drawing.Color.Black, 1.8f))
             {
                 graphics.DrawLine(axisPen, chartRect.Left, chartRect.Bottom, chartRect.Right, chartRect.Bottom);
                 graphics.DrawLine(axisPen, chartRect.Left, chartRect.Top, chartRect.Left, chartRect.Bottom);
             }
 
-            using (var tickPen = new Pen(System.Drawing.Color.FromArgb(100, 100, 100), 1.2f))
+            using (var tickPen = new Pen(System.Drawing.Color.Black, 1.2f))
             {
                 foreach (var tick in xTicks)
                 {
                     var px = TransformX(tick);
                     if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
                         continue;
-                    graphics.DrawLine(tickPen, px, chartRect.Bottom, px, chartRect.Bottom + 6f);
+                    graphics.DrawLine(tickPen, px, chartRect.Bottom - tickInside, px, chartRect.Bottom + tickOutside);
                 }
 
                 foreach (var tick in yTicks)
@@ -1998,11 +1974,11 @@ public static class ErgReportBuilder
                     var py = TransformY(tick);
                     if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
                         continue;
-                    graphics.DrawLine(tickPen, chartRect.Left - 6f, py, chartRect.Left, py);
+                    graphics.DrawLine(tickPen, chartRect.Left - tickOutside, py, chartRect.Left + tickInside, py);
                 }
             }
 
-            using (var dashedPen = new Pen(System.Drawing.Color.FromArgb(180, 180, 180), 1f) { DashPattern = new[] { 6f, 6f } })
+            using (var dashedPen = new Pen(System.Drawing.Color.Black, 1.2f) { DashPattern = new[] { 4f, 4f } })
             {
                 if (yMin < 0 && yMax > 0)
                 {
@@ -2019,7 +1995,7 @@ public static class ErgReportBuilder
 
             if (test.GraphFlashPosition >= xMin && test.GraphFlashPosition <= xMax)
             {
-                using var flashPen = new Pen(System.Drawing.Color.FromArgb(220, 0, 0), 1.5f) { DashPattern = new[] { 6f, 6f } };
+                using var flashPen = new Pen(System.Drawing.Color.Black, 1.5f) { DashPattern = new[] { 6f, 4f } };
                 var flashX = TransformX(test.GraphFlashPosition);
                 graphics.DrawLine(flashPen, flashX, chartRect.Top, flashX, chartRect.Bottom);
             }
@@ -2051,6 +2027,9 @@ public static class ErgReportBuilder
                     graphics.DrawString(label, markerFont, markerBrush, px - size.Width / 2f, labelY);
                 }
             }
+
+            var state = graphics.Save();
+            graphics.SetClip(chartRect);
 
             double graphDt = test.GraphDt;
             bool hasGraphDt = graphDt > 0;
@@ -2111,7 +2090,9 @@ public static class ErgReportBuilder
                 graphics.DrawLines(pen, points.ToArray());
             }
 
-            using var tickFont = new System.Drawing.Font("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
+            graphics.Restore(state);
+
+            using var tickFont = new System.Drawing.Font("Arial", 9.5f, FontStyle.Regular, GraphicsUnit.Point);
 
             foreach (var tick in xTicks)
             {
@@ -2120,7 +2101,7 @@ public static class ErgReportBuilder
                     continue;
                 var text = FormatAxisValue(tick);
                 var size = graphics.MeasureString(text, tickFont);
-                graphics.DrawString(text, tickFont, Brushes.Black, px - size.Width / 2f, chartRect.Bottom + size.Height / 3f);
+                graphics.DrawString(text, tickFont, Brushes.Black, px - size.Width / 2f, chartRect.Bottom + size.Height);
             }
 
             using var tickFormatLeft = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
@@ -2130,18 +2111,18 @@ public static class ErgReportBuilder
                 var py = TransformY(tick);
                 if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
                     continue;
-                var rect = new RectangleF(chartRect.Left - 12f, py - tickFont.GetHeight(graphics) / 2f, 40f, tickFont.GetHeight(graphics));
+                var rect = new RectangleF(chartRect.Left - 16f, py - tickFont.GetHeight(graphics) / 2f, 40f, tickFont.GetHeight(graphics));
                 graphics.DrawString(FormatAxisValue(tick), tickFont, Brushes.Black, rect, tickFormatLeft);
             }
 
-            using var axisTitleFont = new System.Drawing.Font("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
-            var xLabelSize = graphics.MeasureString("Время (мс)", axisTitleFont);
-            graphics.DrawString("Время (мс)", axisTitleFont, Brushes.Black, chartRect.Left + (chartRect.Width - xLabelSize.Width) / 2f, height - xLabelSize.Height - 6f);
+            using var axisTitleFont = new System.Drawing.Font("Arial", 11f, FontStyle.Regular, GraphicsUnit.Point);
+            var xLabelSize = graphics.MeasureString("ms", axisTitleFont);
+            graphics.DrawString("ms", axisTitleFont, Brushes.Black, chartRect.Left + (chartRect.Width - xLabelSize.Width) / 2f, height - xLabelSize.Height - 6f);
 
             graphics.TranslateTransform(20f, chartRect.Top + chartRect.Height / 2f);
             graphics.RotateTransform(-90f);
-            var yLabelSize = graphics.MeasureString("Амплитуда (мкВ)", axisTitleFont);
-            graphics.DrawString("Амплитуда (мкВ)", axisTitleFont, Brushes.Black, -yLabelSize.Width / 2f, -yLabelSize.Height / 2f);
+            var yLabelSize = graphics.MeasureString("µV", axisTitleFont);
+            graphics.DrawString("µV", axisTitleFont, Brushes.Black, -yLabelSize.Width / 2f, -yLabelSize.Height / 2f);
             graphics.ResetTransform();
 
             using var ms = new MemoryStream();
