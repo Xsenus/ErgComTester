@@ -25,6 +25,8 @@ using PdfSharpCore.Pdf;
 using A = DocumentFormat.OpenXml.Drawing;
 using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
+using ScottPlot;
+using ScottPlot.Plottable;
 
 namespace ErgData;
 
@@ -1577,9 +1579,16 @@ public static class ErgReportBuilder
         if (!TryPrepareGraphData(test, eye, out var context))
             return null;
 
-        return RenderingSupport.UseLegacyGraphRendering
-            ? TryRenderGraphImageWithGdi(test, context)
-            : TryRenderGraphImageWithSkia(test, context);
+        if (RenderingSupport.UseLegacyGraphRendering)
+        {
+            return TryRenderGraphImageWithGdi(test, context);
+        }
+
+        var image = TryRenderGraphImageWithScottPlot(test, context);
+        if (image != null)
+            return image;
+
+        return TryRenderGraphImageWithSkia(test, context);
     }
 
     private static bool TryPrepareGraphData(ErgTest test, EyeData eye, out GraphRenderContext context)
@@ -1647,6 +1656,174 @@ public static class ErgReportBuilder
             markers.Add(bMarker);
 
         return markers.ToArray();
+    }
+
+    private static GraphImage? TryRenderGraphImageWithScottPlot(ErgTest test, GraphRenderContext context)
+    {
+        try
+        {
+            const int width = 900;
+            const int height = 360;
+            var plt = new Plot(width, height);
+
+            plt.Benchmark(enable: false);
+            plt.Style(Style.White);
+            plt.Title("Электроретинограмма", fontName: "Arial", size: 16);
+            plt.XLabel("Время, мс", size: 12, fontName: "Arial");
+            plt.YLabel("Амплитуда, мкВ", size: 12, fontName: "Arial");
+            plt.Legend(enable: false);
+            plt.Grid(enable: true, color: System.Drawing.Color.LightGray, lineStyle: LineStyle.Dot);
+            plt.XAxis.TickLabelStyle(fontSize: 10, fontName: "Arial");
+            plt.YAxis.TickLabelStyle(fontSize: 10, fontName: "Arial");
+            plt.XAxis.LabelStyle(fontSize: 12, fontName: "Arial");
+            plt.YAxis.LabelStyle(fontSize: 12, fontName: "Arial");
+
+            double xMin = context.XMin;
+            double xMax = context.XMax;
+            double yMin = context.YMin;
+            double yMax = context.YMax;
+            plt.SetAxisLimits(xMin, xMax, yMin, yMax);
+
+            var xRange = Math.Max(1e-6, xMax - xMin);
+            var yRange = Math.Max(1e-6, yMax - yMin);
+            var defaultXTick = xRange / 10.0;
+            var defaultYTick = yRange / 10.0;
+
+            double xTick = test.GraphXValueStep > 0 ? test.GraphXValueStep : defaultXTick;
+            double yTick = test.GraphYValueStep > 0 ? test.GraphYValueStep : defaultYTick;
+            if (xTick > 0)
+                plt.XAxis.ManualTickSpacing(xTick);
+            if (yTick > 0)
+                plt.YAxis.ManualTickSpacing(yTick);
+            plt.XAxis.TickLabelFormat(xTick < 1 ? "0.0" : "0");
+            plt.YAxis.TickLabelFormat(yTick < 1 ? "0.0" : "0");
+
+            if (yMin < 0 && yMax > 0)
+            {
+                var zero = plt.AddHorizontalLine(0, color: System.Drawing.Color.Black);
+                zero.LineStyle = LineStyle.Dash;
+                zero.LineWidth = 1.2;
+            }
+
+            if (xMin < 0 && xMax > 0)
+            {
+                var zero = plt.AddVerticalLine(0, color: System.Drawing.Color.Black);
+                zero.LineStyle = LineStyle.Dash;
+                zero.LineWidth = 1.2;
+            }
+
+            if (test.GraphFlashPosition >= xMin && test.GraphFlashPosition <= xMax)
+            {
+                var flash = plt.AddVerticalLine(test.GraphFlashPosition, color: System.Drawing.Color.Black);
+                flash.LineStyle = LineStyle.Dash;
+                flash.LineWidth = 1.5;
+            }
+
+            if (context.Markers.Length > 0)
+            {
+                double labelY = yMax - yRange * 0.08;
+                foreach (var marker in context.Markers)
+                {
+                    if (marker.PositionMs < xMin || marker.PositionMs > xMax)
+                        continue;
+
+                    var color = GetMarkerColor(marker);
+                    var line = plt.AddVerticalLine(marker.PositionMs, color: color);
+                    line.LineStyle = LineStyle.Dash;
+                    line.LineWidth = 1.5;
+
+                    var text = plt.AddText(GetMarkerLabel(marker), marker.PositionMs, labelY, color: color);
+                    text.Alignment = Alignment.UpperCenter;
+                    text.FontSize = 16;
+                    text.FontBold = true;
+                }
+            }
+
+            var graphStyles = test.GraphStyles ?? Array.Empty<GraphStyle>();
+            double graphDt = test.GraphDt;
+            bool hasGraphDt = graphDt > 0;
+
+            for (int graphIndex = 0; graphIndex < context.Curves; graphIndex++)
+            {
+                var samples = context.Graphs[graphIndex];
+                if (samples == null || samples.Length == 0)
+                    continue;
+
+                int count = context.DeclaredPointCount > 1
+                    ? Math.Min(context.DeclaredPointCount, samples.Length)
+                    : samples.Length;
+
+                if (count < 2)
+                    continue;
+
+                var xs = new List<double>(count);
+                var ys = new List<double>(count);
+
+                for (int point = 0; point < count; point++)
+                {
+                    double xValue;
+                    if (hasGraphDt)
+                    {
+                        xValue = point * graphDt;
+                        if (xValue < xMin)
+                            continue;
+                        if (xValue > xMax)
+                            break;
+                    }
+                    else if (count == 1)
+                    {
+                        xValue = xMin;
+                    }
+                    else
+                    {
+                        xValue = xMin + (xRange) * point / (count - 1);
+                    }
+
+                    double yValue = samples[point];
+                    if (double.IsNaN(yValue) || double.IsInfinity(yValue))
+                        continue;
+
+                    xs.Add(xValue);
+                    ys.Add(yValue);
+                }
+
+                if (xs.Count < 2)
+                    continue;
+
+                var style = graphIndex < graphStyles.Length ? graphStyles[graphIndex] : null;
+                var color = style != null
+                    ? System.Drawing.Color.FromArgb(style.Red, style.Green, style.Blue)
+                    : System.Drawing.Color.FromArgb(56, 109, 179);
+
+                var scatter = plt.AddScatter(xs.ToArray(), ys.ToArray(), color: color);
+                scatter.LineWidth = 2;
+                scatter.MarkerSize = 0;
+                scatter.AntiAlias = true;
+                if (style?.Dotted == true)
+                {
+                    scatter.LineStyle = LineStyle.Dash;
+                }
+            }
+
+            using var bitmap = plt.GetBitmap(copy: true);
+            using var ms = new MemoryStream();
+            bitmap.Save(ms, ImageFormat.Png);
+            return new GraphImage(ms.ToArray(), bitmap.Width, bitmap.Height);
+        }
+        catch (DllNotFoundException ex)
+        {
+            RenderingSupport.DisableGraphRendering($"ScottPlot недоступен: {ex.Message}");
+            return null;
+        }
+        catch (TypeInitializationException ex)
+        {
+            RenderingSupport.DisableGraphRendering($"Ошибка инициализации ScottPlot: {ex.Message}");
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static GraphImage? TryRenderGraphImageWithSkia(ErgTest test, GraphRenderContext context)
