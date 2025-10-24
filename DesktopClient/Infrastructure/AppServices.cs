@@ -237,6 +237,7 @@ public static class AppServices
         var serial = s.Serial;
         Log.Info($"COM-порт: baud={serial.BaudRate}, readTimeout={serial.ReadTimeoutMs}мс, writeTimeout={serial.WriteTimeoutMs}мс, quiet={serial.QuietTimeMs}мс, window={serial.MaxReadWindowMs}мс");
         Log.Info($"COM-параметры: DTR={(serial.DtrEnable ? "on" : "off")}, RTS={(serial.RtsEnable ? "on" : "off")}, toggle={(serial.ToggleLinesOnOpen ? "on" : "off")}, retries={serial.RetryCount}, minCI={serial.MinCommonInfoSize}, minPatient={serial.MinPatientBlockSize}");
+        Log.Info($"COM-тайминги: probeTimeout={serial.ProbeTimeoutMs}мс, passiveDelay={serial.PassiveProbeDelayMs}мс, warmupAfterToggle={serial.WarmupAfterToggleMs}мс");
         Log.Info($"Дополнительно: RTC sync={(serial.EnableRtcSynchronization ? "вкл" : "выкл")}, получать пациентов={(serial.RequestPatientData ? "да" : "нет")}, ZIP={(serial.EnableZipPackaging ? "вкл" : "выкл")}");
         Log.Info($"Telegram: {s.Telegram?.DescribeSafety() ?? "<не настроен>"}");
     }
