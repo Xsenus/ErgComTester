@@ -148,7 +148,7 @@ public sealed class ErgDataParserTests
         {
             for (int point = 0; point < 128; point++)
             {
-                writer.Write(sampleFactory(graph, point));
+                WriteInt16BigEndian(writer, sampleFactory(graph, point));
             }
         }
 

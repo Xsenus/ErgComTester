@@ -397,7 +397,7 @@ public static class ErgDataParser
 
             for (int point = 0; point < graphCapacity; point++)
             {
-                short sample = reader.ReadInt16LittleEndian();
+                short sample = reader.ReadInt16BigEndian();
                 if (point >= samplesToExpose)
                     continue;
 
