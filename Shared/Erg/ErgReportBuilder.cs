@@ -26,7 +26,6 @@ using A = DocumentFormat.OpenXml.Drawing;
 using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 using ScottPlot;
-using ScottPlot.Plottable;
 
 namespace ErgData;
 
@@ -1667,7 +1666,8 @@ public static class ErgReportBuilder
             var plt = new ScottPlot.Plot(width, height);
 
             plt.Benchmark(enable: false);
-            plt.Style(ScottPlot.Style.White);
+            plt.FigureBackground.Color = System.Drawing.Color.White;
+            plt.DataBackground.Color = System.Drawing.Color.White;
             plt.Title("Электроретинограмма");
             plt.XLabel("Время, мс");
             plt.YLabel("Амплитуда, мкВ");
@@ -1730,7 +1730,7 @@ public static class ErgReportBuilder
                     line.LineStyle = ScottPlot.LineStyle.Dash;
                     line.LineWidth = 1.5;
 
-                    ScottPlot.Plottable.Text text = plt.AddText(GetMarkerLabel(marker), marker.PositionMs, labelY, color: color);
+                    var text = plt.AddText(GetMarkerLabel(marker), marker.PositionMs, labelY, color: color);
                     text.Alignment = ScottPlot.Alignment.UpperCenter;
                     text.FontSize = 16;
                     text.FontBold = true;
