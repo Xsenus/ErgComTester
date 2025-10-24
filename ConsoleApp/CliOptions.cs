@@ -1,3 +1,5 @@
+using ErgData;
+
 namespace ErgComTester;
 
 internal enum RunMode { Auto, List, Single, Parse }
@@ -23,6 +25,12 @@ internal sealed class CliOptions
                 case "--pdf-out": o.PdfOutputPath = val; break;
                 case "--docx-out": o.DocxOutputPath = val; break;
                 case "--clinic": o.ClinicName = val; break;
+                case "--template":
+                    if (Enum.TryParse(val, true, out ReportTemplate template))
+                    {
+                        o.Template = template;
+                    }
+                    break;
                 case "--baud": if (int.TryParse(val, out var b)) o.BaudRate = b; break;
                 case "--retries": if (int.TryParse(val, out var r)) o.Retries = r; break;
                 case "--rtctime": o.Rtc = true; break;
@@ -55,6 +63,7 @@ internal sealed class CliOptions
     public string? PdfOutputPath { get; private set; }
     public string? DocxOutputPath { get; private set; }
     public string? ClinicName { get; private set; }
+    public ReportTemplate Template { get; private set; } = ReportTemplate.Classic;
     public int QuietTimeMs { get; private set; } = 120;
     public int ReadTimeoutMs { get; private set; } = 400;
     public int Retries { get; private set; } = 5;

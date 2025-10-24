@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using ErgData;
 using MicroluxErgConnect.Infrastructure;
 using MicroluxErgConnect.Models;
 using MicroluxErgConnect.ViewModels;
@@ -19,6 +20,7 @@ public partial class MainForm : Form
     private bool _isExitRequested;
     private readonly EventHandler _checkUpdatesCanExecuteHandler;
     private readonly EventHandler _installUpdateCanExecuteHandler;
+    private sealed record ReportTemplateOption(ReportTemplate Value, string Description);
 
     public MainForm()
     {
@@ -27,6 +29,14 @@ public partial class MainForm : Form
         DoubleBuffered = true;
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
         UpdateStyles();
+        EnsureLogGridConfigured();
+        reportTemplateComboBox.DisplayMember = nameof(ReportTemplateOption.Description);
+        reportTemplateComboBox.ValueMember = nameof(ReportTemplateOption.Value);
+        reportTemplateComboBox.DataSource = new[]
+        {
+            new ReportTemplateOption(ReportTemplate.Classic, "Классический"),
+            new ReportTemplateOption(ReportTemplate.Client, "Шаблон клиента")
+        };
         logsBindingSource.DataSource = _logEntries;
         _viewModel.PropertyChanged += ViewModelOnPropertyChanged;
         _viewModel.Logs.CollectionChanged += LogsOnCollectionChanged;
@@ -34,6 +44,7 @@ public partial class MainForm : Form
         _installUpdateCanExecuteHandler = (_, _) => UpdateCommandState();
         _viewModel.CheckUpdatesCommand.CanExecuteChanged += _checkUpdatesCanExecuteHandler;
         _viewModel.InstallUpdateCommand.CanExecuteChanged += _installUpdateCanExecuteHandler;
+        reportTemplateComboBox.SelectedValueChanged += OnReportTemplateChanged;
         UpdateAll();
         UpdateCommandState();
 
@@ -150,6 +161,7 @@ public partial class MainForm : Form
             case nameof(MainViewModel.BackgroundSyncIntervalMinutes):
             case nameof(MainViewModel.UpdateCheckIntervalMinutes):
             case nameof(MainViewModel.UpdateManifestUrl):
+            case nameof(MainViewModel.ReportTemplate):
                 ApplySettingsToInputs();
                 break;
         }
@@ -171,6 +183,8 @@ public partial class MainForm : Form
             BeginInvoke(new NotifyCollectionChangedEventHandler(LogsOnCollectionChanged), sender, e);
             return;
         }
+
+        EnsureLogGridConfigured();
 
         if (e.Action == NotifyCollectionChangedAction.Reset)
         {
@@ -197,12 +211,112 @@ public partial class MainForm : Form
 
     private void PopulateLogs()
     {
-        _logEntries.Clear();
-        foreach (var entry in _viewModel.Logs)
+        EnsureLogGridConfigured();
+
+        var raiseEvents = logsBindingSource.RaiseListChangedEvents;
+        try
         {
-            _logEntries.Add(entry);
+            logsBindingSource.RaiseListChangedEvents = false;
+            _logEntries.Clear();
+            foreach (var entry in _viewModel.Logs)
+            {
+                _logEntries.Add(entry);
+            }
         }
+        finally
+        {
+            logsBindingSource.RaiseListChangedEvents = raiseEvents;
+            logsBindingSource.ResetBindings(false);
+        }
+
         ScrollLogsToEnd();
+    }
+
+    private void EnsureLogGridConfigured()
+    {
+        if (logGridView.AutoGenerateColumns)
+        {
+            logGridView.AutoGenerateColumns = false;
+        }
+
+        timestampColumn = EnsureTextColumn(
+            timestampColumn,
+            nameof(timestampColumn),
+            nameof(LogEntry.Timestamp),
+            "Время",
+            DataGridViewAutoSizeColumnMode.None,
+            180,
+            "yyyy-MM-dd HH:mm:ss");
+
+        levelColumn = EnsureTextColumn(
+            levelColumn,
+            nameof(levelColumn),
+            nameof(LogEntry.Level),
+            "Уровень",
+            DataGridViewAutoSizeColumnMode.None,
+            80);
+
+        messageColumn = EnsureTextColumn(
+            messageColumn,
+            nameof(messageColumn),
+            nameof(LogEntry.Message),
+            "Сообщение",
+            DataGridViewAutoSizeColumnMode.Fill,
+            100);
+
+        if (logGridView.DataSource != logsBindingSource)
+        {
+            logGridView.DataSource = logsBindingSource;
+        }
+    }
+
+    private DataGridViewTextBoxColumn EnsureTextColumn(
+        DataGridViewTextBoxColumn? column,
+        string name,
+        string dataProperty,
+        string headerText,
+        DataGridViewAutoSizeColumnMode sizeMode,
+        int minimumWidth,
+        string? format = null)
+    {
+        column ??= new DataGridViewTextBoxColumn();
+
+        var existing = logGridView.Columns[name] as DataGridViewTextBoxColumn;
+
+        if (existing is not null)
+        {
+            column = existing;
+        }
+        else
+        {
+            if (column.DataGridView is not null && column.DataGridView != logGridView)
+            {
+                column = new DataGridViewTextBoxColumn();
+            }
+
+            column.Name = name;
+            logGridView.Columns.Add(column);
+        }
+
+        column.Name = name;
+        column.DataPropertyName = dataProperty;
+        column.HeaderText = headerText;
+        column.AutoSizeMode = sizeMode;
+        column.MinimumWidth = minimumWidth;
+        column.ReadOnly = true;
+
+        if (sizeMode != DataGridViewAutoSizeColumnMode.Fill)
+        {
+            column.Width = minimumWidth;
+        }
+
+        if (!string.IsNullOrWhiteSpace(format))
+        {
+            column.DefaultCellStyle ??= new DataGridViewCellStyle();
+            column.DefaultCellStyle.Format = format;
+        }
+
+        return column;
     }
 
     private void ScrollLogsToEnd()
@@ -232,6 +346,7 @@ public partial class MainForm : Form
         backgroundSyncTextBox.Text = _viewModel.BackgroundSyncIntervalMinutes.ToString();
         updateIntervalTextBox.Text = _viewModel.UpdateCheckIntervalMinutes.ToString();
         manifestUrlTextBox.Text = _viewModel.UpdateManifestUrl;
+        reportTemplateComboBox.SelectedValue = _viewModel.ReportTemplate;
     }
 
     private void UpdateAll()
@@ -559,6 +674,15 @@ public partial class MainForm : Form
         manifestUrlTextBox.Text = _viewModel.UpdateManifestUrl;
     }
 
+    private void OnReportTemplateChanged(object? sender, EventArgs e)
+    {
+        if (reportTemplateComboBox.SelectedValue is ReportTemplate template && template != _viewModel.ReportTemplate)
+        {
+            AppServices.Log.Info($"Пользователь выбрал шаблон отчетов: {template}.");
+            _viewModel.ReportTemplate = template;
+        }
+    }
+
     private static bool TryParseTextBoxValue(TextBox textBox, out int value)
     {
         if (!int.TryParse(textBox.Text, out value))
@@ -581,6 +705,7 @@ public partial class MainForm : Form
         _viewModel.Logs.CollectionChanged -= LogsOnCollectionChanged;
         _viewModel.CheckUpdatesCommand.CanExecuteChanged -= _checkUpdatesCanExecuteHandler;
         _viewModel.InstallUpdateCommand.CanExecuteChanged -= _installUpdateCanExecuteHandler;
+        reportTemplateComboBox.SelectedValueChanged -= OnReportTemplateChanged;
         trayIcon.Visible = false;
         base.OnFormClosed(e);
     }
