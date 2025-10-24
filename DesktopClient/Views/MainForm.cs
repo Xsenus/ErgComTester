@@ -94,6 +94,21 @@ public partial class MainForm : Form
         Close();
     }
 
+    private void TrayOpenMenuItem_Click(object? sender, EventArgs e)
+    {
+        RestoreFromTray();
+    }
+
+    private void TrayExitMenuItem_Click(object? sender, EventArgs e)
+    {
+        ExitApplication();
+    }
+
+    private void TrayIcon_DoubleClick(object? sender, EventArgs e)
+    {
+        RestoreFromTray();
+    }
+
     private void ViewModelOnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (InvokeRequired)

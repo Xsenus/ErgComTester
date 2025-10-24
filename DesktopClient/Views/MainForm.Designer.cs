@@ -1060,7 +1060,7 @@ partial class MainForm
         // timestampColumn
         // 
         timestampColumn.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-        timestampColumn.DataPropertyName = nameof(LogEntry.Timestamp);
+        timestampColumn.DataPropertyName = "Timestamp";
         timestampColumn.DefaultCellStyle = new DataGridViewCellStyle { Format = "yyyy-MM-dd HH:mm:ss" };
         timestampColumn.HeaderText = "Время";
         timestampColumn.MinimumWidth = 180;
@@ -1071,7 +1071,7 @@ partial class MainForm
         // levelColumn
         // 
         levelColumn.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-        levelColumn.DataPropertyName = nameof(LogEntry.Level);
+        levelColumn.DataPropertyName = "Level";
         levelColumn.HeaderText = "Уровень";
         levelColumn.MinimumWidth = 80;
         levelColumn.Name = "levelColumn";
@@ -1081,7 +1081,7 @@ partial class MainForm
         // messageColumn
         // 
         messageColumn.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-        messageColumn.DataPropertyName = nameof(LogEntry.Message);
+        messageColumn.DataPropertyName = "Message";
         messageColumn.HeaderText = "Сообщение";
         messageColumn.MinimumWidth = 100;
         messageColumn.Name = "messageColumn";
@@ -1134,14 +1134,14 @@ partial class MainForm
         trayOpenMenuItem.Name = "trayOpenMenuItem";
         trayOpenMenuItem.Size = new Size(123, 22);
         trayOpenMenuItem.Text = "Открыть";
-        trayOpenMenuItem.Click += (_, _) => RestoreFromTray();
+        trayOpenMenuItem.Click += TrayOpenMenuItem_Click;
         // 
         // trayExitMenuItem
         // 
         trayExitMenuItem.Name = "trayExitMenuItem";
         trayExitMenuItem.Size = new Size(123, 22);
         trayExitMenuItem.Text = "Выход";
-        trayExitMenuItem.Click += (_, _) => ExitApplication();
+        trayExitMenuItem.Click += TrayExitMenuItem_Click;
         // 
         // trayIcon
         // 
@@ -1149,7 +1149,7 @@ partial class MainForm
         trayIcon.Icon = AppBranding.CreateTrayIcon();
         trayIcon.Text = "Microlux ERG-Connect";
         trayIcon.Visible = true;
-        trayIcon.DoubleClick += (_, _) => RestoreFromTray();
+        trayIcon.DoubleClick += TrayIcon_DoubleClick;
         // 
         // MainForm
         // 
