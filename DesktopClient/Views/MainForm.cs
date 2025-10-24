@@ -48,15 +48,20 @@ public partial class MainForm : Form
         ApplySettingsToInputs();
 
         var settings = AppServices.Settings.Current;
-        if (settings.StartMinimized)
+        if (settings.StartMinimized && !settings.MinimizeToTray)
         {
             AppServices.Log.Info("Старт в свернутом состоянии по настройкам пользователя.");
             WindowState = FormWindowState.Minimized;
-            if (settings.MinimizeToTray)
-            {
-                Hide();
-            }
+            return;
         }
+
+        if (WindowState != FormWindowState.Normal)
+        {
+            WindowState = FormWindowState.Normal;
+        }
+
+        Activate();
+        AppServices.Log.Info("Главное окно отображено при запуске приложения.");
     }
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
@@ -92,6 +97,21 @@ public partial class MainForm : Form
         AppServices.Log.Info("Пользователь запросил завершение приложения из трея.");
         trayIcon.Visible = false;
         Close();
+    }
+
+    private void TrayOpenMenuItem_Click(object? sender, EventArgs e)
+    {
+        RestoreFromTray();
+    }
+
+    private void TrayExitMenuItem_Click(object? sender, EventArgs e)
+    {
+        ExitApplication();
+    }
+
+    private void TrayIcon_DoubleClick(object? sender, EventArgs e)
+    {
+        RestoreFromTray();
     }
 
     private void ViewModelOnPropertyChanged(object? sender, PropertyChangedEventArgs e)
