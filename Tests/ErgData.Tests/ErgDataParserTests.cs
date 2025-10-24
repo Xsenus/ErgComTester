@@ -386,7 +386,7 @@ public sealed class ErgDataParserTests
     }
 
     [Fact]
-    public void TryParsePatient_ScalesGraphAmplitudesUsingMarkers()
+    public void TryParsePatient_PreservesGraphAmplitudes()
     {
         var frame = BuildPatientFrame(builder =>
         {
@@ -423,7 +423,7 @@ public sealed class ErgDataParserTests
 
         Assert.NotNull(test.RightEye.GraphsNormalized);
         var graph = Assert.Single(test.RightEye.GraphsNormalized!);
-        Assert.InRange(graph[34], 13.5, 14.5);
+        Assert.Equal(560, graph[34], 5);
         Assert.Equal<uint?>(14u, test.RightEye.BWaveMkV![0]);
         Assert.Equal<ushort?>(34, test.RightEye.BWaveMs![0]);
     }

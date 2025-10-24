@@ -1128,6 +1128,9 @@ public static class ErgReportBuilder
 
             var graphStyles = test.GraphStyles ?? Array.Empty<GraphStyle>();
 
+            double graphDt = test.GraphDt;
+            bool hasGraphDt = graphDt > 0;
+
             for (int graphIndex = 0; graphIndex < context.Curves; graphIndex++)
             {
                 var samples = context.Graphs[graphIndex];
@@ -1142,7 +1145,24 @@ public static class ErgReportBuilder
                 bool hasPoint = false;
                 for (int point = 0; point < count; point++)
                 {
-                    double xValue = count == 1 ? xMin : xMin + (xMax - xMin) * point / (count - 1);
+                    double xValue;
+                    if (hasGraphDt)
+                    {
+                        xValue = point * graphDt;
+                        if (xValue < xMin)
+                            continue;
+                        if (xValue > xMax)
+                            break;
+                    }
+                    else if (count == 1)
+                    {
+                        xValue = xMin;
+                    }
+                    else
+                    {
+                        xValue = xMin + (xMax - xMin) * point / (count - 1);
+                    }
+
                     double yValue = samples[point];
 
                     var px = TransformX(xValue);
@@ -1329,6 +1349,8 @@ public static class ErgReportBuilder
             }
 
             var graphStyles = test.GraphStyles ?? Array.Empty<GraphStyle>();
+            double graphDt = test.GraphDt;
+            bool hasGraphDt = graphDt > 0;
 
             for (int graphIndex = 0; graphIndex < context.Curves; graphIndex++)
             {
@@ -1343,7 +1365,24 @@ public static class ErgReportBuilder
                 var points = new List<PointF>(count);
                 for (int point = 0; point < count; point++)
                 {
-                    double xValue = count == 1 ? xMin : xMin + (xMax - xMin) * point / (count - 1);
+                    double xValue;
+                    if (hasGraphDt)
+                    {
+                        xValue = point * graphDt;
+                        if (xValue < xMin)
+                            continue;
+                        if (xValue > xMax)
+                            break;
+                    }
+                    else if (count == 1)
+                    {
+                        xValue = xMin;
+                    }
+                    else
+                    {
+                        xValue = xMin + (xMax - xMin) * point / (count - 1);
+                    }
+
                     double yValue = samples[point];
 
                     var px = TransformX(xValue);
