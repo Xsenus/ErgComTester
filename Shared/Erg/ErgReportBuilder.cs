@@ -156,14 +156,14 @@ public static class ErgReportBuilder
                 page.PageColor(Colors.White);
                 page.DefaultTextStyle(t => t.FontFamily("Arial").FontSize(11));
 
+                var clinicHeader = string.IsNullOrWhiteSpace(clinicName)
+                    ? "Шапка [название организации]"
+                    : clinicName!;
+
                 page.Header().Column(column =>
                 {
-                    column.Spacing(4);
-                    if (!string.IsNullOrWhiteSpace(clinicName))
-                    {
-                        column.Item().AlignRight().Text(clinicName).FontSize(12).SemiBold();
-                    }
-
+                    column.Spacing(3);
+                    column.Item().AlignCenter().Text(clinicHeader).FontSize(12).SemiBold();
                     column.Item().AlignCenter().Text("Отчет по результатам ЭРГ-исследования сетчатки").FontSize(18).SemiBold();
                 });
 
@@ -290,10 +290,10 @@ public static class ErgReportBuilder
         mainPart.Document = new WordDocument(new Body());
         var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
-        if (!string.IsNullOrWhiteSpace(clinicName))
-        {
-            body.Append(CreateParagraph(clinicName, fontSizePt: 12, bold: true, justification: JustificationValues.Right, spacingAfter: TwipsFromPoints(4)));
-        }
+        var clinicHeader = string.IsNullOrWhiteSpace(clinicName)
+            ? "Шапка [название организации]"
+            : clinicName!;
+        body.Append(CreateParagraph(clinicHeader, fontSizePt: 12, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(4)));
 
         body.Append(CreateParagraph("Отчет по результатам ЭРГ-исследования сетчатки", fontSizePt: 18, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(14)));
         body.Append(CreateClientInfoTable(patient, deviceInfo));
@@ -887,7 +887,7 @@ public static class ErgReportBuilder
         {
             container.Column(column =>
             {
-                column.Spacing(2);
+                column.Spacing(3);
                 column.Item().Text(text =>
                 {
                     text.DefaultTextStyle(style => style.FontSize(12));
@@ -898,15 +898,24 @@ public static class ErgReportBuilder
                 column.Item().Text(text =>
                 {
                     text.Span("Дата и время исследования: ").SemiBold();
-                    text.Span(_patient.TestDateTime);
+                    text.Span(FormatClientDateTime(_patient.TestDateTime));
                 });
 
-                var deviceLine = FormatDeviceInfo(_deviceInfo);
                 column.Item().Text(text =>
                 {
                     text.Span("Оборудование: ").SemiBold();
-                    text.Span(deviceLine);
+                    text.Span(GetClientDeviceName(_deviceInfo));
                 });
+
+                var software = GetClientSoftwareVersion(_deviceInfo);
+                if (!string.IsNullOrEmpty(software))
+                {
+                    column.Item().Text(text =>
+                    {
+                        text.Span("Версия ПО: ").SemiBold();
+                        text.Span(software);
+                    });
+                }
 
                 if (!string.IsNullOrWhiteSpace(_deviceInfo?.ReportName))
                 {
@@ -942,7 +951,7 @@ public static class ErgReportBuilder
             container.Column(column =>
             {
                 column.Spacing(12);
-                column.Item().Text($"Тест № {_index}: {_test.TestName}").FontSize(14).SemiBold();
+                column.Item().Text(FormatClientTestTitle(_index, _test)).FontSize(14).SemiBold();
 
                 column.Item().Row(row =>
                 {
@@ -995,7 +1004,7 @@ public static class ErgReportBuilder
                 if (_eye.IsFlat)
                 {
                     column.Item().AlignCenter().Text("FLAT").FontSize(24).SemiBold();
-                    AppendNorm(column, BuildWaveDisplay(_test, _eye, WaveKind.B));
+                    AppendFlatNorms(column, BuildWaveDisplay(_test, _eye, WaveKind.B));
                     return;
                 }
 
@@ -1010,13 +1019,13 @@ public static class ErgReportBuilder
             });
         }
 
-        private static void AppendNorm(ColumnDescriptor column, WaveDisplay display)
+        private static void AppendFlatNorms(ColumnDescriptor column, WaveDisplay display)
         {
-            AppendNormValue(column, display.MsNorm);
-            AppendNormValue(column, display.MkVNorm);
+            AppendFlatNorm(column, display.MsNorm);
+            AppendFlatNorm(column, display.MkVNorm);
         }
 
-        private static void AppendNormValue(ColumnDescriptor column, string value)
+        private static void AppendFlatNorm(ColumnDescriptor column, string value)
         {
             var formatted = FormatNormForClient(value);
             if (formatted == null)
@@ -1041,7 +1050,7 @@ public static class ErgReportBuilder
         {
             container.Column(column =>
             {
-                column.Spacing(2);
+                column.Spacing(4);
                 column.Item().AlignCenter().Text(_label).FontSize(11).SemiBold();
 
                 if (_display.IsFlat)
@@ -1052,10 +1061,24 @@ public static class ErgReportBuilder
                     return;
                 }
 
-                column.Item().AlignCenter().Text(_display.MsValue).FontSize(22).SemiBold();
-                AppendNorm(column, _display.MsNorm);
-                column.Item().AlignCenter().Text(_display.MkVValue).FontSize(22).SemiBold();
-                AppendNorm(column, _display.MkVNorm);
+                column.Item().Row(row =>
+                {
+                    row.Spacing(16);
+
+                    row.RelativeItem().Column(msColumn =>
+                    {
+                        msColumn.Spacing(2);
+                        msColumn.Item().AlignCenter().Text(_display.MsValue).FontSize(22).SemiBold();
+                        AppendNorm(msColumn, _display.MsNorm);
+                    });
+
+                    row.RelativeItem().Column(mkvColumn =>
+                    {
+                        mkvColumn.Spacing(2);
+                        mkvColumn.Item().AlignCenter().Text(_display.MkVValue).FontSize(22).SemiBold();
+                        AppendNorm(mkvColumn, _display.MkVNorm);
+                    });
+                });
             });
         }
 
@@ -1414,6 +1437,101 @@ public static class ErgReportBuilder
         return $"[{value}]";
     }
 
+    private static string FormatClientDateTime(string value)
+    {
+        var trimmed = value?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+            return "—";
+
+        var ruCulture = CultureInfo.GetCultureInfo("ru-RU");
+        var cultures = new[] { ruCulture, CultureInfo.InvariantCulture };
+        var formats = new[]
+        {
+            "dd.MM.yyyy HH:mm",
+            "dd.MM.yyyy H:mm",
+            "dd/MM/yyyy HH:mm",
+            "dd/MM/yyyy H:mm",
+            "dd-MM-yyyy HH:mm",
+            "dd-MM-yyyy H:mm",
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd H:mm",
+            "yyyy-MM-ddTHH:mm",
+            "yyyy-MM-ddTHH:mm:ss",
+            "yyyy-MM-ddTHH:mm:ss.FFF",
+            "yyyy.MM.dd HH:mm"
+        };
+
+        foreach (var culture in cultures)
+        {
+            if (DateTime.TryParse(trimmed, culture, DateTimeStyles.AssumeLocal | DateTimeStyles.AllowWhiteSpaces, out var parsed))
+                return parsed.ToString("dd/MM/yyyy HH:mm", ruCulture);
+        }
+
+        foreach (var culture in cultures)
+        {
+            foreach (var format in formats)
+            {
+                if (DateTime.TryParseExact(trimmed, format, culture, DateTimeStyles.AssumeLocal | DateTimeStyles.AllowWhiteSpaces, out var parsedExact))
+                    return parsedExact.ToString("dd/MM/yyyy HH:mm", ruCulture);
+            }
+        }
+
+        return trimmed;
+    }
+
+    private static string GetClientDeviceName(CommonInfo? info)
+        => string.IsNullOrWhiteSpace(info?.DeviceName) ? "—" : info.DeviceName;
+
+    private static string? GetClientSoftwareVersion(CommonInfo? info)
+        => string.IsNullOrWhiteSpace(info?.SoftwareRev) ? null : info!.SoftwareRev;
+
+    private static string FormatClientTestTitle(int index, ErgTest test)
+    {
+        var name = FormatClientTestName(test.TestName);
+        return $"Тест № {index}: {name}";
+    }
+
+    private static string FormatClientTestName(string testName)
+    {
+        if (string.IsNullOrWhiteSpace(testName))
+            return "—";
+
+        var normalized = testName.Trim();
+
+        normalized = ReplaceInvariant(normalized, "Flash", "Вспышка");
+        normalized = ReplaceInvariant(normalized, "Background", "Фон");
+        normalized = ReplaceInvariant(normalized, "Amplitude", "Амплитуда");
+        normalized = ReplaceInvariant(normalized, "Test", "Тест");
+
+        normalized = ReplaceInvariant(normalized, "cd*s/m2", "кд·с/м²");
+        normalized = ReplaceInvariant(normalized, "cd/m2", "кд/м²");
+        normalized = ReplaceInvariant(normalized, "Hz", "Гц");
+        normalized = ReplaceInvariant(normalized, " ms", " мс");
+        normalized = ReplaceInvariant(normalized, " mV", " мкВ");
+        normalized = ReplaceInvariant(normalized, " uV", " мкВ");
+        normalized = ReplaceInvariant(normalized, " µV", " мкВ");
+
+        normalized = normalized.Replace(" :", ":", StringComparison.InvariantCulture);
+        normalized = normalized.Replace(" ,", ",", StringComparison.InvariantCulture);
+        normalized = normalized.Replace("  ", " ", StringComparison.InvariantCulture);
+
+        normalized = normalized.Replace("Гц", " Гц", StringComparison.InvariantCulture);
+        normalized = normalized.Replace("кд·с/м²", " кд·с/м²", StringComparison.InvariantCulture);
+        normalized = normalized.Replace("кд/м²", " кд/м²", StringComparison.InvariantCulture);
+        while (normalized.Contains("  ", StringComparison.InvariantCulture))
+            normalized = normalized.Replace("  ", " ", StringComparison.InvariantCulture);
+
+        return normalized.Trim();
+    }
+
+    private static string ReplaceInvariant(string text, string search, string replacement)
+    {
+        if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(search))
+            return text;
+
+        return text.Replace(search, replacement, StringComparison.InvariantCultureIgnoreCase);
+    }
+
     private static string[] DescribeGraphStyles(ErgTest test)
         => test.GraphStyles?
             .Where(s => s.Index < 6)
@@ -1556,38 +1674,56 @@ public static class ErgReportBuilder
 
             var xStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
             var yStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
+            var xTicks = BuildAxisTicks(xMin, xMax, xStep);
+            var yTicks = BuildAxisTicks(yMin, yMax, yStep);
 
-            using (var gridPaint = new SKPaint { Color = new SKColor(215, 215, 215), StrokeWidth = 1f, IsAntialias = true })
+            using (var gridPaint = new SKPaint { Color = new SKColor(220, 220, 220), StrokeWidth = 1f, IsAntialias = true })
             {
-                gridPaint.PathEffect = SKPathEffect.CreateDash(new[] { 4f, 4f }, 0);
-
-                if (xStep > 0)
+                for (int i = 1; i < xTicks.Length - 1; i++)
                 {
-                    for (double x = Math.Ceiling(xMin / xStep) * xStep, count = 0; x <= xMax + 1e-6 && count < 512; x += xStep, count++)
-                    {
-                        var px = TransformX(x);
-                        if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
-                            continue;
-                        canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, gridPaint);
-                    }
+                    var px = TransformX(xTicks[i]);
+                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                        continue;
+                    canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, gridPaint);
                 }
 
-                if (yStep > 0)
+                for (int i = 1; i < yTicks.Length - 1; i++)
                 {
-                    for (double y = Math.Ceiling(yMin / yStep) * yStep, count = 0; y <= yMax + 1e-6 && count < 512; y += yStep, count++)
-                    {
-                        var py = TransformY(y);
-                        if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
-                            continue;
-                        canvas.DrawLine(chartRect.Left, py, chartRect.Right, py, gridPaint);
-                    }
+                    var py = TransformY(yTicks[i]);
+                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                        continue;
+                    canvas.DrawLine(chartRect.Left, py, chartRect.Right, py, gridPaint);
                 }
             }
 
-            using (var axisPaint = new SKPaint { Color = new SKColor(120, 120, 120), StrokeWidth = 1.5f, IsAntialias = true })
+            using (var borderPaint = new SKPaint { Color = new SKColor(200, 200, 200), StrokeWidth = 1f, IsAntialias = true, Style = SKPaintStyle.Stroke })
+            {
+                canvas.DrawRect(chartRect, borderPaint);
+            }
+
+            using (var axisPaint = new SKPaint { Color = new SKColor(100, 100, 100), StrokeWidth = 1.5f, IsAntialias = true })
             {
                 canvas.DrawLine(chartRect.Left, chartRect.Bottom, chartRect.Right, chartRect.Bottom, axisPaint);
                 canvas.DrawLine(chartRect.Left, chartRect.Top, chartRect.Left, chartRect.Bottom, axisPaint);
+            }
+
+            using (var tickPaint = new SKPaint { Color = new SKColor(100, 100, 100), StrokeWidth = 1.2f, IsAntialias = true })
+            {
+                foreach (var tick in xTicks)
+                {
+                    var px = TransformX(tick);
+                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                        continue;
+                    canvas.DrawLine(px, chartRect.Bottom, px, chartRect.Bottom + 6f, tickPaint);
+                }
+
+                foreach (var tick in yTicks)
+                {
+                    var py = TransformY(tick);
+                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                        continue;
+                    canvas.DrawLine(chartRect.Left - 6f, py, chartRect.Left, py, tickPaint);
+                }
             }
 
             if (yMin < 0 && yMax > 0)
@@ -1726,40 +1862,35 @@ public static class ErgReportBuilder
                 var metrics = labelPaint.FontMetrics;
                 float textHeight = metrics.Descent - metrics.Ascent;
 
-                if (xStep > 0)
+                foreach (var tick in xTicks)
                 {
-                    for (double x = Math.Ceiling(xMin / xStep) * xStep, count = 0; x <= xMax + 1e-6 && count < 512; x += xStep, count++)
-                    {
-                        var px = TransformX(x);
-                        if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
-                            continue;
-                        var text = FormatAxisValue(x);
-                        var textWidth = labelPaint.MeasureText(text);
-                        canvas.DrawText(text, px - textWidth / 2f, chartRect.Bottom + textHeight, labelPaint);
-                    }
+                    var px = TransformX(tick);
+                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                        continue;
+                    var text = FormatAxisValue(tick);
+                    var textWidth = labelPaint.MeasureText(text);
+                    canvas.DrawText(text, px - textWidth / 2f, chartRect.Bottom + textHeight + 2f, labelPaint);
                 }
 
-                if (yStep > 0)
+                foreach (var tick in yTicks)
                 {
-                    for (double y = Math.Ceiling(yMin / yStep) * yStep, count = 0; y <= yMax + 1e-6 && count < 512; y += yStep, count++)
-                    {
-                        var py = TransformY(y);
-                        if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
-                            continue;
-                        var text = FormatAxisValue(y);
-                        canvas.DrawText(text, chartRect.Left - 10 - labelPaint.MeasureText(text), py + textHeight / 3f, labelPaint);
-                    }
+                    var py = TransformY(tick);
+                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                        continue;
+                    var text = FormatAxisValue(tick);
+                    var textWidth = labelPaint.MeasureText(text);
+                    canvas.DrawText(text, chartRect.Left - 8f - textWidth, py + textHeight / 3f, labelPaint);
                 }
             }
 
             using (var titlePaint = new SKPaint { Color = SKColors.Black, TextSize = 18f, IsAntialias = true })
             {
-                var xLabel = "Время, мс";
+                var xLabel = "Время (мс)";
                 var xWidth = titlePaint.MeasureText(xLabel);
                 var midX = (chartRect.Left + chartRect.Right) / 2f;
                 canvas.DrawText(xLabel, midX - xWidth / 2f, height - 12, titlePaint);
 
-                var yLabel = "Амплитуда, мкВ";
+                var yLabel = "Амплитуда (мкВ)";
                 canvas.Save();
                 canvas.Translate(20, (chartRect.Top + chartRect.Bottom) / 2f);
                 canvas.RotateDegrees(-90);
@@ -1819,36 +1950,56 @@ public static class ErgReportBuilder
 
             var xStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
             var yStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
+            var xTicks = BuildAxisTicks(xMin, xMax, xStep);
+            var yTicks = BuildAxisTicks(yMin, yMax, yStep);
 
-            using (var gridPen = new Pen(System.Drawing.Color.FromArgb(215, 215, 215), 1f) { DashPattern = new[] { 4f, 4f } })
+            using (var gridPen = new Pen(System.Drawing.Color.FromArgb(220, 220, 220), 1f))
             {
-                if (xStep > 0)
+                for (int i = 1; i < xTicks.Length - 1; i++)
                 {
-                    for (double x = Math.Ceiling(xMin / xStep) * xStep, count = 0; x <= xMax + 1e-6 && count < 512; x += xStep, count++)
-                    {
-                        var px = TransformX(x);
-                        if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
-                            continue;
-                        graphics.DrawLine(gridPen, px, chartRect.Top, px, chartRect.Bottom);
-                    }
+                    var px = TransformX(xTicks[i]);
+                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                        continue;
+                    graphics.DrawLine(gridPen, px, chartRect.Top, px, chartRect.Bottom);
                 }
 
-                if (yStep > 0)
+                for (int i = 1; i < yTicks.Length - 1; i++)
                 {
-                    for (double y = Math.Ceiling(yMin / yStep) * yStep, count = 0; y <= yMax + 1e-6 && count < 512; y += yStep, count++)
-                    {
-                        var py = TransformY(y);
-                        if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
-                            continue;
-                        graphics.DrawLine(gridPen, chartRect.Left, py, chartRect.Right, py);
-                    }
+                    var py = TransformY(yTicks[i]);
+                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                        continue;
+                    graphics.DrawLine(gridPen, chartRect.Left, py, chartRect.Right, py);
                 }
             }
 
-            using (var axisPen = new Pen(System.Drawing.Color.FromArgb(120, 120, 120), 1.5f))
+            using (var borderPen = new Pen(System.Drawing.Color.FromArgb(200, 200, 200), 1f))
+            {
+                graphics.DrawRectangle(borderPen, chartRect.X, chartRect.Y, chartRect.Width, chartRect.Height);
+            }
+
+            using (var axisPen = new Pen(System.Drawing.Color.FromArgb(100, 100, 100), 1.5f))
             {
                 graphics.DrawLine(axisPen, chartRect.Left, chartRect.Bottom, chartRect.Right, chartRect.Bottom);
                 graphics.DrawLine(axisPen, chartRect.Left, chartRect.Top, chartRect.Left, chartRect.Bottom);
+            }
+
+            using (var tickPen = new Pen(System.Drawing.Color.FromArgb(100, 100, 100), 1.2f))
+            {
+                foreach (var tick in xTicks)
+                {
+                    var px = TransformX(tick);
+                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                        continue;
+                    graphics.DrawLine(tickPen, px, chartRect.Bottom, px, chartRect.Bottom + 6f);
+                }
+
+                foreach (var tick in yTicks)
+                {
+                    var py = TransformY(tick);
+                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                        continue;
+                    graphics.DrawLine(tickPen, chartRect.Left - 6f, py, chartRect.Left, py);
+                }
             }
 
             using (var dashedPen = new Pen(System.Drawing.Color.FromArgb(180, 180, 180), 1f) { DashPattern = new[] { 6f, 6f } })
@@ -1962,41 +2113,35 @@ public static class ErgReportBuilder
 
             using var tickFont = new System.Drawing.Font("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
 
-            if (xStep > 0)
+            foreach (var tick in xTicks)
             {
-                for (double x = Math.Ceiling(xMin / xStep) * xStep, count = 0; x <= xMax + 1e-6 && count < 512; x += xStep, count++)
-                {
-                    var px = TransformX(x);
-                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
-                        continue;
-                    var text = FormatAxisValue(x);
-                    var size = graphics.MeasureString(text, tickFont);
-                    graphics.DrawString(text, tickFont, Brushes.Black, px - size.Width / 2f, chartRect.Bottom + size.Height / 4f);
-                }
+                var px = TransformX(tick);
+                if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                    continue;
+                var text = FormatAxisValue(tick);
+                var size = graphics.MeasureString(text, tickFont);
+                graphics.DrawString(text, tickFont, Brushes.Black, px - size.Width / 2f, chartRect.Bottom + size.Height / 3f);
             }
 
             using var tickFormatLeft = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
 
-            if (yStep > 0)
+            foreach (var tick in yTicks)
             {
-                for (double y = Math.Ceiling(yMin / yStep) * yStep, count = 0; y <= yMax + 1e-6 && count < 512; y += yStep, count++)
-                {
-                    var py = TransformY(y);
-                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
-                        continue;
-                    var rect = new RectangleF(chartRect.Left - 12f, py - tickFont.GetHeight(graphics) / 2f, 40f, tickFont.GetHeight(graphics));
-                    graphics.DrawString(FormatAxisValue(y), tickFont, Brushes.Black, rect, tickFormatLeft);
-                }
+                var py = TransformY(tick);
+                if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                    continue;
+                var rect = new RectangleF(chartRect.Left - 12f, py - tickFont.GetHeight(graphics) / 2f, 40f, tickFont.GetHeight(graphics));
+                graphics.DrawString(FormatAxisValue(tick), tickFont, Brushes.Black, rect, tickFormatLeft);
             }
 
             using var axisTitleFont = new System.Drawing.Font("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
-            var xLabelSize = graphics.MeasureString("Время, мс", axisTitleFont);
-            graphics.DrawString("Время, мс", axisTitleFont, Brushes.Black, chartRect.Left + (chartRect.Width - xLabelSize.Width) / 2f, height - xLabelSize.Height - 6f);
+            var xLabelSize = graphics.MeasureString("Время (мс)", axisTitleFont);
+            graphics.DrawString("Время (мс)", axisTitleFont, Brushes.Black, chartRect.Left + (chartRect.Width - xLabelSize.Width) / 2f, height - xLabelSize.Height - 6f);
 
             graphics.TranslateTransform(20f, chartRect.Top + chartRect.Height / 2f);
             graphics.RotateTransform(-90f);
-            var yLabelSize = graphics.MeasureString("Амплитуда, мкВ", axisTitleFont);
-            graphics.DrawString("Амплитуда, мкВ", axisTitleFont, Brushes.Black, -yLabelSize.Width / 2f, -yLabelSize.Height / 2f);
+            var yLabelSize = graphics.MeasureString("Амплитуда (мкВ)", axisTitleFont);
+            graphics.DrawString("Амплитуда (мкВ)", axisTitleFont, Brushes.Black, -yLabelSize.Width / 2f, -yLabelSize.Height / 2f);
             graphics.ResetTransform();
 
             using var ms = new MemoryStream();
@@ -2038,6 +2183,45 @@ public static class ErgReportBuilder
         };
 
         return stepNormalized * magnitude;
+    }
+
+    private static double[] BuildAxisTicks(double min, double max, double step)
+    {
+        if (max <= min)
+            return Array.Empty<double>();
+
+        var values = new List<double>();
+
+        if (step > 0)
+        {
+            double start = Math.Ceiling(min / step) * step;
+            int guard = 0;
+            for (double value = start; value <= max + 1e-6 && guard < 512; value += step, guard++)
+            {
+                values.Add(value);
+            }
+        }
+        else
+        {
+            const int fallbackSegments = 5;
+            double range = max - min;
+            for (int i = 0; i <= fallbackSegments; i++)
+            {
+                double value = min + range * i / fallbackSegments;
+                values.Add(value);
+            }
+        }
+
+        values.Add(min);
+        values.Add(max);
+
+        return values
+            .Where(v => !double.IsNaN(v) && !double.IsInfinity(v))
+            .Select(v => Math.Round(v, 6))
+            .Distinct()
+            .Where(v => v >= min - 1e-6 && v <= max + 1e-6)
+            .OrderBy(v => v)
+            .ToArray();
     }
 
     private static string FormatAxisValue(double value)
@@ -2149,10 +2333,15 @@ public static class ErgReportBuilder
         );
 
         table.Append(new TableRow(CreateInfoCell($"ID пациента: {patient.PatientId} ({FormatAnimal(patient.Animal)})", JustificationValues.Left)));
-        table.Append(new TableRow(CreateInfoCell($"Дата и время исследования: {patient.TestDateTime}", JustificationValues.Left)));
+        table.Append(new TableRow(CreateInfoCell($"Дата и время исследования: {FormatClientDateTime(patient.TestDateTime)}", JustificationValues.Left)));
 
-        var deviceLine = FormatDeviceInfo(deviceInfo);
-        table.Append(new TableRow(CreateInfoCell($"Оборудование: {deviceLine}", JustificationValues.Left)));
+        table.Append(new TableRow(CreateInfoCell($"Оборудование: {GetClientDeviceName(deviceInfo)}", JustificationValues.Left)));
+
+        var software = GetClientSoftwareVersion(deviceInfo);
+        if (!string.IsNullOrEmpty(software))
+        {
+            table.Append(new TableRow(CreateInfoCell($"Версия ПО: {software}", JustificationValues.Left)));
+        }
 
         if (!string.IsNullOrWhiteSpace(deviceInfo?.ReportName))
         {
@@ -2187,7 +2376,7 @@ public static class ErgReportBuilder
         );
 
         var headerRow = new TableRow();
-        headerRow.Append(CreateClientHeaderCell($"Тест № {index}: {test.TestName}", gridSpan: 2));
+        headerRow.Append(CreateClientHeaderCell(FormatClientTestTitle(index, test), gridSpan: 2));
         table.Append(headerRow);
 
         var contentRow = new TableRow();
@@ -2285,10 +2474,58 @@ public static class ErgReportBuilder
             return;
         }
 
-        cell.Append(CreateParagraph(display.MsValue, fontSizePt: 22, bold: true, justification: JustificationValues.Center));
-        AppendClientNormParagraph(cell, display.MsNorm);
-        cell.Append(CreateParagraph(display.MkVValue, fontSizePt: 22, bold: true, justification: JustificationValues.Center, spacingBefore: TwipsFromPoints(4)));
-        AppendClientNormParagraph(cell, display.MkVNorm);
+        cell.Append(CreateClientWaveValuesTable(display));
+    }
+
+    private static Table CreateClientWaveValuesTable(WaveDisplay display)
+    {
+        var table = new Table(
+            new TableProperties(
+                new TableWidth { Type = TableWidthUnitValues.Pct, Width = "4800" },
+                new TableBorders(
+                    new TopBorder { Val = BorderValues.Nil },
+                    new LeftBorder { Val = BorderValues.Nil },
+                    new BottomBorder { Val = BorderValues.Nil },
+                    new RightBorder { Val = BorderValues.Nil },
+                    new InsideHorizontalBorder { Val = BorderValues.Nil },
+                    new InsideVerticalBorder { Val = BorderValues.Nil }
+                ),
+                new TableCellMarginDefault(
+                    new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+                    new TableCellLeftMargin { Type = TableWidthValues.Dxa, Width = 80 },
+                    new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+                    new TableCellRightMargin { Type = TableWidthValues.Dxa, Width = 80 }
+                )
+            ),
+            new TableGrid(new GridColumn { Width = "2400" }, new GridColumn { Width = "2400" })
+        );
+
+        var row = new TableRow();
+        row.Append(CreateClientWaveValueCell(display.MsValue, display.MsNorm));
+        row.Append(CreateClientWaveValueCell(display.MkVValue, display.MkVNorm));
+        table.Append(row);
+
+        return table;
+    }
+
+    private static TableCell CreateClientWaveValueCell(string value, string norm)
+    {
+        var cell = new TableCell
+        {
+            TableCellProperties = new TableCellProperties(
+                new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center }
+            )
+        };
+
+        cell.Append(CreateParagraph(value, fontSizePt: 22, bold: true, justification: JustificationValues.Center));
+
+        var formatted = FormatNormForClient(norm);
+        if (formatted != null)
+        {
+            cell.Append(CreateParagraph(formatted, fontSizePt: 9, colorHex: "666666", justification: JustificationValues.Center));
+        }
+
+        return cell;
     }
 
     private static void AppendClientNormParagraph(TableCell cell, string value)
