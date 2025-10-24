@@ -19,7 +19,7 @@ public class AppSettings
     public string ReportsDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Microlux ERG Connect", "Reports");
     public string LogsDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Microlux ERG Connect", "Logs");
     public bool MinimizeToTray { get; set; } = true;
-    public bool StartMinimized { get; set; } = true;
+    public bool StartMinimized { get; set; } = false;
     public TelegramSettings Telegram { get; set; } = TelegramSettings.CreateDefault();
 
     public TimeSpan DeviceScanInterval => TimeSpan.FromSeconds(Math.Clamp(DeviceScanIntervalSeconds, 2, 60));
