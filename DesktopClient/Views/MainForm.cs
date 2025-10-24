@@ -29,6 +29,7 @@ public partial class MainForm : Form
         DoubleBuffered = true;
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
         UpdateStyles();
+        EnsureLogGridConfigured();
         reportTemplateComboBox.DisplayMember = nameof(ReportTemplateOption.Description);
         reportTemplateComboBox.ValueMember = nameof(ReportTemplateOption.Value);
         reportTemplateComboBox.DataSource = new[]
@@ -183,6 +184,8 @@ public partial class MainForm : Form
             return;
         }
 
+        EnsureLogGridConfigured();
+
         if (e.Action == NotifyCollectionChangedAction.Reset)
         {
             _logEntries.Clear();
@@ -208,12 +211,112 @@ public partial class MainForm : Form
 
     private void PopulateLogs()
     {
-        _logEntries.Clear();
-        foreach (var entry in _viewModel.Logs)
+        EnsureLogGridConfigured();
+
+        var raiseEvents = logsBindingSource.RaiseListChangedEvents;
+        try
         {
-            _logEntries.Add(entry);
+            logsBindingSource.RaiseListChangedEvents = false;
+            _logEntries.Clear();
+            foreach (var entry in _viewModel.Logs)
+            {
+                _logEntries.Add(entry);
+            }
         }
+        finally
+        {
+            logsBindingSource.RaiseListChangedEvents = raiseEvents;
+            logsBindingSource.ResetBindings(false);
+        }
+
         ScrollLogsToEnd();
+    }
+
+    private void EnsureLogGridConfigured()
+    {
+        if (logGridView.AutoGenerateColumns)
+        {
+            logGridView.AutoGenerateColumns = false;
+        }
+
+        timestampColumn = EnsureTextColumn(
+            timestampColumn,
+            nameof(timestampColumn),
+            nameof(LogEntry.Timestamp),
+            "Время",
+            DataGridViewAutoSizeColumnMode.None,
+            180,
+            "yyyy-MM-dd HH:mm:ss");
+
+        levelColumn = EnsureTextColumn(
+            levelColumn,
+            nameof(levelColumn),
+            nameof(LogEntry.Level),
+            "Уровень",
+            DataGridViewAutoSizeColumnMode.None,
+            80);
+
+        messageColumn = EnsureTextColumn(
+            messageColumn,
+            nameof(messageColumn),
+            nameof(LogEntry.Message),
+            "Сообщение",
+            DataGridViewAutoSizeColumnMode.Fill,
+            100);
+
+        if (logGridView.DataSource != logsBindingSource)
+        {
+            logGridView.DataSource = logsBindingSource;
+        }
+    }
+
+    private DataGridViewTextBoxColumn EnsureTextColumn(
+        DataGridViewTextBoxColumn? column,
+        string name,
+        string dataProperty,
+        string headerText,
+        DataGridViewAutoSizeColumnMode sizeMode,
+        int minimumWidth,
+        string? format = null)
+    {
+        column ??= new DataGridViewTextBoxColumn();
+
+        var existing = logGridView.Columns[name] as DataGridViewTextBoxColumn;
+
+        if (existing is not null)
+        {
+            column = existing;
+        }
+        else
+        {
+            if (column.DataGridView is not null && column.DataGridView != logGridView)
+            {
+                column = new DataGridViewTextBoxColumn();
+            }
+
+            column.Name = name;
+            logGridView.Columns.Add(column);
+        }
+
+        column.Name = name;
+        column.DataPropertyName = dataProperty;
+        column.HeaderText = headerText;
+        column.AutoSizeMode = sizeMode;
+        column.MinimumWidth = minimumWidth;
+        column.ReadOnly = true;
+
+        if (sizeMode != DataGridViewAutoSizeColumnMode.Fill)
+        {
+            column.Width = minimumWidth;
+        }
+
+        if (!string.IsNullOrWhiteSpace(format))
+        {
+            column.DefaultCellStyle ??= new DataGridViewCellStyle();
+            column.DefaultCellStyle.Format = format;
+        }
+
+        return column;
     }
 
     private void ScrollLogsToEnd()
