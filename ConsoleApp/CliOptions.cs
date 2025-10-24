@@ -63,7 +63,7 @@ internal sealed class CliOptions
     public string? PdfOutputPath { get; private set; }
     public string? DocxOutputPath { get; private set; }
     public string? ClinicName { get; private set; }
-    public ReportTemplate Template { get; private set; } = ReportTemplate.Classic;
+    public ReportTemplate Template { get; private set; } = ReportTemplate.Client;
     public int QuietTimeMs { get; private set; } = 120;
     public int ReadTimeoutMs { get; private set; } = 400;
     public int Retries { get; private set; } = 5;
