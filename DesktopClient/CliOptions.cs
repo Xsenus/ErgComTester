@@ -16,6 +16,9 @@ public sealed class SerialCommunicationOptions
     public int AttemptDelayMs { get; set; } = 150;
     public int MinCommonInfoSize { get; set; } = 136;
     public int MinPatientBlockSize { get; set; } = 64;
+    public int ProbeTimeoutMs { get; set; } = 3000;
+    public int PassiveProbeDelayMs { get; set; } = 150;
+    public int WarmupAfterToggleMs { get; set; } = 250;
     public bool EnableRtcSynchronization { get; set; } = true;
     public bool RequestPatientData { get; set; } = true;
     public bool EnableZipPackaging { get; set; } = false;
@@ -26,4 +29,7 @@ public sealed class SerialCommunicationOptions
 
     public TimeSpan QuietTime => TimeSpan.FromMilliseconds(Math.Max(QuietTimeMs, 20));
     public TimeSpan MaxReadWindow => TimeSpan.FromMilliseconds(Math.Max(MaxReadWindowMs, QuietTimeMs));
+    public TimeSpan ProbeTimeout => TimeSpan.FromMilliseconds(Math.Clamp(ProbeTimeoutMs, 500, 60_000));
+    public TimeSpan PassiveProbeDelay => TimeSpan.FromMilliseconds(Math.Clamp(PassiveProbeDelayMs, 0, 5_000));
+    public TimeSpan WarmupAfterToggle => TimeSpan.FromMilliseconds(Math.Clamp(WarmupAfterToggleMs, 0, 10_000));
 }
