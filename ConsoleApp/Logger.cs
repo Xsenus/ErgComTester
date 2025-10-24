@@ -9,9 +9,12 @@ internal sealed class Logger : IDisposable, ILog
     private readonly StreamWriter _sw;
     private readonly bool _verbose;
 
+    public string FilePath { get; }
+
     public Logger(string path, bool verbose)
     {
         _verbose = verbose;
+        FilePath = path;
         _sw = new StreamWriter(File.Open(path, FileMode.Create, FileAccess.Write, FileShare.Read))
         { AutoFlush = true, NewLine = "\n" };
     }
@@ -34,6 +37,14 @@ internal sealed class Logger : IDisposable, ILog
 
     public void Dispose() => _sw.Dispose();
     public void Error(string m) => WriteLine("ERROR", m, ConsoleColor.Red);
+
+    public void Flush()
+    {
+        lock (_lock)
+        {
+            _sw.Flush();
+        }
+    }
 
     public void HexDump(string caption, byte[] data, int width = 16)
     {

@@ -252,16 +252,17 @@ public static class ErgDataParser
         var bMarkerRaw = reader.ReadByte();
         var graphCountRaw = reader.ReadByte();
 
-        var allGraphs = ReadGraphs(ref reader, graphNumPoints, graphDiscrPerMkV);
+        var graphData = ReadGraphs(ref reader, graphNumPoints, graphDiscrPerMkV);
 
-        AdjustGraphAmplitudes(allGraphs, graphDt, bMs, bMkV);
+        AdjustGraphAmplitudes(graphData.Normalized, graphDt, bMs, bMkV);
 
         var rezerv1 = reader.ReadByte();
         var rezerv2 = reader.ReadByte();
         var rezerv3 = reader.ReadInt16BigEndian();
 
         var graphCount = ClampGraphCount(graphCountRaw, graphNumPoints);
-        var graphs = graphCount == 0 ? null : allGraphs[..graphCount];
+        var rawGraphs = graphCount == 0 ? null : graphData.Raw[..graphCount];
+        var normalizedGraphs = graphCount == 0 ? null : graphData.Normalized[..graphCount];
 
         return new EyeData
         {
@@ -275,7 +276,8 @@ public static class ErgDataParser
             AWaveMarker = NormalizeByte(aMarkerRaw),
             BWaveMarker = NormalizeByte(bMarkerRaw),
             GraphCount = graphCount,
-            Graphs = graphs,
+            GraphSamples = rawGraphs,
+            GraphsNormalized = normalizedGraphs,
             Rezerv1 = rezerv1,
             Rezerv2 = rezerv2,
             Rezerv3 = rezerv3
@@ -379,38 +381,47 @@ public static class ErgDataParser
         }
     }
 
-    private static double[][] ReadGraphs(ref SpanReader reader, int graphNumPoints, byte graphDiscrPerMkV)
+    private static GraphData ReadGraphs(ref SpanReader reader, int graphNumPoints, byte graphDiscrPerMkV)
     {
         const int graphSlots = 6;
         const int graphCapacity = 128;
         var divisor = graphDiscrPerMkV == 0 ? 1.0 : graphDiscrPerMkV;
-        var result = new double[graphSlots][];
+        var rawResult = new short[graphSlots][];
+        var normalizedResult = new double[graphSlots][];
         int samplesToExpose = Math.Clamp(graphNumPoints, 0, graphCapacity);
 
         for (int graph = 0; graph < graphSlots; graph++)
         {
-            var rawSamples = new short[graphCapacity];
+            var trimmed = samplesToExpose > 0 ? new short[samplesToExpose] : Array.Empty<short>();
+            var converted = samplesToExpose > 0 ? new double[samplesToExpose] : Array.Empty<double>();
+
             for (int point = 0; point < graphCapacity; point++)
             {
-                rawSamples[point] = reader.ReadInt16LittleEndian();
+                short sample = reader.ReadInt16LittleEndian();
+                if (point >= samplesToExpose)
+                    continue;
+
+                trimmed[point] = sample;
+                converted[point] = sample / divisor;
             }
 
-            if (samplesToExpose <= 0)
-            {
-                result[graph] = Array.Empty<double>();
-                continue;
-            }
-
-            var converted = new double[samplesToExpose];
-            for (int point = 0; point < samplesToExpose; point++)
-            {
-                converted[point] = rawSamples[point] / divisor;
-            }
-
-            result[graph] = converted;
+            rawResult[graph] = trimmed;
+            normalizedResult[graph] = converted;
         }
 
-        return result;
+        return new GraphData(rawResult, normalizedResult);
+    }
+
+    private readonly struct GraphData
+    {
+        public GraphData(short[][] raw, double[][] normalized)
+        {
+            Raw = raw;
+            Normalized = normalized;
+        }
+
+        public short[][] Raw { get; }
+        public double[][] Normalized { get; }
     }
 
     private static byte ClampGraphCount(byte raw, int graphNumPoints)
