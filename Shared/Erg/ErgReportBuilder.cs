@@ -156,14 +156,14 @@ public static class ErgReportBuilder
                 page.PageColor(Colors.White);
                 page.DefaultTextStyle(t => t.FontFamily("Arial").FontSize(11));
 
+                var clinicHeader = string.IsNullOrWhiteSpace(clinicName)
+                    ? "Шапка [название организации]"
+                    : clinicName!;
+
                 page.Header().Column(column =>
                 {
-                    column.Spacing(4);
-                    if (!string.IsNullOrWhiteSpace(clinicName))
-                    {
-                        column.Item().AlignRight().Text(clinicName).FontSize(12).SemiBold();
-                    }
-
+                    column.Spacing(3);
+                    column.Item().AlignCenter().Text(clinicHeader).FontSize(12).SemiBold();
                     column.Item().AlignCenter().Text("Отчет по результатам ЭРГ-исследования сетчатки").FontSize(18).SemiBold();
                 });
 
@@ -290,10 +290,10 @@ public static class ErgReportBuilder
         mainPart.Document = new WordDocument(new Body());
         var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
-        if (!string.IsNullOrWhiteSpace(clinicName))
-        {
-            body.Append(CreateParagraph(clinicName, fontSizePt: 12, bold: true, justification: JustificationValues.Right, spacingAfter: TwipsFromPoints(4)));
-        }
+        var clinicHeader = string.IsNullOrWhiteSpace(clinicName)
+            ? "Шапка [название организации]"
+            : clinicName!;
+        body.Append(CreateParagraph(clinicHeader, fontSizePt: 12, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(4)));
 
         body.Append(CreateParagraph("Отчет по результатам ЭРГ-исследования сетчатки", fontSizePt: 18, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(14)));
         body.Append(CreateClientInfoTable(patient, deviceInfo));
@@ -887,7 +887,7 @@ public static class ErgReportBuilder
         {
             container.Column(column =>
             {
-                column.Spacing(2);
+                column.Spacing(3);
                 column.Item().Text(text =>
                 {
                     text.DefaultTextStyle(style => style.FontSize(12));
@@ -898,15 +898,24 @@ public static class ErgReportBuilder
                 column.Item().Text(text =>
                 {
                     text.Span("Дата и время исследования: ").SemiBold();
-                    text.Span(_patient.TestDateTime);
+                    text.Span(FormatClientDateTime(_patient.TestDateTime));
                 });
 
-                var deviceLine = FormatDeviceInfo(_deviceInfo);
                 column.Item().Text(text =>
                 {
                     text.Span("Оборудование: ").SemiBold();
-                    text.Span(deviceLine);
+                    text.Span(GetClientDeviceName(_deviceInfo));
                 });
+
+                var software = GetClientSoftwareVersion(_deviceInfo);
+                if (!string.IsNullOrEmpty(software))
+                {
+                    column.Item().Text(text =>
+                    {
+                        text.Span("Версия ПО: ").SemiBold();
+                        text.Span(software);
+                    });
+                }
 
                 if (!string.IsNullOrWhiteSpace(_deviceInfo?.ReportName))
                 {
@@ -939,148 +948,183 @@ public static class ErgReportBuilder
 
         public void Compose(IContainer container)
         {
-            container.Border(1).BorderColor(Colors.Grey.Lighten3).Padding(12).Column(column =>
-            {
-                column.Spacing(10);
-                column.Item().Text($"Тест № {_index}: {_test.TestName}").FontSize(14).SemiBold();
-                column.Item().Text($"Вспышка: {_test.GraphFlashPosition} мс, Δt: {_test.GraphDt} мс, дискрет/мкВ: {_test.GraphDiscrPerMkV}");
-
-                column.Item().Component(new ClientMeasurementComponent(_test));
-                column.Item().Component(new ClientGraphsComponent(_test));
-            });
-        }
-    }
-
-    private sealed class ClientMeasurementComponent : IComponent
-    {
-        private readonly ErgTest _test;
-
-        public ClientMeasurementComponent(ErgTest test) => _test = test;
-
-        public void Compose(IContainer container)
-        {
-            container.Table(table =>
-            {
-                table.ColumnsDefinition(columns =>
-                {
-                    columns.ConstantColumn(90);
-                    columns.RelativeColumn();
-                    columns.RelativeColumn();
-                });
-
-                table.Header(header =>
-                {
-                    header.Cell().Element(HeaderLabelCell).Text(string.Empty);
-                    header.Cell().Element(HeaderEyeCell).AlignCenter().Text("Правый глаз");
-                    header.Cell().Element(HeaderEyeCell).AlignCenter().Text("Левый глаз");
-                });
-
-                if (_test.AWaveExists)
-                {
-                    AddRow(table, "a-волна", WaveKind.A);
-                }
-
-                AddRow(table, "b-волна", WaveKind.B);
-            });
-        }
-
-        private static IContainer HeaderLabelCell(IContainer container)
-            => container.Background(Colors.Grey.Lighten4).PaddingVertical(6).PaddingHorizontal(8);
-
-        private static IContainer HeaderEyeCell(IContainer container)
-            => container.Background(Colors.Grey.Lighten4).PaddingVertical(6).PaddingHorizontal(8).DefaultTextStyle(t => t.SemiBold());
-
-        private void AddRow(TableDescriptor table, string label, WaveKind wave)
-        {
-            table.Cell().Element(LabelCell).Text(label).FontSize(11).SemiBold();
-            table.Cell().Element(ValueCell).Element(c => ComposeEye(c, _test.RightEye, wave));
-            table.Cell().Element(ValueCell).Element(c => ComposeEye(c, _test.LeftEye, wave));
-        }
-
-        private static IContainer LabelCell(IContainer container)
-            => container.PaddingVertical(10).PaddingHorizontal(8);
-
-        private static IContainer ValueCell(IContainer container)
-            => container.PaddingVertical(8).PaddingHorizontal(8);
-
-        private void ComposeEye(IContainer container, EyeData eye, WaveKind wave)
-        {
-            var display = BuildWaveDisplay(_test, eye, wave);
-
             container.Column(column =>
             {
-                column.Spacing(2);
+                column.Spacing(12);
+                column.Item().Text(FormatClientTestTitle(_index, _test)).FontSize(14).SemiBold();
 
-                if (display.IsFlat)
+                column.Item().Row(row =>
                 {
-                    column.Item().AlignCenter().Text("FLAT").FontSize(20).SemiBold();
-                    AddNorm(column, display.MsNorm);
-                    AddNorm(column, display.MkVNorm);
-                    return;
-                }
+                    row.Spacing(24);
+                    row.RelativeItem().Component(new ClientEyeSummaryComponent("Правый глаз", _test, _test.RightEye));
+                    row.RelativeItem().Component(new ClientEyeSummaryComponent("Левый глаз", _test, _test.LeftEye));
+                });
 
-                column.Item().AlignCenter().Text(display.MsValue).FontSize(20).SemiBold();
-                AddNorm(column, display.MsNorm);
-                column.Item().AlignCenter().Text(display.MkVValue).FontSize(20).SemiBold();
-                AddNorm(column, display.MkVNorm);
+                column.Item().Text("Графики").FontSize(11).SemiBold();
+                column.Item().Row(row =>
+                {
+                    row.Spacing(24);
+                    row.RelativeItem().Component(new ClientGraphComponent("Правый глаз", _test, _test.RightEye));
+                    row.RelativeItem().Component(new ClientGraphComponent("Левый глаз", _test, _test.LeftEye));
+                });
             });
-        }
-
-        private static void AddNorm(ColumnDescriptor column, string value)
-        {
-            if (string.IsNullOrWhiteSpace(value) || value == "—")
-                return;
-
-            column.Item().AlignCenter().Text($"({value})").FontSize(10).FontColor(Colors.Grey.Darken1);
         }
     }
 
-    private sealed class ClientGraphsComponent : IComponent
+    private sealed class ClientEyeSummaryComponent : IComponent
     {
+        private readonly string _label;
         private readonly ErgTest _test;
+        private readonly EyeData _eye;
 
-        public ClientGraphsComponent(ErgTest test) => _test = test;
+        public ClientEyeSummaryComponent(string label, ErgTest test, EyeData eye)
+        {
+            _label = label;
+            _test = test;
+            _eye = eye;
+        }
 
         public void Compose(IContainer container)
         {
-            var rightGraph = TryRenderGraphImage(_test, _test.RightEye);
-            var leftGraph = TryRenderGraphImage(_test, _test.LeftEye);
-
             container.Column(column =>
             {
                 column.Spacing(6);
-                column.Item().Text("Графики").SemiBold();
+                column.Item().Text(text =>
+                {
+                    text.DefaultTextStyle(style => style.FontSize(11));
+                    text.Span(_label).SemiBold();
+                    var quality = FormatQualityCompact(_eye.QualityIndex);
+                    if (!string.IsNullOrWhiteSpace(quality))
+                    {
+                        text.Span(" ");
+                        text.Span(quality).FontColor(Colors.Grey.Darken1);
+                    }
+                });
+
+                if (_eye.IsFlat)
+                {
+                    column.Item().AlignCenter().Text("FLAT").FontSize(24).SemiBold();
+                    AppendFlatNorms(column, BuildWaveDisplay(_test, _eye, WaveKind.B));
+                    return;
+                }
+
+                foreach (var (label, kind) in GetClientWaveOrder(_test))
+                {
+                    var display = BuildWaveDisplay(_test, _eye, kind);
+                    if (IsWaveDisplayEmpty(display))
+                        continue;
+
+                    column.Item().Component(new ClientWaveValuesComponent(label, display));
+                }
+            });
+        }
+
+        private static void AppendFlatNorms(ColumnDescriptor column, WaveDisplay display)
+        {
+            AppendFlatNorm(column, display.MsNorm);
+            AppendFlatNorm(column, display.MkVNorm);
+        }
+
+        private static void AppendFlatNorm(ColumnDescriptor column, string value)
+        {
+            var formatted = FormatNormForClient(value);
+            if (formatted == null)
+                return;
+
+            column.Item().AlignCenter().Text(formatted).FontSize(10).FontColor(Colors.Grey.Darken1);
+        }
+    }
+
+    private sealed class ClientWaveValuesComponent : IComponent
+    {
+        private readonly string _label;
+        private readonly WaveDisplay _display;
+
+        public ClientWaveValuesComponent(string label, WaveDisplay display)
+        {
+            _label = label;
+            _display = display;
+        }
+
+        public void Compose(IContainer container)
+        {
+            container.Column(column =>
+            {
+                column.Spacing(4);
+                column.Item().AlignCenter().Text(_label).FontSize(11).SemiBold();
+
+                if (_display.IsFlat)
+                {
+                    column.Item().AlignCenter().Text("FLAT").FontSize(24).SemiBold();
+                    AppendNorm(column, _display.MsNorm);
+                    AppendNorm(column, _display.MkVNorm);
+                    return;
+                }
+
                 column.Item().Row(row =>
                 {
-                    row.Spacing(12);
-                    row.RelativeItem().Column(col =>
+                    row.Spacing(16);
+
+                    row.RelativeItem().Column(msColumn =>
                     {
-                        col.Spacing(4);
-                        col.Item().Text("Правый глаз").SemiBold();
-                        if (rightGraph != null)
-                        {
-                            col.Item().Image(rightGraph.Data).FitWidth();
-                        }
-                        else
-                        {
-                            col.Item().Text("Нет данных").Italic().FontColor(Colors.Grey.Darken1);
-                        }
+                        msColumn.Spacing(2);
+                        msColumn.Item().AlignCenter().Text(_display.MsValue).FontSize(22).SemiBold();
+                        AppendNorm(msColumn, _display.MsNorm);
                     });
 
-                    row.RelativeItem().Column(col =>
+                    row.RelativeItem().Column(mkvColumn =>
                     {
-                        col.Spacing(4);
-                        col.Item().Text("Левый глаз").SemiBold();
-                        if (leftGraph != null)
-                        {
-                            col.Item().Image(leftGraph.Data).FitWidth();
-                        }
-                        else
-                        {
-                            col.Item().Text("Нет данных").Italic().FontColor(Colors.Grey.Darken1);
-                        }
+                        mkvColumn.Spacing(2);
+                        mkvColumn.Item().AlignCenter().Text(_display.MkVValue).FontSize(22).SemiBold();
+                        AppendNorm(mkvColumn, _display.MkVNorm);
                     });
                 });
+            });
+        }
+
+        private static void AppendNorm(ColumnDescriptor column, string value)
+        {
+            var formatted = FormatNormForClient(value);
+            if (formatted == null)
+                return;
+
+            column.Item().AlignCenter().Text(formatted).FontSize(10).FontColor(Colors.Grey.Darken1);
+        }
+    }
+
+    private sealed class ClientGraphComponent : IComponent
+    {
+        private readonly string _label;
+        private readonly ErgTest _test;
+        private readonly EyeData _eye;
+
+        public ClientGraphComponent(string label, ErgTest test, EyeData eye)
+        {
+            _label = label;
+            _test = test;
+            _eye = eye;
+        }
+
+        public void Compose(IContainer container)
+        {
+            var graph = TryRenderGraphImage(_test, _eye);
+
+            container.Column(column =>
+            {
+                column.Spacing(4);
+                column.Item().Text(_label).SemiBold();
+
+                if (graph != null)
+                {
+                    column.Item().Image(graph.Data).FitWidth();
+                }
+                else
+                {
+                    column.Item().Border(1).BorderColor(Colors.Grey.Lighten2)
+                        .Padding(12)
+                        .AlignCenter().AlignMiddle()
+                        .Text("Нет данных").Italic().FontColor(Colors.Grey.Darken1);
+                }
             });
         }
     }
@@ -1299,6 +1343,18 @@ public static class ErgReportBuilder
         return new string('★', value) + new string('☆', 3 - value);
     }
 
+    private static string? FormatQualityCompact(byte? quality)
+    {
+        if (!quality.HasValue)
+            return null;
+
+        int value = Math.Clamp((int)quality.Value, 0, 3);
+        if (value <= 0)
+            return null;
+
+        return new string('*', value);
+    }
+
     private static string FormatMarker(EyeData eye, byte? marker)
     {
         int valueCount = eye.ValueCount ?? DetermineValueCount(eye);
@@ -1343,7 +1399,7 @@ public static class ErgReportBuilder
         if (!min.HasValue && !max.HasValue) return "—";
         if (!min.HasValue) return $"≤ {max}";
         if (!max.HasValue) return $"≥ {min}";
-        return $"{min}…{max}";
+        return $"{min}..{max}";
     }
 
     private static string FormatRange(uint? min, uint? max)
@@ -1351,7 +1407,143 @@ public static class ErgReportBuilder
         if (!min.HasValue && !max.HasValue) return "—";
         if (!min.HasValue) return $"≤ {max}";
         if (!max.HasValue) return $"≥ {min}";
-        return $"{min}…{max}";
+        return $"{min}..{max}";
+    }
+
+    private static IEnumerable<(string Label, WaveKind Kind)> GetClientWaveOrder(ErgTest test)
+    {
+        if (test.AWaveExists)
+            yield return ("a-волна", WaveKind.A);
+
+        yield return ("b-волна", WaveKind.B);
+    }
+
+    private static bool IsWaveDisplayEmpty(WaveDisplay display)
+    {
+        if (display.IsFlat)
+            return false;
+
+        return display.MsValue == "—"
+            && display.MkVValue == "—"
+            && FormatNormForClient(display.MsNorm) == null
+            && FormatNormForClient(display.MkVNorm) == null;
+    }
+
+    private static string? FormatNormForClient(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value == "—")
+            return null;
+
+        return $"[{value}]";
+    }
+
+    private static string FormatClientDateTime(string value)
+    {
+        var trimmed = value?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+            return "—";
+
+        var ruCulture = CultureInfo.GetCultureInfo("ru-RU");
+        var cultures = new[] { ruCulture, CultureInfo.InvariantCulture };
+        var formats = new[]
+        {
+            "dd.MM.yyyy HH:mm",
+            "dd.MM.yyyy H:mm",
+            "dd/MM/yyyy HH:mm",
+            "dd/MM/yyyy H:mm",
+            "dd-MM-yyyy HH:mm",
+            "dd-MM-yyyy H:mm",
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd H:mm",
+            "yyyy-MM-ddTHH:mm",
+            "yyyy-MM-ddTHH:mm:ss",
+            "yyyy-MM-ddTHH:mm:ss.FFF",
+            "yyyy.MM.dd HH:mm"
+        };
+
+        foreach (var culture in cultures)
+        {
+            if (DateTime.TryParse(trimmed, culture, DateTimeStyles.AssumeLocal | DateTimeStyles.AllowWhiteSpaces, out var parsed))
+                return parsed.ToString("dd/MM/yyyy HH:mm", ruCulture);
+        }
+
+        foreach (var culture in cultures)
+        {
+            foreach (var format in formats)
+            {
+                if (DateTime.TryParseExact(trimmed, format, culture, DateTimeStyles.AssumeLocal | DateTimeStyles.AllowWhiteSpaces, out var parsedExact))
+                    return parsedExact.ToString("dd/MM/yyyy HH:mm", ruCulture);
+            }
+        }
+
+        return trimmed;
+    }
+
+    private static string GetClientDeviceName(CommonInfo? info)
+    {
+        if (info == null)
+            return "—";
+
+        if (!string.IsNullOrWhiteSpace(info.DeviceName))
+            return info.DeviceName;
+
+        if (!string.IsNullOrWhiteSpace(info.ReportName))
+            return info.ReportName;
+
+        return "—";
+    }
+
+    private static string? GetClientSoftwareVersion(CommonInfo? info)
+        => string.IsNullOrWhiteSpace(info?.SoftwareRev) ? null : info!.SoftwareRev;
+
+    private static string FormatClientTestTitle(int index, ErgTest test)
+    {
+        var name = FormatClientTestName(test.TestName);
+        return $"Тест № {index}: {name}";
+    }
+
+    private static string FormatClientTestName(string testName)
+    {
+        if (string.IsNullOrWhiteSpace(testName))
+            return "—";
+
+        var normalized = testName.Trim();
+
+        normalized = ReplaceInvariant(normalized, "Flash", "Вспышка");
+        normalized = ReplaceInvariant(normalized, "Background", "Фон");
+        normalized = ReplaceInvariant(normalized, "Amplitude", "Амплитуда");
+        normalized = ReplaceInvariant(normalized, "Test", "Тест");
+
+        normalized = ReplaceInvariant(normalized, "cd*s/m2", "кд·с/м²");
+        normalized = ReplaceInvariant(normalized, "cd/m2", "кд/м²");
+        normalized = ReplaceInvariant(normalized, "Hz", "Гц");
+        normalized = ReplaceInvariant(normalized, " ms", " мс");
+        normalized = ReplaceInvariant(normalized, " mV", " мкВ");
+        normalized = ReplaceInvariant(normalized, " uV", " мкВ");
+        normalized = ReplaceInvariant(normalized, " µV", " мкВ");
+
+        normalized = normalized.Replace(" :", ":", StringComparison.InvariantCulture);
+        normalized = normalized.Replace(" ,", ",", StringComparison.InvariantCulture);
+        normalized = normalized.Replace("  ", " ", StringComparison.InvariantCulture);
+
+        normalized = normalized.Replace("(", " (", StringComparison.InvariantCulture);
+        normalized = normalized.Replace(" )", ")", StringComparison.InvariantCulture);
+
+        normalized = normalized.Replace("Гц", " Гц", StringComparison.InvariantCulture);
+        normalized = normalized.Replace("кд·с/м²", " кд·с/м²", StringComparison.InvariantCulture);
+        normalized = normalized.Replace("кд/м²", " кд/м²", StringComparison.InvariantCulture);
+        while (normalized.Contains("  ", StringComparison.InvariantCulture))
+            normalized = normalized.Replace("  ", " ", StringComparison.InvariantCulture);
+
+        return normalized.Trim();
+    }
+
+    private static string ReplaceInvariant(string text, string search, string replacement)
+    {
+        if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(search))
+            return text;
+
+        return text.Replace(search, replacement, StringComparison.InvariantCultureIgnoreCase);
     }
 
     private static string[] DescribeGraphStyles(ErgTest test)
@@ -1478,6 +1670,8 @@ public static class ErgReportBuilder
             const float marginRight = 30f;
             const float marginTop = 20f;
             const float marginBottom = 60f;
+            const float tickInside = 4f;
+            const float tickOutside = 6f;
 
             var chartRect = new SKRect(marginLeft, marginTop, width - marginRight, height - marginBottom);
 
@@ -1489,64 +1683,59 @@ public static class ErgReportBuilder
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
 
-            using (var backgroundPaint = new SKPaint { Color = new SKColor(248, 248, 248), Style = SKPaintStyle.Fill })
-            {
-                canvas.DrawRect(chartRect, backgroundPaint);
-            }
-
             var xStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
             var yStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
+            var xTicks = BuildAxisTicks(xMin, xMax, xStep);
+            var yTicks = BuildAxisTicks(yMin, yMax, yStep);
 
-            using (var gridPaint = new SKPaint { Color = new SKColor(215, 215, 215), StrokeWidth = 1f, IsAntialias = true })
+            using (var borderPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.5f, IsAntialias = true, Style = SKPaintStyle.Stroke })
             {
-                gridPaint.PathEffect = SKPathEffect.CreateDash(new[] { 4f, 4f }, 0);
-
-                if (xStep > 0)
-                {
-                    for (double x = Math.Ceiling(xMin / xStep) * xStep, count = 0; x <= xMax + 1e-6 && count < 512; x += xStep, count++)
-                    {
-                        var px = TransformX(x);
-                        if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
-                            continue;
-                        canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, gridPaint);
-                    }
-                }
-
-                if (yStep > 0)
-                {
-                    for (double y = Math.Ceiling(yMin / yStep) * yStep, count = 0; y <= yMax + 1e-6 && count < 512; y += yStep, count++)
-                    {
-                        var py = TransformY(y);
-                        if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
-                            continue;
-                        canvas.DrawLine(chartRect.Left, py, chartRect.Right, py, gridPaint);
-                    }
-                }
+                canvas.DrawRect(chartRect, borderPaint);
             }
 
-            using (var axisPaint = new SKPaint { Color = new SKColor(120, 120, 120), StrokeWidth = 1.5f, IsAntialias = true })
+            using (var axisPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.8f, IsAntialias = true })
             {
                 canvas.DrawLine(chartRect.Left, chartRect.Bottom, chartRect.Right, chartRect.Bottom, axisPaint);
                 canvas.DrawLine(chartRect.Left, chartRect.Top, chartRect.Left, chartRect.Bottom, axisPaint);
             }
 
-            if (yMin < 0 && yMax > 0)
+            using (var tickPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.2f, IsAntialias = true })
             {
-                using var zeroPaint = new SKPaint { Color = new SKColor(180, 180, 180), StrokeWidth = 1f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 6f }, 0) };
-                var zeroY = TransformY(0);
-                canvas.DrawLine(chartRect.Left, zeroY, chartRect.Right, zeroY, zeroPaint);
+                foreach (var tick in xTicks)
+                {
+                    var px = TransformX(tick);
+                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                        continue;
+                    canvas.DrawLine(px, chartRect.Bottom - tickInside, px, chartRect.Bottom + tickOutside, tickPaint);
+                }
+
+                foreach (var tick in yTicks)
+                {
+                    var py = TransformY(tick);
+                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                        continue;
+                    canvas.DrawLine(chartRect.Left - tickOutside, py, chartRect.Left + tickInside, py, tickPaint);
+                }
             }
 
-            if (xMin < 0 && xMax > 0)
+            using (var zeroPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.2f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 4f, 4f }, 0) })
             {
-                using var zeroPaint = new SKPaint { Color = new SKColor(180, 180, 180), StrokeWidth = 1f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 6f }, 0) };
-                var zeroX = TransformX(0);
-                canvas.DrawLine(zeroX, chartRect.Top, zeroX, chartRect.Bottom, zeroPaint);
+                if (yMin < 0 && yMax > 0)
+                {
+                    var zeroY = TransformY(0);
+                    canvas.DrawLine(chartRect.Left, zeroY, chartRect.Right, zeroY, zeroPaint);
+                }
+
+                if (xMin < 0 && xMax > 0)
+                {
+                    var zeroX = TransformX(0);
+                    canvas.DrawLine(zeroX, chartRect.Top, zeroX, chartRect.Bottom, zeroPaint);
+                }
             }
 
             if (test.GraphFlashPosition >= xMin && test.GraphFlashPosition <= xMax)
             {
-                using var flashPaint = new SKPaint { Color = new SKColor(220, 0, 0), StrokeWidth = 1.5f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 6f }, 0) };
+                using var flashPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.5f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0) };
                 var flashX = TransformX(test.GraphFlashPosition);
                 canvas.DrawLine(flashX, chartRect.Top, flashX, chartRect.Bottom, flashPaint);
             }
@@ -1592,6 +1781,9 @@ public static class ErgReportBuilder
                     canvas.DrawText(label, px - textWidth / 2f, labelY, labelPaint);
                 }
             }
+
+            canvas.Save();
+            canvas.ClipRect(chartRect);
 
             double graphDt = test.GraphDt;
             bool hasGraphDt = graphDt > 0;
@@ -1661,45 +1853,42 @@ public static class ErgReportBuilder
                 canvas.DrawPath(path, linePaint);
             }
 
-            using (var labelPaint = new SKPaint { Color = SKColors.Black, TextSize = 16f, IsAntialias = true })
+            canvas.Restore();
+
+            using (var labelPaint = new SKPaint { Color = SKColors.Black, TextSize = 14f, IsAntialias = true })
             {
                 var metrics = labelPaint.FontMetrics;
                 float textHeight = metrics.Descent - metrics.Ascent;
 
-                if (xStep > 0)
+                foreach (var tick in xTicks)
                 {
-                    for (double x = Math.Ceiling(xMin / xStep) * xStep, count = 0; x <= xMax + 1e-6 && count < 512; x += xStep, count++)
-                    {
-                        var px = TransformX(x);
-                        if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
-                            continue;
-                        var text = FormatAxisValue(x);
-                        var textWidth = labelPaint.MeasureText(text);
-                        canvas.DrawText(text, px - textWidth / 2f, chartRect.Bottom + textHeight, labelPaint);
-                    }
+                    var px = TransformX(tick);
+                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                        continue;
+                    var text = FormatAxisValue(tick);
+                    var textWidth = labelPaint.MeasureText(text);
+                    canvas.DrawText(text, px - textWidth / 2f, chartRect.Bottom + textHeight, labelPaint);
                 }
 
-                if (yStep > 0)
+                foreach (var tick in yTicks)
                 {
-                    for (double y = Math.Ceiling(yMin / yStep) * yStep, count = 0; y <= yMax + 1e-6 && count < 512; y += yStep, count++)
-                    {
-                        var py = TransformY(y);
-                        if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
-                            continue;
-                        var text = FormatAxisValue(y);
-                        canvas.DrawText(text, chartRect.Left - 10 - labelPaint.MeasureText(text), py + textHeight / 3f, labelPaint);
-                    }
+                    var py = TransformY(tick);
+                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                        continue;
+                    var text = FormatAxisValue(tick);
+                    var textWidth = labelPaint.MeasureText(text);
+                    canvas.DrawText(text, chartRect.Left - 10f - textWidth, py + textHeight / 3f, labelPaint);
                 }
             }
 
-            using (var titlePaint = new SKPaint { Color = SKColors.Black, TextSize = 18f, IsAntialias = true })
+            using (var titlePaint = new SKPaint { Color = SKColors.Black, TextSize = 16f, IsAntialias = true })
             {
-                var xLabel = "Время, мс";
+                var xLabel = "ms";
                 var xWidth = titlePaint.MeasureText(xLabel);
                 var midX = (chartRect.Left + chartRect.Right) / 2f;
                 canvas.DrawText(xLabel, midX - xWidth / 2f, height - 12, titlePaint);
 
-                var yLabel = "Амплитуда, мкВ";
+                var yLabel = "µV";
                 canvas.Save();
                 canvas.Translate(20, (chartRect.Top + chartRect.Bottom) / 2f);
                 canvas.RotateDegrees(-90);
@@ -1741,6 +1930,8 @@ public static class ErgReportBuilder
             const float marginRight = 30f;
             const float marginTop = 20f;
             const float marginBottom = 60f;
+            const float tickInside = 4f;
+            const float tickOutside = 6f;
 
             var chartRect = new RectangleF(marginLeft, marginTop, width - marginLeft - marginRight, height - marginTop - marginBottom);
 
@@ -1752,46 +1943,42 @@ public static class ErgReportBuilder
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
 
-            using (var backgroundBrush = new SolidBrush(System.Drawing.Color.FromArgb(248, 248, 248)))
-            {
-                graphics.FillRectangle(backgroundBrush, chartRect);
-            }
-
             var xStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
             var yStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
+            var xTicks = BuildAxisTicks(xMin, xMax, xStep);
+            var yTicks = BuildAxisTicks(yMin, yMax, yStep);
 
-            using (var gridPen = new Pen(System.Drawing.Color.FromArgb(215, 215, 215), 1f) { DashPattern = new[] { 4f, 4f } })
+            using (var borderPen = new Pen(System.Drawing.Color.Black, 1.5f))
             {
-                if (xStep > 0)
-                {
-                    for (double x = Math.Ceiling(xMin / xStep) * xStep, count = 0; x <= xMax + 1e-6 && count < 512; x += xStep, count++)
-                    {
-                        var px = TransformX(x);
-                        if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
-                            continue;
-                        graphics.DrawLine(gridPen, px, chartRect.Top, px, chartRect.Bottom);
-                    }
-                }
-
-                if (yStep > 0)
-                {
-                    for (double y = Math.Ceiling(yMin / yStep) * yStep, count = 0; y <= yMax + 1e-6 && count < 512; y += yStep, count++)
-                    {
-                        var py = TransformY(y);
-                        if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
-                            continue;
-                        graphics.DrawLine(gridPen, chartRect.Left, py, chartRect.Right, py);
-                    }
-                }
+                graphics.DrawRectangle(borderPen, chartRect.X, chartRect.Y, chartRect.Width, chartRect.Height);
             }
 
-            using (var axisPen = new Pen(System.Drawing.Color.FromArgb(120, 120, 120), 1.5f))
+            using (var axisPen = new Pen(System.Drawing.Color.Black, 1.8f))
             {
                 graphics.DrawLine(axisPen, chartRect.Left, chartRect.Bottom, chartRect.Right, chartRect.Bottom);
                 graphics.DrawLine(axisPen, chartRect.Left, chartRect.Top, chartRect.Left, chartRect.Bottom);
             }
 
-            using (var dashedPen = new Pen(System.Drawing.Color.FromArgb(180, 180, 180), 1f) { DashPattern = new[] { 6f, 6f } })
+            using (var tickPen = new Pen(System.Drawing.Color.Black, 1.2f))
+            {
+                foreach (var tick in xTicks)
+                {
+                    var px = TransformX(tick);
+                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                        continue;
+                    graphics.DrawLine(tickPen, px, chartRect.Bottom - tickInside, px, chartRect.Bottom + tickOutside);
+                }
+
+                foreach (var tick in yTicks)
+                {
+                    var py = TransformY(tick);
+                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                        continue;
+                    graphics.DrawLine(tickPen, chartRect.Left - tickOutside, py, chartRect.Left + tickInside, py);
+                }
+            }
+
+            using (var dashedPen = new Pen(System.Drawing.Color.Black, 1.2f) { DashPattern = new[] { 4f, 4f } })
             {
                 if (yMin < 0 && yMax > 0)
                 {
@@ -1808,7 +1995,7 @@ public static class ErgReportBuilder
 
             if (test.GraphFlashPosition >= xMin && test.GraphFlashPosition <= xMax)
             {
-                using var flashPen = new Pen(System.Drawing.Color.FromArgb(220, 0, 0), 1.5f) { DashPattern = new[] { 6f, 6f } };
+                using var flashPen = new Pen(System.Drawing.Color.Black, 1.5f) { DashPattern = new[] { 6f, 4f } };
                 var flashX = TransformX(test.GraphFlashPosition);
                 graphics.DrawLine(flashPen, flashX, chartRect.Top, flashX, chartRect.Bottom);
             }
@@ -1840,6 +2027,9 @@ public static class ErgReportBuilder
                     graphics.DrawString(label, markerFont, markerBrush, px - size.Width / 2f, labelY);
                 }
             }
+
+            var state = graphics.Save();
+            graphics.SetClip(chartRect);
 
             double graphDt = test.GraphDt;
             bool hasGraphDt = graphDt > 0;
@@ -1900,43 +2090,39 @@ public static class ErgReportBuilder
                 graphics.DrawLines(pen, points.ToArray());
             }
 
-            using var tickFont = new System.Drawing.Font("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
+            graphics.Restore(state);
 
-            if (xStep > 0)
+            using var tickFont = new System.Drawing.Font("Arial", 9.5f, FontStyle.Regular, GraphicsUnit.Point);
+
+            foreach (var tick in xTicks)
             {
-                for (double x = Math.Ceiling(xMin / xStep) * xStep, count = 0; x <= xMax + 1e-6 && count < 512; x += xStep, count++)
-                {
-                    var px = TransformX(x);
-                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
-                        continue;
-                    var text = FormatAxisValue(x);
-                    var size = graphics.MeasureString(text, tickFont);
-                    graphics.DrawString(text, tickFont, Brushes.Black, px - size.Width / 2f, chartRect.Bottom + size.Height / 4f);
-                }
+                var px = TransformX(tick);
+                if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                    continue;
+                var text = FormatAxisValue(tick);
+                var size = graphics.MeasureString(text, tickFont);
+                graphics.DrawString(text, tickFont, Brushes.Black, px - size.Width / 2f, chartRect.Bottom + size.Height);
             }
 
             using var tickFormatLeft = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
 
-            if (yStep > 0)
+            foreach (var tick in yTicks)
             {
-                for (double y = Math.Ceiling(yMin / yStep) * yStep, count = 0; y <= yMax + 1e-6 && count < 512; y += yStep, count++)
-                {
-                    var py = TransformY(y);
-                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
-                        continue;
-                    var rect = new RectangleF(chartRect.Left - 12f, py - tickFont.GetHeight(graphics) / 2f, 40f, tickFont.GetHeight(graphics));
-                    graphics.DrawString(FormatAxisValue(y), tickFont, Brushes.Black, rect, tickFormatLeft);
-                }
+                var py = TransformY(tick);
+                if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                    continue;
+                var rect = new RectangleF(chartRect.Left - 16f, py - tickFont.GetHeight(graphics) / 2f, 40f, tickFont.GetHeight(graphics));
+                graphics.DrawString(FormatAxisValue(tick), tickFont, Brushes.Black, rect, tickFormatLeft);
             }
 
-            using var axisTitleFont = new System.Drawing.Font("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
-            var xLabelSize = graphics.MeasureString("Время, мс", axisTitleFont);
-            graphics.DrawString("Время, мс", axisTitleFont, Brushes.Black, chartRect.Left + (chartRect.Width - xLabelSize.Width) / 2f, height - xLabelSize.Height - 6f);
+            using var axisTitleFont = new System.Drawing.Font("Arial", 11f, FontStyle.Regular, GraphicsUnit.Point);
+            var xLabelSize = graphics.MeasureString("ms", axisTitleFont);
+            graphics.DrawString("ms", axisTitleFont, Brushes.Black, chartRect.Left + (chartRect.Width - xLabelSize.Width) / 2f, height - xLabelSize.Height - 6f);
 
             graphics.TranslateTransform(20f, chartRect.Top + chartRect.Height / 2f);
             graphics.RotateTransform(-90f);
-            var yLabelSize = graphics.MeasureString("Амплитуда, мкВ", axisTitleFont);
-            graphics.DrawString("Амплитуда, мкВ", axisTitleFont, Brushes.Black, -yLabelSize.Width / 2f, -yLabelSize.Height / 2f);
+            var yLabelSize = graphics.MeasureString("µV", axisTitleFont);
+            graphics.DrawString("µV", axisTitleFont, Brushes.Black, -yLabelSize.Width / 2f, -yLabelSize.Height / 2f);
             graphics.ResetTransform();
 
             using var ms = new MemoryStream();
@@ -1978,6 +2164,45 @@ public static class ErgReportBuilder
         };
 
         return stepNormalized * magnitude;
+    }
+
+    private static double[] BuildAxisTicks(double min, double max, double step)
+    {
+        if (max <= min)
+            return Array.Empty<double>();
+
+        var values = new List<double>();
+
+        if (step > 0)
+        {
+            double start = Math.Ceiling(min / step) * step;
+            int guard = 0;
+            for (double value = start; value <= max + 1e-6 && guard < 512; value += step, guard++)
+            {
+                values.Add(value);
+            }
+        }
+        else
+        {
+            const int fallbackSegments = 5;
+            double range = max - min;
+            for (int i = 0; i <= fallbackSegments; i++)
+            {
+                double value = min + range * i / fallbackSegments;
+                values.Add(value);
+            }
+        }
+
+        values.Add(min);
+        values.Add(max);
+
+        return values
+            .Where(v => !double.IsNaN(v) && !double.IsInfinity(v))
+            .Select(v => Math.Round(v, 6))
+            .Distinct()
+            .Where(v => v >= min - 1e-6 && v <= max + 1e-6)
+            .OrderBy(v => v)
+            .ToArray();
     }
 
     private static string FormatAxisValue(double value)
@@ -2089,10 +2314,15 @@ public static class ErgReportBuilder
         );
 
         table.Append(new TableRow(CreateInfoCell($"ID пациента: {patient.PatientId} ({FormatAnimal(patient.Animal)})", JustificationValues.Left)));
-        table.Append(new TableRow(CreateInfoCell($"Дата и время исследования: {patient.TestDateTime}", JustificationValues.Left)));
+        table.Append(new TableRow(CreateInfoCell($"Дата и время исследования: {FormatClientDateTime(patient.TestDateTime)}", JustificationValues.Left)));
 
-        var deviceLine = FormatDeviceInfo(deviceInfo);
-        table.Append(new TableRow(CreateInfoCell($"Оборудование: {deviceLine}", JustificationValues.Left)));
+        table.Append(new TableRow(CreateInfoCell($"Оборудование: {GetClientDeviceName(deviceInfo)}", JustificationValues.Left)));
+
+        var software = GetClientSoftwareVersion(deviceInfo);
+        if (!string.IsNullOrEmpty(software))
+        {
+            table.Append(new TableRow(CreateInfoCell($"Версия ПО: {software}", JustificationValues.Left)));
+        }
 
         if (!string.IsNullOrWhiteSpace(deviceInfo?.ReportName))
         {
@@ -2117,42 +2347,23 @@ public static class ErgReportBuilder
                 new TableWidth { Type = TableWidthUnitValues.Pct, Width = "5000" },
                 new TableCellMarginDefault(
                     new TopMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
-                    new TableCellLeftMargin { Type = TableWidthValues.Dxa, Width = 160 },
+                    new TableCellLeftMargin { Type = TableWidthValues.Dxa, Width = 120 },
                     new BottomMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
-                    new TableCellRightMargin { Type = TableWidthValues.Dxa, Width = 160 }
+                    new TableCellRightMargin { Type = TableWidthValues.Dxa, Width = 120 }
                 ),
                 new TableLook { Val = "04A0", FirstRow = true, LastRow = false, NoHorizontalBand = false, NoVerticalBand = false }
             ),
-            new TableGrid(
-                new GridColumn { Width = "1800" },
-                new GridColumn { Width = "1600" },
-                new GridColumn { Width = "1600" }
-            )
+            new TableGrid(new GridColumn { Width = "2500" }, new GridColumn { Width = "2500" })
         );
 
         var headerRow = new TableRow();
-        headerRow.Append(CreateClientHeaderCell($"Тест № {index}: {test.TestName}\nВспышка: {test.GraphFlashPosition} мс, Δt: {test.GraphDt} мс, дискрет/мкВ: {test.GraphDiscrPerMkV}", gridSpan: 3));
+        headerRow.Append(CreateClientHeaderCell(FormatClientTestTitle(index, test), gridSpan: 2));
         table.Append(headerRow);
 
-        var eyeHeader = new TableRow();
-        eyeHeader.Append(CreateClientWaveLabelCell(string.Empty, bold: false));
-        eyeHeader.Append(CreateClientEyeHeaderCell("Правый глаз"));
-        eyeHeader.Append(CreateClientEyeHeaderCell("Левый глаз"));
-        table.Append(eyeHeader);
-
-        if (test.AWaveExists)
-        {
-            table.Append(CreateClientMeasurementRow("a-волна", test, test.RightEye, test.LeftEye, WaveKind.A));
-        }
-
-        table.Append(CreateClientMeasurementRow("b-волна", test, test.RightEye, test.LeftEye, WaveKind.B));
-
-        var graphRow = new TableRow();
-        var graphCell = new TableCell(new TableCellProperties(new GridSpan { Val = 3 }, new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Top }));
-        graphCell.Append(CreateParagraph("Графики", fontSizePt: 11, bold: true, spacingBefore: TwipsFromPoints(6), spacingAfter: TwipsFromPoints(4)));
-        graphCell.Append(CreateClientGraphTable(mainPart, test, ref imageId));
-        graphRow.Append(graphCell);
-        table.Append(graphRow);
+        var contentRow = new TableRow();
+        contentRow.Append(CreateClientEyeCell(mainPart, test, test.RightEye, "Правый глаз", index, "right", ref imageId));
+        contentRow.Append(CreateClientEyeCell(mainPart, test, test.LeftEye, "Левый глаз", index, "left", ref imageId));
+        table.Append(contentRow);
 
         return table;
     }
@@ -2177,164 +2388,47 @@ public static class ErgReportBuilder
         return cell;
     }
 
-    private static TableCell CreateClientWaveLabelCell(string text, bool bold = true)
+    private static TableCell CreateClientEyeCell(MainDocumentPart mainPart, ErgTest test, EyeData eye, string label, int index, string suffix, ref uint imageId)
     {
-        var props = new TableCellProperties(new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center });
-        props.Append(new TableCellWidth { Type = TableWidthUnitValues.Dxa, Width = "1800" });
+        var props = new TableCellProperties(new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Top });
         props.Append(new TableCellMargin
         {
             LeftMargin = new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
             RightMargin = new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
-            TopMargin = new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            BottomMargin = new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa }
+            TopMargin = new TopMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+            BottomMargin = new BottomMargin { Width = "80", Type = TableWidthUnitValues.Dxa }
         });
 
         var cell = new TableCell(props);
-        cell.Append(CreateParagraph(text, fontSizePt: 11, bold: bold, justification: JustificationValues.Left));
-        return cell;
-    }
+        var quality = FormatQualityCompact(eye.QualityIndex);
+        var labelText = quality != null ? $"{label} {quality}" : label;
+        cell.Append(CreateParagraph(labelText, fontSizePt: 11, bold: true, spacingAfter: TwipsFromPoints(4)));
 
-    private static TableCell CreateClientEyeHeaderCell(string text)
-    {
-        var props = new TableCellProperties(
-            new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center },
-            new Shading { Fill = "F4F4F4", Val = ShadingPatternValues.Clear, Color = "000000" }
-        );
-        props.Append(new TableCellMargin
+        if (eye.IsFlat)
         {
-            LeftMargin = new LeftMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
-            RightMargin = new RightMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
-            TopMargin = new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            BottomMargin = new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa }
-        });
-
-        var cell = new TableCell(props);
-        cell.Append(CreateParagraph(text, fontSizePt: 11, bold: true, justification: JustificationValues.Center));
-        return cell;
-    }
-
-    private static TableRow CreateClientMeasurementRow(string label, ErgTest test, EyeData right, EyeData left, WaveKind wave)
-    {
-        var row = new TableRow();
-        row.Append(CreateClientWaveLabelCell(label));
-        row.Append(CreateClientEyeValueCell(test, right, wave));
-        row.Append(CreateClientEyeValueCell(test, left, wave));
-        return row;
-    }
-
-    private static TableCell CreateClientEyeValueCell(ErgTest test, EyeData eye, WaveKind wave)
-    {
-        var props = new TableCellProperties(new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center });
-        props.Append(new TableCellMargin
-        {
-            LeftMargin = new LeftMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            RightMargin = new RightMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            TopMargin = new TopMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
-            BottomMargin = new BottomMargin { Width = "60", Type = TableWidthUnitValues.Dxa }
-        });
-
-        var cell = new TableCell(props);
-        var display = BuildWaveDisplay(test, eye, wave);
-
-        if (display.IsFlat)
-        {
-            cell.Append(CreateParagraph("FLAT", fontSizePt: 20, bold: true, justification: JustificationValues.Center));
+            var display = BuildWaveDisplay(test, eye, WaveKind.B);
+            cell.Append(CreateParagraph("FLAT", fontSizePt: 22, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(4)));
+            AppendClientNormParagraph(cell, display.MsNorm);
+            AppendClientNormParagraph(cell, display.MkVNorm);
         }
         else
         {
-            cell.Append(CreateParagraph(display.MsValue, fontSizePt: 20, bold: true, justification: JustificationValues.Center));
-            AppendNorm(cell, display.MsNorm);
-            cell.Append(CreateParagraph(display.MkVValue, fontSizePt: 20, bold: true, justification: JustificationValues.Center, spacingBefore: TwipsFromPoints(6)));
+            foreach (var (waveLabel, kind) in GetClientWaveOrder(test))
+            {
+                var display = BuildWaveDisplay(test, eye, kind);
+                if (IsWaveDisplayEmpty(display))
+                    continue;
+
+                AppendClientWaveParagraphs(cell, waveLabel, display);
+            }
         }
 
-        if (!display.IsFlat)
+        cell.Append(CreateParagraph("График", fontSizePt: 10, colorHex: "666666", justification: JustificationValues.Center, spacingBefore: TwipsFromPoints(12)));
+
+        var graph = TryRenderGraphImage(test, eye);
+        if (graph != null)
         {
-            AppendNorm(cell, display.MkVNorm);
-        }
-        else
-        {
-            AppendNorm(cell, display.MsNorm);
-            AppendNorm(cell, display.MkVNorm);
-        }
-
-        return cell;
-
-        static void AppendNorm(TableCell cell, string value)
-        {
-            if (string.IsNullOrWhiteSpace(value) || value == "—")
-                return;
-
-            cell.Append(CreateParagraph($"({value})", fontSizePt: 9, colorHex: "666666", justification: JustificationValues.Center));
-        }
-    }
-
-    private static Table CreateClientGraphTable(MainDocumentPart mainPart, ErgTest test, ref uint imageId)
-    {
-        var rightGraph = TryRenderGraphImage(test, test.RightEye);
-        var leftGraph = TryRenderGraphImage(test, test.LeftEye);
-
-        var table = new Table(
-            new TableProperties(
-                new TableWidth { Type = TableWidthUnitValues.Pct, Width = "5000" },
-                new TableCellMarginDefault(
-                    new TopMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
-                    new TableCellLeftMargin { Type = TableWidthValues.Dxa, Width = 80 },
-                    new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-                    new TableCellRightMargin { Type = TableWidthValues.Dxa, Width = 80 }
-                ),
-                new TableLook { Val = "04A0", FirstRow = true, LastRow = false, NoHorizontalBand = false, NoVerticalBand = false }
-            ),
-            new TableGrid(new GridColumn { Width = "2500" }, new GridColumn { Width = "2500" })
-        );
-
-        var headerRow = new TableRow();
-        headerRow.Append(CreateClientGraphHeaderCell("Правый глаз"));
-        headerRow.Append(CreateClientGraphHeaderCell("Левый глаз"));
-        table.Append(headerRow);
-
-        var imageRow = new TableRow();
-        imageRow.Append(CreateClientGraphImageCell(mainPart, rightGraph, "client-right", ref imageId));
-        imageRow.Append(CreateClientGraphImageCell(mainPart, leftGraph, "client-left", ref imageId));
-        table.Append(imageRow);
-
-        return table;
-    }
-
-    private static TableCell CreateClientGraphHeaderCell(string text)
-    {
-        var props = new TableCellProperties(
-            new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center },
-            new Shading { Fill = "F4F4F4", Val = ShadingPatternValues.Clear, Color = "000000" }
-        );
-        props.Append(new TableCellMargin
-        {
-            LeftMargin = new LeftMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            RightMargin = new RightMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            TopMargin = new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            BottomMargin = new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa }
-        });
-
-        var cell = new TableCell(props);
-        cell.Append(CreateParagraph(text, fontSizePt: 11, bold: true, justification: JustificationValues.Center));
-        return cell;
-    }
-
-    private static TableCell CreateClientGraphImageCell(MainDocumentPart mainPart, GraphImage? image, string name, ref uint imageId)
-    {
-        var props = new TableCellProperties(new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center });
-        props.Append(new TableCellMargin
-        {
-            LeftMargin = new LeftMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            RightMargin = new RightMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            TopMargin = new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            BottomMargin = new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa }
-        });
-
-        var cell = new TableCell(props);
-
-        if (image != null)
-        {
-            var drawing = CreateImageDrawing(mainPart, image, name, ref imageId, maxWidthInches: 3.9, maxHeightInches: 3.1);
+            var drawing = CreateImageDrawing(mainPart, graph, $"client-{suffix}-{index}", ref imageId, maxWidthInches: 3.6, maxHeightInches: 3.0);
             var paragraph = new Paragraph(new Run(drawing))
             {
                 ParagraphProperties = new ParagraphProperties(new Justification { Val = JustificationValues.Center })
@@ -2343,10 +2437,85 @@ public static class ErgReportBuilder
         }
         else
         {
-            cell.Append(CreateParagraph("Нет данных", fontSizePt: 10, italic: true, colorHex: "777777", justification: JustificationValues.Center));
+            cell.Append(CreateParagraph("Нет данных", fontSizePt: 10, italic: true, colorHex: "666666", justification: JustificationValues.Center));
         }
 
         return cell;
+    }
+
+    private static void AppendClientWaveParagraphs(TableCell cell, string label, WaveDisplay display)
+    {
+        cell.Append(CreateParagraph(label, fontSizePt: 11, bold: true, justification: JustificationValues.Center, spacingBefore: TwipsFromPoints(6)));
+
+        if (display.IsFlat)
+        {
+            cell.Append(CreateParagraph("FLAT", fontSizePt: 22, bold: true, justification: JustificationValues.Center));
+            AppendClientNormParagraph(cell, display.MsNorm);
+            AppendClientNormParagraph(cell, display.MkVNorm);
+            return;
+        }
+
+        cell.Append(CreateClientWaveValuesTable(display));
+    }
+
+    private static Table CreateClientWaveValuesTable(WaveDisplay display)
+    {
+        var table = new Table(
+            new TableProperties(
+                new TableWidth { Type = TableWidthUnitValues.Pct, Width = "4800" },
+                new TableBorders(
+                    new TopBorder { Val = BorderValues.Nil },
+                    new LeftBorder { Val = BorderValues.Nil },
+                    new BottomBorder { Val = BorderValues.Nil },
+                    new RightBorder { Val = BorderValues.Nil },
+                    new InsideHorizontalBorder { Val = BorderValues.Nil },
+                    new InsideVerticalBorder { Val = BorderValues.Nil }
+                ),
+                new TableCellMarginDefault(
+                    new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+                    new TableCellLeftMargin { Type = TableWidthValues.Dxa, Width = 80 },
+                    new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+                    new TableCellRightMargin { Type = TableWidthValues.Dxa, Width = 80 }
+                )
+            ),
+            new TableGrid(new GridColumn { Width = "2400" }, new GridColumn { Width = "2400" })
+        );
+
+        var row = new TableRow();
+        row.Append(CreateClientWaveValueCell(display.MsValue, display.MsNorm));
+        row.Append(CreateClientWaveValueCell(display.MkVValue, display.MkVNorm));
+        table.Append(row);
+
+        return table;
+    }
+
+    private static TableCell CreateClientWaveValueCell(string value, string norm)
+    {
+        var cell = new TableCell
+        {
+            TableCellProperties = new TableCellProperties(
+                new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center }
+            )
+        };
+
+        cell.Append(CreateParagraph(value, fontSizePt: 22, bold: true, justification: JustificationValues.Center));
+
+        var formatted = FormatNormForClient(norm);
+        if (formatted != null)
+        {
+            cell.Append(CreateParagraph(formatted, fontSizePt: 9, colorHex: "666666", justification: JustificationValues.Center));
+        }
+
+        return cell;
+    }
+
+    private static void AppendClientNormParagraph(TableCell cell, string value)
+    {
+        var formatted = FormatNormForClient(value);
+        if (formatted == null)
+            return;
+
+        cell.Append(CreateParagraph(formatted, fontSizePt: 9, colorHex: "666666", justification: JustificationValues.Center));
     }
 
     private static WaveDisplay BuildWaveDisplay(ErgTest test, EyeData eye, WaveKind wave)
