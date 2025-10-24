@@ -1666,8 +1666,9 @@ public static class ErgReportBuilder
             var plt = new ScottPlot.Plot(width, height);
 
             plt.Benchmark(enable: false);
-            plt.FigureBackground.Color = System.Drawing.Color.White;
-            plt.DataBackground.Color = System.Drawing.Color.White;
+            plt.Style(
+                figureBackground: System.Drawing.Color.White,
+                dataBackground: System.Drawing.Color.White);
             plt.Title("Электроретинограмма");
             plt.XLabel("Время, мс");
             plt.YLabel("Амплитуда, мкВ");
