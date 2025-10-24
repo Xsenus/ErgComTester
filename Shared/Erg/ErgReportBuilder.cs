@@ -190,11 +190,12 @@ public static class ErgReportBuilder
 
                 page.Footer().AlignCenter().Text(txt =>
                 {
+                    txt.DefaultTextStyle(style => style.FontSize(9).FontColor(Colors.Grey.Darken1));
                     txt.Span("Стр. ");
                     txt.CurrentPageNumber();
                     txt.Span(" из ");
                     txt.TotalPages();
-                }).FontSize(9).FontColor(Colors.Grey.Darken1);
+                });
             });
         }).GeneratePdf(pdfPath);
     }
@@ -889,9 +890,10 @@ public static class ErgReportBuilder
                 column.Spacing(2);
                 column.Item().Text(text =>
                 {
+                    text.DefaultTextStyle(style => style.FontSize(12));
                     text.Span("ID пациента: ").SemiBold();
                     text.Span($"{_patient.PatientId} ({FormatAnimal(_patient.Animal)})");
-                }).FontSize(12);
+                });
 
                 column.Item().Text(text =>
                 {
