@@ -1664,19 +1664,15 @@ public static class ErgReportBuilder
         {
             const int width = 900;
             const int height = 360;
-            var plt = new Plot(width, height);
+            var plt = new ScottPlot.Plot(width, height);
 
             plt.Benchmark(enable: false);
-            plt.Style(Style.White);
-            plt.Title("Электроретинограмма", fontName: "Arial", size: 16);
-            plt.XLabel("Время, мс", size: 12, fontName: "Arial");
-            plt.YLabel("Амплитуда, мкВ", size: 12, fontName: "Arial");
+            plt.Style(ScottPlot.Style.White);
+            plt.Title("Электроретинограмма");
+            plt.XLabel("Время, мс");
+            plt.YLabel("Амплитуда, мкВ");
             plt.Legend(enable: false);
-            plt.Grid(enable: true, color: System.Drawing.Color.LightGray, lineStyle: LineStyle.Dot);
-            plt.XAxis.TickLabelStyle(fontSize: 10, fontName: "Arial");
-            plt.YAxis.TickLabelStyle(fontSize: 10, fontName: "Arial");
-            plt.XAxis.LabelStyle(fontSize: 12, fontName: "Arial");
-            plt.YAxis.LabelStyle(fontSize: 12, fontName: "Arial");
+            plt.Grid(enable: true, color: System.Drawing.Color.LightGray, lineStyle: ScottPlot.LineStyle.Dot);
 
             double xMin = context.XMin;
             double xMax = context.XMax;
@@ -1695,27 +1691,29 @@ public static class ErgReportBuilder
                 plt.XAxis.ManualTickSpacing(xTick);
             if (yTick > 0)
                 plt.YAxis.ManualTickSpacing(yTick);
-            plt.XAxis.TickLabelFormat(xTick < 1 ? "0.0" : "0");
-            plt.YAxis.TickLabelFormat(yTick < 1 ? "0.0" : "0");
+            var xFormat = xTick < 1 ? "0.0" : "0";
+            var yFormat = yTick < 1 ? "0.0" : "0";
+            plt.XAxis.TickLabelFormat(value => value.ToString(xFormat, CultureInfo.InvariantCulture));
+            plt.YAxis.TickLabelFormat(value => value.ToString(yFormat, CultureInfo.InvariantCulture));
 
             if (yMin < 0 && yMax > 0)
             {
                 var zero = plt.AddHorizontalLine(0, color: System.Drawing.Color.Black);
-                zero.LineStyle = LineStyle.Dash;
+                zero.LineStyle = ScottPlot.LineStyle.Dash;
                 zero.LineWidth = 1.2;
             }
 
             if (xMin < 0 && xMax > 0)
             {
                 var zero = plt.AddVerticalLine(0, color: System.Drawing.Color.Black);
-                zero.LineStyle = LineStyle.Dash;
+                zero.LineStyle = ScottPlot.LineStyle.Dash;
                 zero.LineWidth = 1.2;
             }
 
             if (test.GraphFlashPosition >= xMin && test.GraphFlashPosition <= xMax)
             {
                 var flash = plt.AddVerticalLine(test.GraphFlashPosition, color: System.Drawing.Color.Black);
-                flash.LineStyle = LineStyle.Dash;
+                flash.LineStyle = ScottPlot.LineStyle.Dash;
                 flash.LineWidth = 1.5;
             }
 
@@ -1729,11 +1727,11 @@ public static class ErgReportBuilder
 
                     var color = GetMarkerColor(marker);
                     var line = plt.AddVerticalLine(marker.PositionMs, color: color);
-                    line.LineStyle = LineStyle.Dash;
+                    line.LineStyle = ScottPlot.LineStyle.Dash;
                     line.LineWidth = 1.5;
 
-                    var text = plt.AddText(GetMarkerLabel(marker), marker.PositionMs, labelY, color: color);
-                    text.Alignment = Alignment.UpperCenter;
+                    ScottPlot.Plottable.Text text = plt.AddText(GetMarkerLabel(marker), marker.PositionMs, labelY, color: color);
+                    text.Alignment = ScottPlot.Alignment.UpperCenter;
                     text.FontSize = 16;
                     text.FontBold = true;
                 }
@@ -1798,16 +1796,15 @@ public static class ErgReportBuilder
                 var scatter = plt.AddScatter(xs.ToArray(), ys.ToArray(), color: color);
                 scatter.LineWidth = 2;
                 scatter.MarkerSize = 0;
-                scatter.AntiAlias = true;
                 if (style?.Dotted == true)
                 {
-                    scatter.LineStyle = LineStyle.Dash;
+                    scatter.LineStyle = ScottPlot.LineStyle.Dash;
                 }
             }
 
-            using var bitmap = plt.GetBitmap(copy: true);
+            using var bitmap = plt.GetBitmap(true);
             using var ms = new MemoryStream();
-            bitmap.Save(ms, ImageFormat.Png);
+            bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
             return new GraphImage(ms.ToArray(), bitmap.Width, bitmap.Height);
         }
         catch (DllNotFoundException ex)
