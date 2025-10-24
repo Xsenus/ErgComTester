@@ -289,7 +289,7 @@ internal class Program
                                         var pdfPath = Path.Combine(pdfDir, $"patient_{i:000}.pdf");
                                         try
                                         {
-                                            ErgReportBuilder.BuildPatientReport(pinfo, pdfPath, common, clinicName: opt.ClinicName, rawFilePath: rawPath);
+                                            ErgReportBuilder.BuildPatientReport(pinfo, pdfPath, common, clinicName: opt.ClinicName, rawFilePath: rawPath, template: opt.Template);
                                             logger.Info($"Saved PDF    : {pdfPath}");
                                         }
                                         catch (Exception ex)
@@ -318,7 +318,7 @@ internal class Program
                                     var docxPath = Path.Combine(docxDir, $"patient_{i:000}.docx");
                                     try
                                     {
-                                        ErgReportBuilder.BuildPatientWordReport(pinfo, docxPath, common, clinicName: opt.ClinicName, rawFilePath: rawPath);
+                                        ErgReportBuilder.BuildPatientWordReport(pinfo, docxPath, common, clinicName: opt.ClinicName, rawFilePath: rawPath, template: opt.Template);
                                         logger.Info($"Saved Word   : {docxPath}");
                                     }
                                     catch (Exception ex)
@@ -429,7 +429,7 @@ internal class Program
             {
                 try
                 {
-                    ErgReportBuilder.BuildPatientReport(patient, pdfPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath);
+                    ErgReportBuilder.BuildPatientReport(patient, pdfPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath, template: options.Template);
                     logger.Info($"PDF saved : {pdfPath}");
                 }
                 catch (Exception ex)
@@ -452,7 +452,7 @@ internal class Program
             Directory.CreateDirectory(Path.GetDirectoryName(docxPath)!);
             try
             {
-                ErgReportBuilder.BuildPatientWordReport(patient, docxPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath);
+                ErgReportBuilder.BuildPatientWordReport(patient, docxPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath, template: options.Template);
                 logger.Info($"Word saved: {docxPath}");
             }
             catch (Exception ex)

@@ -35,7 +35,13 @@ public static class ErgReportBuilder
         QuestPDF.Settings.License = LicenseType.Community;
     }
 
-    public static void BuildPatientReport(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo = null, string? clinicName = null, string? rawFilePath = null)
+    public static void BuildPatientReport(
+        ErgPatient patient,
+        string pdfPath,
+        CommonInfo? deviceInfo = null,
+        string? clinicName = null,
+        string? rawFilePath = null,
+        ReportTemplate template = ReportTemplate.Classic)
     {
         if (patient == null) throw new ArgumentNullException(nameof(patient));
         if (string.IsNullOrWhiteSpace(pdfPath)) throw new ArgumentNullException(nameof(pdfPath));
@@ -48,15 +54,25 @@ public static class ErgReportBuilder
 
         if (RenderingSupport.UseLegacyPdfGeneration)
         {
-            BuildPatientReportLegacyPdf(patient, pdfPath, deviceInfo, clinicName, rawFilePath);
+            BuildPatientReportLegacyPdf(patient, pdfPath, deviceInfo, clinicName, rawFilePath, template);
+            return;
         }
-        else
+
+        switch (template)
         {
-            BuildPatientReportQuestPdf(patient, pdfPath, deviceInfo, clinicName, rawFilePath);
+            case ReportTemplate.Classic:
+                BuildPatientReportQuestPdfClassic(patient, pdfPath, deviceInfo, clinicName, rawFilePath);
+                break;
+            case ReportTemplate.Client:
+                BuildPatientReportQuestPdfClient(patient, pdfPath, deviceInfo, clinicName, rawFilePath);
+                break;
+            default:
+                BuildPatientReportQuestPdfClassic(patient, pdfPath, deviceInfo, clinicName, rawFilePath);
+                break;
         }
     }
 
-    private static void BuildPatientReportQuestPdf(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
+    private static void BuildPatientReportQuestPdfClassic(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
     {
         var headerTitle = string.IsNullOrWhiteSpace(clinicName)
             ? "Отчет по результатам ЭРГ-исследования сетчатки"
@@ -129,13 +145,74 @@ public static class ErgReportBuilder
         }).GeneratePdf(pdfPath);
     }
 
-    private static void BuildPatientReportLegacyPdf(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
+    private static void BuildPatientReportQuestPdfClient(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
     {
+        QuestDocument.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(36);
+                page.PageColor(Colors.White);
+                page.DefaultTextStyle(t => t.FontFamily("Arial").FontSize(11));
+
+                page.Header().Column(column =>
+                {
+                    column.Spacing(4);
+                    if (!string.IsNullOrWhiteSpace(clinicName))
+                    {
+                        column.Item().AlignRight().Text(clinicName).FontSize(12).SemiBold();
+                    }
+
+                    column.Item().AlignCenter().Text("Отчет по результатам ЭРГ-исследования сетчатки").FontSize(18).SemiBold();
+                });
+
+                page.Content().Column(column =>
+                {
+                    column.Spacing(18);
+                    column.Item().Component(new ClientInfoComponent(patient, deviceInfo));
+
+                    for (int i = 0; i < patient.Tests.Count; i++)
+                    {
+                        column.Item().Component(new ClientTestComponent(i + 1, patient.Tests[i]));
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(patient.Description))
+                    {
+                        column.Item().Component(new ClientDescriptionComponent(patient.Description));
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(rawFilePath))
+                    {
+                        column.Item().Text($"Источник бинарных данных: {rawFilePath}").FontSize(9).FontColor(Colors.Grey.Darken1);
+                    }
+                });
+
+                page.Footer().AlignCenter().Text(txt =>
+                {
+                    txt.Span("Стр. ");
+                    txt.CurrentPageNumber();
+                    txt.Span(" из ");
+                    txt.TotalPages();
+                }).FontSize(9).FontColor(Colors.Grey.Darken1);
+            });
+        }).GeneratePdf(pdfPath);
+    }
+
+    private static void BuildPatientReportLegacyPdf(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath, ReportTemplate template)
+    {
+        _ = template;
         using var renderer = new LegacyPdfRenderer(patient, pdfPath, deviceInfo, clinicName, rawFilePath);
         renderer.Build();
     }
 
-    public static void BuildPatientWordReport(ErgPatient patient, string docxPath, CommonInfo? deviceInfo = null, string? clinicName = null, string? rawFilePath = null)
+    public static void BuildPatientWordReport(
+        ErgPatient patient,
+        string docxPath,
+        CommonInfo? deviceInfo = null,
+        string? clinicName = null,
+        string? rawFilePath = null,
+        ReportTemplate template = ReportTemplate.Classic)
     {
         if (patient == null) throw new ArgumentNullException(nameof(patient));
         if (string.IsNullOrWhiteSpace(docxPath)) throw new ArgumentNullException(nameof(docxPath));
@@ -146,6 +223,22 @@ public static class ErgReportBuilder
             Directory.CreateDirectory(directory);
         }
 
+        switch (template)
+        {
+            case ReportTemplate.Classic:
+                BuildPatientWordReportClassic(patient, docxPath, deviceInfo, clinicName, rawFilePath);
+                break;
+            case ReportTemplate.Client:
+                BuildPatientWordReportClient(patient, docxPath, deviceInfo, clinicName, rawFilePath);
+                break;
+            default:
+                BuildPatientWordReportClassic(patient, docxPath, deviceInfo, clinicName, rawFilePath);
+                break;
+        }
+    }
+
+    private static void BuildPatientWordReportClassic(ErgPatient patient, string docxPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
+    {
         var headerTitle = string.IsNullOrWhiteSpace(clinicName)
             ? "Отчет по результатам ЭРГ-исследования сетчатки"
             : clinicName;
@@ -184,6 +277,46 @@ public static class ErgReportBuilder
 
             body.Append(CreateMeasurementTable(test));
             AppendGraphSection(body, mainPart, test, ref imageId);
+        }
+
+        mainPart.Document.Save();
+    }
+
+    private static void BuildPatientWordReportClient(ErgPatient patient, string docxPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
+    {
+        using var document = WordprocessingDocument.Create(docxPath, WordprocessingDocumentType.Document);
+        var mainPart = document.AddMainDocumentPart();
+        mainPart.Document = new WordDocument(new Body());
+        var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
+
+        if (!string.IsNullOrWhiteSpace(clinicName))
+        {
+            body.Append(CreateParagraph(clinicName, fontSizePt: 12, bold: true, justification: JustificationValues.Right, spacingAfter: TwipsFromPoints(4)));
+        }
+
+        body.Append(CreateParagraph("Отчет по результатам ЭРГ-исследования сетчатки", fontSizePt: 18, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(14)));
+        body.Append(CreateClientInfoTable(patient, deviceInfo));
+
+        uint imageId = 1;
+
+        for (int i = 0; i < patient.Tests.Count; i++)
+        {
+            var testTable = CreateClientTestTable(mainPart, patient.Tests[i], i + 1, ref imageId);
+            if (i > 0)
+            {
+                body.Append(CreateParagraph(string.Empty, spacingBefore: TwipsFromPoints(12)));
+            }
+            body.Append(testTable);
+        }
+
+        if (!string.IsNullOrWhiteSpace(patient.Description))
+        {
+            AppendClientDescription(body, patient.Description);
+        }
+
+        if (!string.IsNullOrWhiteSpace(rawFilePath))
+        {
+            body.Append(CreateParagraph($"Источник бинарных данных: {rawFilePath}", fontSizePt: 9, colorHex: "777777", spacingBefore: TwipsFromPoints(6)));
         }
 
         mainPart.Document.Save();
@@ -738,6 +871,235 @@ public static class ErgReportBuilder
 
     }
 
+    private sealed class ClientInfoComponent : IComponent
+    {
+        private readonly ErgPatient _patient;
+        private readonly CommonInfo? _deviceInfo;
+
+        public ClientInfoComponent(ErgPatient patient, CommonInfo? deviceInfo)
+        {
+            _patient = patient;
+            _deviceInfo = deviceInfo;
+        }
+
+        public void Compose(IContainer container)
+        {
+            container.Column(column =>
+            {
+                column.Spacing(2);
+                column.Item().Text(text =>
+                {
+                    text.Span("ID пациента: ").SemiBold();
+                    text.Span($"{_patient.PatientId} ({FormatAnimal(_patient.Animal)})");
+                }).FontSize(12);
+
+                column.Item().Text(text =>
+                {
+                    text.Span("Дата и время исследования: ").SemiBold();
+                    text.Span(_patient.TestDateTime);
+                });
+
+                var deviceLine = FormatDeviceInfo(_deviceInfo);
+                column.Item().Text(text =>
+                {
+                    text.Span("Оборудование: ").SemiBold();
+                    text.Span(deviceLine);
+                });
+
+                if (!string.IsNullOrWhiteSpace(_deviceInfo?.ReportName))
+                {
+                    column.Item().Text(text =>
+                    {
+                        text.Span("Название протокола: ").SemiBold();
+                        text.Span(_deviceInfo.ReportName);
+                    });
+                }
+
+                column.Item().Text(text =>
+                {
+                    text.Span("Версия отчета: ").SemiBold();
+                    text.Span(GetApplicationVersion());
+                });
+            });
+        }
+    }
+
+    private sealed class ClientTestComponent : IComponent
+    {
+        private readonly int _index;
+        private readonly ErgTest _test;
+
+        public ClientTestComponent(int index, ErgTest test)
+        {
+            _index = index;
+            _test = test;
+        }
+
+        public void Compose(IContainer container)
+        {
+            container.Border(1).BorderColor(Colors.Grey.Lighten3).Padding(12).Column(column =>
+            {
+                column.Spacing(10);
+                column.Item().Text($"Тест № {_index}: {_test.TestName}").FontSize(14).SemiBold();
+                column.Item().Text($"Вспышка: {_test.GraphFlashPosition} мс, Δt: {_test.GraphDt} мс, дискрет/мкВ: {_test.GraphDiscrPerMkV}");
+
+                column.Item().Component(new ClientMeasurementComponent(_test));
+                column.Item().Component(new ClientGraphsComponent(_test));
+            });
+        }
+    }
+
+    private sealed class ClientMeasurementComponent : IComponent
+    {
+        private readonly ErgTest _test;
+
+        public ClientMeasurementComponent(ErgTest test) => _test = test;
+
+        public void Compose(IContainer container)
+        {
+            container.Table(table =>
+            {
+                table.ColumnsDefinition(columns =>
+                {
+                    columns.ConstantColumn(90);
+                    columns.RelativeColumn();
+                    columns.RelativeColumn();
+                });
+
+                table.Header(header =>
+                {
+                    header.Cell().Element(HeaderLabelCell).Text(string.Empty);
+                    header.Cell().Element(HeaderEyeCell).AlignCenter().Text("Правый глаз");
+                    header.Cell().Element(HeaderEyeCell).AlignCenter().Text("Левый глаз");
+                });
+
+                if (_test.AWaveExists)
+                {
+                    AddRow(table, "a-волна", WaveKind.A);
+                }
+
+                AddRow(table, "b-волна", WaveKind.B);
+            });
+        }
+
+        private static IContainer HeaderLabelCell(IContainer container)
+            => container.Background(Colors.Grey.Lighten4).PaddingVertical(6).PaddingHorizontal(8);
+
+        private static IContainer HeaderEyeCell(IContainer container)
+            => container.Background(Colors.Grey.Lighten4).PaddingVertical(6).PaddingHorizontal(8).DefaultTextStyle(t => t.SemiBold());
+
+        private void AddRow(TableDescriptor table, string label, WaveKind wave)
+        {
+            table.Cell().Element(LabelCell).Text(label).FontSize(11).SemiBold();
+            table.Cell().Element(ValueCell).Element(c => ComposeEye(c, _test.RightEye, wave));
+            table.Cell().Element(ValueCell).Element(c => ComposeEye(c, _test.LeftEye, wave));
+        }
+
+        private static IContainer LabelCell(IContainer container)
+            => container.PaddingVertical(10).PaddingHorizontal(8);
+
+        private static IContainer ValueCell(IContainer container)
+            => container.PaddingVertical(8).PaddingHorizontal(8);
+
+        private void ComposeEye(IContainer container, EyeData eye, WaveKind wave)
+        {
+            var display = BuildWaveDisplay(_test, eye, wave);
+
+            container.Column(column =>
+            {
+                column.Spacing(2);
+
+                if (display.IsFlat)
+                {
+                    column.Item().AlignCenter().Text("FLAT").FontSize(20).SemiBold();
+                    AddNorm(column, display.MsNorm);
+                    AddNorm(column, display.MkVNorm);
+                    return;
+                }
+
+                column.Item().AlignCenter().Text(display.MsValue).FontSize(20).SemiBold();
+                AddNorm(column, display.MsNorm);
+                column.Item().AlignCenter().Text(display.MkVValue).FontSize(20).SemiBold();
+                AddNorm(column, display.MkVNorm);
+            });
+        }
+
+        private static void AddNorm(ColumnDescriptor column, string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value == "—")
+                return;
+
+            column.Item().AlignCenter().Text($"({value})").FontSize(10).FontColor(Colors.Grey.Darken1);
+        }
+    }
+
+    private sealed class ClientGraphsComponent : IComponent
+    {
+        private readonly ErgTest _test;
+
+        public ClientGraphsComponent(ErgTest test) => _test = test;
+
+        public void Compose(IContainer container)
+        {
+            var rightGraph = TryRenderGraphImage(_test, _test.RightEye);
+            var leftGraph = TryRenderGraphImage(_test, _test.LeftEye);
+
+            container.Column(column =>
+            {
+                column.Spacing(6);
+                column.Item().Text("Графики").SemiBold();
+                column.Item().Row(row =>
+                {
+                    row.Spacing(12);
+                    row.RelativeItem().Column(col =>
+                    {
+                        col.Spacing(4);
+                        col.Item().Text("Правый глаз").SemiBold();
+                        if (rightGraph != null)
+                        {
+                            col.Item().Image(rightGraph.Data).FitWidth();
+                        }
+                        else
+                        {
+                            col.Item().Text("Нет данных").Italic().FontColor(Colors.Grey.Darken1);
+                        }
+                    });
+
+                    row.RelativeItem().Column(col =>
+                    {
+                        col.Spacing(4);
+                        col.Item().Text("Левый глаз").SemiBold();
+                        if (leftGraph != null)
+                        {
+                            col.Item().Image(leftGraph.Data).FitWidth();
+                        }
+                        else
+                        {
+                            col.Item().Text("Нет данных").Italic().FontColor(Colors.Grey.Darken1);
+                        }
+                    });
+                });
+            });
+        }
+    }
+
+    private sealed class ClientDescriptionComponent : IComponent
+    {
+        private readonly string _description;
+
+        public ClientDescriptionComponent(string description) => _description = description;
+
+        public void Compose(IContainer container)
+        {
+            container.Column(column =>
+            {
+                column.Spacing(4);
+                column.Item().Text("Описание:").FontSize(12).SemiBold();
+                column.Item().Text(_description).FontSize(11);
+            });
+        }
+    }
+
     private sealed class EyeTableComponent : IComponent
     {
         private readonly ErgTest _test;
@@ -855,6 +1217,16 @@ public static class ErgReportBuilder
     private sealed record GraphImage(byte[] Data, int Width, int Height)
     {
     }
+
+    private enum WaveKind
+    {
+        A,
+        B
+    }
+
+    private sealed record WaveMeasurement(double? Ms, double? MkV);
+
+    private sealed record WaveDisplay(bool IsFlat, string MsValue, string MkVValue, string MsNorm, string MkVNorm);
 
     private sealed record GraphRenderContext(
         double[][] Graphs,
@@ -1696,6 +2068,350 @@ public static class ErgReportBuilder
         cell.Append(CreateParagraph(description, fontSizePt: 10));
         table.Append(new TableRow(cell));
         return table;
+    }
+
+    private static Table CreateClientInfoTable(ErgPatient patient, CommonInfo? deviceInfo)
+    {
+        var table = new Table(
+            new TableProperties(
+                new TableWidth { Type = TableWidthUnitValues.Pct, Width = "5000" },
+                new TableLook { Val = "04A0", FirstRow = true, LastRow = false, NoHorizontalBand = false, NoVerticalBand = false },
+                new TableCellMarginDefault(
+                    new TopMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+                    new TableCellLeftMargin { Type = TableWidthValues.Dxa, Width = 120 },
+                    new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+                    new TableCellRightMargin { Type = TableWidthValues.Dxa, Width = 120 }
+                )
+            ),
+            new TableGrid(new GridColumn { Width = "5000" })
+        );
+
+        table.Append(new TableRow(CreateInfoCell($"ID пациента: {patient.PatientId} ({FormatAnimal(patient.Animal)})", JustificationValues.Left)));
+        table.Append(new TableRow(CreateInfoCell($"Дата и время исследования: {patient.TestDateTime}", JustificationValues.Left)));
+
+        var deviceLine = FormatDeviceInfo(deviceInfo);
+        table.Append(new TableRow(CreateInfoCell($"Оборудование: {deviceLine}", JustificationValues.Left)));
+
+        if (!string.IsNullOrWhiteSpace(deviceInfo?.ReportName))
+        {
+            table.Append(new TableRow(CreateInfoCell($"Название протокола: {deviceInfo.ReportName}", JustificationValues.Left)));
+        }
+
+        table.Append(new TableRow(CreateInfoCell($"Версия отчета: {GetApplicationVersion()}", JustificationValues.Left)));
+
+        return table;
+    }
+
+    private static void AppendClientDescription(Body body, string description)
+    {
+        body.Append(CreateParagraph("Описание:", fontSizePt: 12, bold: true, spacingBefore: TwipsFromPoints(18), spacingAfter: TwipsFromPoints(4)));
+        body.Append(CreateParagraph(description, fontSizePt: 11));
+    }
+
+    private static Table CreateClientTestTable(MainDocumentPart mainPart, ErgTest test, int index, ref uint imageId)
+    {
+        var table = new Table(
+            new TableProperties(
+                new TableWidth { Type = TableWidthUnitValues.Pct, Width = "5000" },
+                new TableCellMarginDefault(
+                    new TopMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+                    new TableCellLeftMargin { Type = TableWidthValues.Dxa, Width = 160 },
+                    new BottomMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+                    new TableCellRightMargin { Type = TableWidthValues.Dxa, Width = 160 }
+                ),
+                new TableLook { Val = "04A0", FirstRow = true, LastRow = false, NoHorizontalBand = false, NoVerticalBand = false }
+            ),
+            new TableGrid(
+                new GridColumn { Width = "1800" },
+                new GridColumn { Width = "1600" },
+                new GridColumn { Width = "1600" }
+            )
+        );
+
+        var headerRow = new TableRow();
+        headerRow.Append(CreateClientHeaderCell($"Тест № {index}: {test.TestName}\nВспышка: {test.GraphFlashPosition} мс, Δt: {test.GraphDt} мс, дискрет/мкВ: {test.GraphDiscrPerMkV}", gridSpan: 3));
+        table.Append(headerRow);
+
+        var eyeHeader = new TableRow();
+        eyeHeader.Append(CreateClientWaveLabelCell(string.Empty, bold: false));
+        eyeHeader.Append(CreateClientEyeHeaderCell("Правый глаз"));
+        eyeHeader.Append(CreateClientEyeHeaderCell("Левый глаз"));
+        table.Append(eyeHeader);
+
+        if (test.AWaveExists)
+        {
+            table.Append(CreateClientMeasurementRow("a-волна", test, test.RightEye, test.LeftEye, WaveKind.A));
+        }
+
+        table.Append(CreateClientMeasurementRow("b-волна", test, test.RightEye, test.LeftEye, WaveKind.B));
+
+        var graphRow = new TableRow();
+        var graphCell = new TableCell(new TableCellProperties(new GridSpan { Val = 3 }, new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Top }));
+        graphCell.Append(CreateParagraph("Графики", fontSizePt: 11, bold: true, spacingBefore: TwipsFromPoints(6), spacingAfter: TwipsFromPoints(4)));
+        graphCell.Append(CreateClientGraphTable(mainPart, test, ref imageId));
+        graphRow.Append(graphCell);
+        table.Append(graphRow);
+
+        return table;
+    }
+
+    private static TableCell CreateClientHeaderCell(string text, int gridSpan)
+    {
+        var props = new TableCellProperties(
+            new GridSpan { Val = gridSpan },
+            new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center },
+            new Shading { Fill = "EEEEEE", Val = ShadingPatternValues.Clear, Color = "000000" }
+        );
+        props.Append(new TableCellMargin
+        {
+            LeftMargin = new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+            RightMargin = new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+            TopMargin = new TopMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
+            BottomMargin = new BottomMargin { Width = "60", Type = TableWidthUnitValues.Dxa }
+        });
+
+        var cell = new TableCell(props);
+        cell.Append(CreateParagraph(text, fontSizePt: 12, bold: true));
+        return cell;
+    }
+
+    private static TableCell CreateClientWaveLabelCell(string text, bool bold = true)
+    {
+        var props = new TableCellProperties(new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center });
+        props.Append(new TableCellWidth { Type = TableWidthUnitValues.Dxa, Width = "1800" });
+        props.Append(new TableCellMargin
+        {
+            LeftMargin = new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+            RightMargin = new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+            TopMargin = new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+            BottomMargin = new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa }
+        });
+
+        var cell = new TableCell(props);
+        cell.Append(CreateParagraph(text, fontSizePt: 11, bold: bold, justification: JustificationValues.Left));
+        return cell;
+    }
+
+    private static TableCell CreateClientEyeHeaderCell(string text)
+    {
+        var props = new TableCellProperties(
+            new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center },
+            new Shading { Fill = "F4F4F4", Val = ShadingPatternValues.Clear, Color = "000000" }
+        );
+        props.Append(new TableCellMargin
+        {
+            LeftMargin = new LeftMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
+            RightMargin = new RightMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
+            TopMargin = new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+            BottomMargin = new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa }
+        });
+
+        var cell = new TableCell(props);
+        cell.Append(CreateParagraph(text, fontSizePt: 11, bold: true, justification: JustificationValues.Center));
+        return cell;
+    }
+
+    private static TableRow CreateClientMeasurementRow(string label, ErgTest test, EyeData right, EyeData left, WaveKind wave)
+    {
+        var row = new TableRow();
+        row.Append(CreateClientWaveLabelCell(label));
+        row.Append(CreateClientEyeValueCell(test, right, wave));
+        row.Append(CreateClientEyeValueCell(test, left, wave));
+        return row;
+    }
+
+    private static TableCell CreateClientEyeValueCell(ErgTest test, EyeData eye, WaveKind wave)
+    {
+        var props = new TableCellProperties(new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center });
+        props.Append(new TableCellMargin
+        {
+            LeftMargin = new LeftMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+            RightMargin = new RightMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+            TopMargin = new TopMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
+            BottomMargin = new BottomMargin { Width = "60", Type = TableWidthUnitValues.Dxa }
+        });
+
+        var cell = new TableCell(props);
+        var display = BuildWaveDisplay(test, eye, wave);
+
+        if (display.IsFlat)
+        {
+            cell.Append(CreateParagraph("FLAT", fontSizePt: 20, bold: true, justification: JustificationValues.Center));
+        }
+        else
+        {
+            cell.Append(CreateParagraph(display.MsValue, fontSizePt: 20, bold: true, justification: JustificationValues.Center));
+            AppendNorm(cell, display.MsNorm);
+            cell.Append(CreateParagraph(display.MkVValue, fontSizePt: 20, bold: true, justification: JustificationValues.Center, spacingBefore: TwipsFromPoints(6)));
+        }
+
+        if (!display.IsFlat)
+        {
+            AppendNorm(cell, display.MkVNorm);
+        }
+        else
+        {
+            AppendNorm(cell, display.MsNorm);
+            AppendNorm(cell, display.MkVNorm);
+        }
+
+        return cell;
+
+        static void AppendNorm(TableCell cell, string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value == "—")
+                return;
+
+            cell.Append(CreateParagraph($"({value})", fontSizePt: 9, colorHex: "666666", justification: JustificationValues.Center));
+        }
+    }
+
+    private static Table CreateClientGraphTable(MainDocumentPart mainPart, ErgTest test, ref uint imageId)
+    {
+        var rightGraph = TryRenderGraphImage(test, test.RightEye);
+        var leftGraph = TryRenderGraphImage(test, test.LeftEye);
+
+        var table = new Table(
+            new TableProperties(
+                new TableWidth { Type = TableWidthUnitValues.Pct, Width = "5000" },
+                new TableCellMarginDefault(
+                    new TopMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
+                    new TableCellLeftMargin { Type = TableWidthValues.Dxa, Width = 80 },
+                    new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+                    new TableCellRightMargin { Type = TableWidthValues.Dxa, Width = 80 }
+                ),
+                new TableLook { Val = "04A0", FirstRow = true, LastRow = false, NoHorizontalBand = false, NoVerticalBand = false }
+            ),
+            new TableGrid(new GridColumn { Width = "2500" }, new GridColumn { Width = "2500" })
+        );
+
+        var headerRow = new TableRow();
+        headerRow.Append(CreateClientGraphHeaderCell("Правый глаз"));
+        headerRow.Append(CreateClientGraphHeaderCell("Левый глаз"));
+        table.Append(headerRow);
+
+        var imageRow = new TableRow();
+        imageRow.Append(CreateClientGraphImageCell(mainPart, rightGraph, "client-right", ref imageId));
+        imageRow.Append(CreateClientGraphImageCell(mainPart, leftGraph, "client-left", ref imageId));
+        table.Append(imageRow);
+
+        return table;
+    }
+
+    private static TableCell CreateClientGraphHeaderCell(string text)
+    {
+        var props = new TableCellProperties(
+            new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center },
+            new Shading { Fill = "F4F4F4", Val = ShadingPatternValues.Clear, Color = "000000" }
+        );
+        props.Append(new TableCellMargin
+        {
+            LeftMargin = new LeftMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+            RightMargin = new RightMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+            TopMargin = new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+            BottomMargin = new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa }
+        });
+
+        var cell = new TableCell(props);
+        cell.Append(CreateParagraph(text, fontSizePt: 11, bold: true, justification: JustificationValues.Center));
+        return cell;
+    }
+
+    private static TableCell CreateClientGraphImageCell(MainDocumentPart mainPart, GraphImage? image, string name, ref uint imageId)
+    {
+        var props = new TableCellProperties(new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center });
+        props.Append(new TableCellMargin
+        {
+            LeftMargin = new LeftMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+            RightMargin = new RightMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+            TopMargin = new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+            BottomMargin = new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa }
+        });
+
+        var cell = new TableCell(props);
+
+        if (image != null)
+        {
+            var drawing = CreateImageDrawing(mainPart, image, name, ref imageId, maxWidthInches: 3.9, maxHeightInches: 3.1);
+            var paragraph = new Paragraph(new Run(drawing))
+            {
+                ParagraphProperties = new ParagraphProperties(new Justification { Val = JustificationValues.Center })
+            };
+            cell.Append(paragraph);
+        }
+        else
+        {
+            cell.Append(CreateParagraph("Нет данных", fontSizePt: 10, italic: true, colorHex: "777777", justification: JustificationValues.Center));
+        }
+
+        return cell;
+    }
+
+    private static WaveDisplay BuildWaveDisplay(ErgTest test, EyeData eye, WaveKind wave)
+    {
+        var measurement = wave == WaveKind.A
+            ? new WaveMeasurement(GetFirstValue(eye.AWaveMs), GetFirstValue(eye.AWaveMkV))
+            : new WaveMeasurement(GetFirstValue(eye.BWaveMs), GetFirstValue(eye.BWaveMkV));
+
+        var msNorm = wave == WaveKind.A
+            ? FormatRange(test.AWaveMsNormalMin, test.AWaveMsNormalMax)
+            : FormatRange(test.BWaveMsNormalMin, test.BWaveMsNormalMax);
+        var mkvNorm = wave == WaveKind.A
+            ? FormatRange(test.AWaveMkVNormalMin, test.AWaveMkVNormalMax)
+            : FormatRange(test.BWaveMkVNormalMin, test.BWaveMkVNormalMax);
+
+        var msText = measurement.Ms.HasValue ? $"{measurement.Ms.Value:0} мс" : "—";
+        var mkvText = measurement.MkV.HasValue ? $"{measurement.MkV.Value:0} мкВ" : "—";
+
+        return new WaveDisplay(eye.IsFlat, msText, mkvText, msNorm, mkvNorm);
+    }
+
+    private static double? GetFirstValue(ushort?[]? values)
+    {
+        if (values == null)
+            return null;
+
+        foreach (var value in values)
+        {
+            if (value.HasValue)
+                return value.Value;
+        }
+
+        return null;
+    }
+
+    private static double? GetFirstValue(uint?[]? values)
+    {
+        if (values == null)
+            return null;
+
+        foreach (var value in values)
+        {
+            if (value.HasValue)
+                return value.Value;
+        }
+
+        return null;
+    }
+
+    private static string FormatDeviceInfo(CommonInfo? deviceInfo)
+    {
+        if (deviceInfo == null)
+            return "—";
+
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(deviceInfo.DeviceName))
+            parts.Add(deviceInfo.DeviceName);
+        if (!string.IsNullOrWhiteSpace(deviceInfo.SoftwareRev))
+            parts.Add($"ПО: {deviceInfo.SoftwareRev}");
+
+        return parts.Count > 0 ? string.Join(", ", parts) : "—";
+    }
+
+    private static string GetApplicationVersion()
+    {
+        var version = typeof(ErgReportBuilder).Assembly.GetName().Version;
+        return version?.ToString() ?? "—";
     }
 
     private static Table CreateMeasurementTable(ErgTest test)

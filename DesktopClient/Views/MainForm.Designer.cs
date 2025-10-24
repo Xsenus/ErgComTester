@@ -46,6 +46,8 @@ partial class MainForm
     private TextBox reconnectDelayTextBox;
     private Label backgroundSyncLabel;
     private TextBox backgroundSyncTextBox;
+    private Label reportTemplateLabel;
+    private ComboBox reportTemplateComboBox;
     private FlowLayoutPanel settingsButtonsPanel;
     private Button openReportsButton;
     private Button convertBinButton;
@@ -115,6 +117,8 @@ partial class MainForm
         reconnectDelayTextBox = new TextBox();
         backgroundSyncLabel = new Label();
         backgroundSyncTextBox = new TextBox();
+        reportTemplateLabel = new Label();
+        reportTemplateComboBox = new ComboBox();
         settingsButtonsPanel = new FlowLayoutPanel();
         openReportsButton = new Button();
         convertBinButton = new Button();
@@ -621,14 +625,17 @@ partial class MainForm
         settingsLayout.Controls.Add(reconnectDelayTextBox, 1, 1);
         settingsLayout.Controls.Add(backgroundSyncLabel, 0, 2);
         settingsLayout.Controls.Add(backgroundSyncTextBox, 1, 2);
-        settingsLayout.Controls.Add(settingsButtonsPanel, 0, 3);
+        settingsLayout.Controls.Add(reportTemplateLabel, 0, 3);
+        settingsLayout.Controls.Add(reportTemplateComboBox, 1, 3);
+        settingsLayout.Controls.Add(settingsButtonsPanel, 0, 4);
         settingsLayout.Dock = DockStyle.Fill;
         settingsLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
         settingsLayout.Location = new Point(16, 38);
         settingsLayout.Margin = new Padding(0);
         settingsLayout.Name = "settingsLayout";
         settingsLayout.Padding = new Padding(0, 4, 0, 8);
-        settingsLayout.RowCount = 4;
+        settingsLayout.RowCount = 5;
+        settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -712,16 +719,40 @@ partial class MainForm
         backgroundSyncTextBox.TextAlign = HorizontalAlignment.Center;
         backgroundSyncTextBox.Validating += OnNumericTextBoxValidating;
         backgroundSyncTextBox.Validated += OnBackgroundSyncValidated;
-        // 
+        //
+        // reportTemplateLabel
+        //
+        reportTemplateLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+        reportTemplateLabel.AutoSize = true;
+        reportTemplateLabel.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+        reportTemplateLabel.ForeColor = Color.FromArgb(120, 128, 145);
+        reportTemplateLabel.Location = new Point(0, 120);
+        reportTemplateLabel.Margin = new Padding(0, 10, 16, 0);
+        reportTemplateLabel.Name = "reportTemplateLabel";
+        reportTemplateLabel.Size = new Size(107, 15);
+        reportTemplateLabel.Text = "Шаблон отчетов:";
+        //
+        // reportTemplateComboBox
+        //
+        reportTemplateComboBox.Anchor = AnchorStyles.Left | AnchorStyles.Top;
+        reportTemplateComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+        reportTemplateComboBox.FormattingEnabled = true;
+        reportTemplateComboBox.Location = new Point(152, 124);
+        reportTemplateComboBox.Margin = new Padding(0, 4, 0, 0);
+        reportTemplateComboBox.MaximumSize = new Size(200, 0);
+        reportTemplateComboBox.MinimumSize = new Size(120, 0);
+        reportTemplateComboBox.Name = "reportTemplateComboBox";
+        reportTemplateComboBox.Size = new Size(160, 23);
+        //
         // settingsButtonsPanel
-        // 
+        //
         settingsButtonsPanel.AutoSize = true;
         settingsButtonsPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         settingsButtonsPanel.Controls.Add(openReportsButton);
         settingsButtonsPanel.Controls.Add(convertBinButton);
         settingsButtonsPanel.FlowDirection = FlowDirection.LeftToRight;
-        settingsButtonsPanel.Location = new Point(0, 121);
-        settingsButtonsPanel.Margin = new Padding(0, 14, 0, 0);
+        settingsButtonsPanel.Location = new Point(0, 160);
+        settingsButtonsPanel.Margin = new Padding(0, 16, 0, 0);
         settingsButtonsPanel.Name = "settingsButtonsPanel";
         settingsButtonsPanel.Size = new Size(329, 36);
         settingsLayout.SetColumnSpan(settingsButtonsPanel, 2);

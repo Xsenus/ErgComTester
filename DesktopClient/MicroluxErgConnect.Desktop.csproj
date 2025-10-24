@@ -7,8 +7,8 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>MicroluxErgConnect</AssemblyName>
     <RootNamespace>MicroluxErgConnect</RootNamespace>
-    <AssemblyVersion>1.0.0.15</AssemblyVersion>
-    <FileVersion>1.0.0.15</FileVersion>
+    <AssemblyVersion>1.0.0.17</AssemblyVersion>
+    <FileVersion>1.0.0.17</FileVersion>
     <ApplicationIcon Condition="Exists('Resources\microlux-connect.ico')">Resources\microlux-connect.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en;ru</SatelliteResourceLanguages>
   </PropertyGroup>
@@ -31,6 +31,7 @@
     <Compile Include="../Shared/Erg/ErgDataParser.cs" Link="Erg/ErgDataParser.cs" />
     <Compile Include="../Shared/Erg/ErgDataSerializer.cs" Link="Erg/ErgDataSerializer.cs" />
     <Compile Include="../Shared/Erg/ErgReportBuilder.cs" Link="Erg/ErgReportBuilder.cs" />
+    <Compile Include="../Shared/Erg/ReportTemplate.cs" Link="Erg/ReportTemplate.cs" />
     <Compile Include="../Shared/Erg/RenderingSupport.cs" Link="Erg/RenderingSupport.cs" />
   </ItemGroup>
 </Project>

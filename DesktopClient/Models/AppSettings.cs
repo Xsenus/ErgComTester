@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Text.Json.Serialization;
+using ErgData;
 
 namespace MicroluxErgConnect.Models;
 
@@ -21,6 +23,8 @@ public class AppSettings
     public bool MinimizeToTray { get; set; } = true;
     public bool StartMinimized { get; set; } = false;
     public TelegramSettings Telegram { get; set; } = TelegramSettings.CreateDefault();
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public ReportTemplate ReportTemplate { get; set; } = ReportTemplate.Classic;
 
     public TimeSpan DeviceScanInterval => TimeSpan.FromSeconds(Math.Clamp(DeviceScanIntervalSeconds, 2, 60));
     public TimeSpan DeviceReconnectDelay => TimeSpan.FromSeconds(Math.Clamp(DeviceReconnectDelaySeconds, 5, 300));

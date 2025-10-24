@@ -8,6 +8,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using ErgData;
 using MicroluxErgConnect.Infrastructure;
 using MicroluxErgConnect.Models;
 using MicroluxErgConnect.Services;
@@ -269,6 +270,27 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         get => _settings.Current.UpdateManifestUrl;
         set => UpdateManifestSetting(value);
+    }
+
+    public ReportTemplate ReportTemplate
+    {
+        get => _settings.Current.ReportTemplate;
+        set
+        {
+            if (!Enum.IsDefined(typeof(ReportTemplate), value))
+            {
+                _log.Warn($"Попытка установить неизвестный шаблон отчета: {value}.");
+                return;
+            }
+
+            if (value == _settings.Current.ReportTemplate)
+            {
+                _log.Debug($"Шаблон отчета не изменился: {value}.");
+                return;
+            }
+
+            _ = ApplySettingAsync(nameof(ReportTemplate), value, (s, v) => s.ReportTemplate = v);
+        }
     }
 
     private void UpdateIntSetting(string propertyName, int value, int min, int max, Func<AppSettings, int> accessor, Action<AppSettings, int> setter)

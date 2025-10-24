@@ -5,8 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>ErgComTester</AssemblyName>
-    <AssemblyVersion>1.0.0.11</AssemblyVersion>
-    <FileVersion>1.0.0.11</FileVersion>
+    <AssemblyVersion>1.0.0.13</AssemblyVersion>
+    <FileVersion>1.0.0.13</FileVersion>
     <ApplicationIcon Condition="Exists('..\DesktopClient\Resources\microlux-connect.ico')">..\DesktopClient\Resources\microlux-connect.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
@@ -23,6 +23,7 @@
     <Compile Include="../Shared/Erg/ErgDataParser.cs" Link="Erg/ErgDataParser.cs" />
     <Compile Include="../Shared/Erg/ErgDataSerializer.cs" Link="Erg/ErgDataSerializer.cs" />
     <Compile Include="../Shared/Erg/ErgReportBuilder.cs" Link="Erg/ErgReportBuilder.cs" />
+    <Compile Include="../Shared/Erg/ReportTemplate.cs" Link="Erg/ReportTemplate.cs" />
     <Compile Include="../Shared/Erg/RenderingSupport.cs" Link="Erg/RenderingSupport.cs" />
   </ItemGroup>
 </Project>

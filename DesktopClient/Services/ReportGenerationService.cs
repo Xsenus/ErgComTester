@@ -118,6 +118,7 @@ public sealed class ReportGenerationService : IDisposable
         int maxPatients = Math.Max(1, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 1);
         bool sessionAnnounced = false;
         int processedPatients = 0;
+        var template = _settings.Current.ReportTemplate;
 
         for (int index = 1; index <= maxPatients; index++)
         {
@@ -213,7 +214,7 @@ public sealed class ReportGenerationService : IDisposable
                         var candidatePdfPath = Path.Combine(sessionDir, $"patient_{index:000}.pdf");
                         try
                         {
-                            ErgReportBuilder.BuildPatientReport(patient, candidatePdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath);
+                            ErgReportBuilder.BuildPatientReport(patient, candidatePdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath, template: template);
                             _log.Info($"PDF-отчет для пациента #{index} создан: {candidatePdfPath}");
                             pdfPath = candidatePdfPath;
                             ReportGenerated?.Invoke(this, pdfPath);
@@ -238,7 +239,7 @@ public sealed class ReportGenerationService : IDisposable
                     var candidateDocx = Path.Combine(sessionDir, $"patient_{index:000}.docx");
                     try
                     {
-                        ErgReportBuilder.BuildPatientWordReport(patient, candidateDocx, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath);
+                        ErgReportBuilder.BuildPatientWordReport(patient, candidateDocx, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath, template: template);
                         _log.Info($"Word-отчет для пациента #{index} создан: {candidateDocx}");
                         docxPath = candidateDocx;
                         ReportGenerated?.Invoke(this, docxPath);
@@ -581,6 +582,8 @@ public sealed class ReportGenerationService : IDisposable
         var pdfPath = Path.Combine(directory, $"{baseName}.pdf");
         var docxPath = Path.Combine(directory, $"{baseName}.docx");
 
+        var template = _settings.Current.ReportTemplate;
+
         try
         {
             ErgDataSerializer.SaveJson(jsonPath, patient);
@@ -596,7 +599,7 @@ public sealed class ReportGenerationService : IDisposable
 
         try
         {
-            ErgReportBuilder.BuildPatientReport(patient, pdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: filePath);
+            ErgReportBuilder.BuildPatientReport(patient, pdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: filePath, template: template);
             _log.Info($"PDF-отчет сохранен: {pdfPath}");
         }
         catch (Exception ex)
@@ -609,7 +612,7 @@ public sealed class ReportGenerationService : IDisposable
 
         try
         {
-            ErgReportBuilder.BuildPatientWordReport(patient, docxPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: filePath);
+            ErgReportBuilder.BuildPatientWordReport(patient, docxPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: filePath, template: template);
             _log.Info($"Word-отчет сохранен: {docxPath}");
         }
         catch (Exception ex)
