@@ -856,7 +856,31 @@ public static class ErgReportBuilder
     {
     }
 
-    private sealed record GraphRenderContext(double[][] Graphs, int Curves, int DeclaredPointCount, double XMin, double XMax, double YMin, double YMax);
+    private sealed record GraphRenderContext(
+        double[][] Graphs,
+        int Curves,
+        int DeclaredPointCount,
+        double XMin,
+        double XMax,
+        double YMin,
+        double YMax,
+        GraphMarker[] Markers);
+
+    private enum GraphMarkerKind
+    {
+        AWave,
+        BWave
+    }
+
+    private sealed record GraphMarker(GraphMarkerKind Kind, double PositionMs);
+
+    private static System.Drawing.Color GetMarkerColor(GraphMarker marker)
+        => marker.Kind == GraphMarkerKind.AWave
+            ? System.Drawing.Color.FromArgb(0, 102, 204)
+            : System.Drawing.Color.FromArgb(0, 150, 0);
+
+    private static string GetMarkerLabel(GraphMarker marker)
+        => marker.Kind == GraphMarkerKind.AWave ? "a" : "b";
 
     private static IEnumerable<TableRowData> GetEyeTableRows(ErgTest test)
     {
@@ -1028,8 +1052,35 @@ public static class ErgReportBuilder
         if (yMax <= yMin)
             yMax = yMin + 1;
 
-        context = new GraphRenderContext(graphs, curves, test.GraphNumPoints, xMin, xMax, yMin, yMax);
+        var markers = BuildMarkers(eye, xMin, xMax);
+
+        context = new GraphRenderContext(graphs, curves, test.GraphNumPoints, xMin, xMax, yMin, yMax, markers);
         return true;
+    }
+
+    private static GraphMarker[] BuildMarkers(EyeData eye, double xMin, double xMax)
+    {
+        static bool TryCreateMarker(byte? value, double xMin, double xMax, GraphMarkerKind kind, out GraphMarker marker)
+        {
+            marker = default!;
+            if (!value.HasValue || value.Value == 0)
+                return false;
+
+            double position = value.Value;
+            if (position < xMin || position > xMax)
+                return false;
+
+            marker = new GraphMarker(kind, position);
+            return true;
+        }
+
+        var markers = new List<GraphMarker>(2);
+        if (TryCreateMarker(eye.AWaveMarker, xMin, xMax, GraphMarkerKind.AWave, out var aMarker))
+            markers.Add(aMarker);
+        if (TryCreateMarker(eye.BWaveMarker, xMin, xMax, GraphMarkerKind.BWave, out var bMarker))
+            markers.Add(bMarker);
+
+        return markers.ToArray();
     }
 
     private static GraphImage? TryRenderGraphImageWithSkia(ErgTest test, GraphRenderContext context)
@@ -1127,6 +1178,46 @@ public static class ErgReportBuilder
             }
 
             var graphStyles = test.GraphStyles ?? Array.Empty<GraphStyle>();
+
+            if (context.Markers.Length > 0)
+            {
+                foreach (var marker in context.Markers)
+                {
+                    var px = TransformX(marker.PositionMs);
+                    if (double.IsNaN(px) || double.IsInfinity(px))
+                        continue;
+                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                        continue;
+
+                    var markerColor = GetMarkerColor(marker);
+                    var skColor = new SKColor(markerColor.R, markerColor.G, markerColor.B);
+
+                    using var markerPaint = new SKPaint
+                    {
+                        Color = skColor,
+                        StrokeWidth = 1.5f,
+                        IsAntialias = true,
+                        PathEffect = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0)
+                    };
+                    canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, markerPaint);
+
+                    using var labelPaint = new SKPaint
+                    {
+                        Color = skColor,
+                        TextSize = 16f,
+                        IsAntialias = true,
+                        IsStroke = false,
+                        FakeBoldText = true
+                    };
+
+                    var label = GetMarkerLabel(marker);
+                    var textWidth = labelPaint.MeasureText(label);
+                    float labelY = chartRect.Top - 6f;
+                    if (labelY < 12f)
+                        labelY = chartRect.Top + 16f;
+                    canvas.DrawText(label, px - textWidth / 2f, labelY, labelPaint);
+                }
+            }
 
             double graphDt = test.GraphDt;
             bool hasGraphDt = graphDt > 0;
@@ -1349,6 +1440,33 @@ public static class ErgReportBuilder
             }
 
             var graphStyles = test.GraphStyles ?? Array.Empty<GraphStyle>();
+
+            if (context.Markers.Length > 0)
+            {
+                using var markerFont = new System.Drawing.Font("Arial", 10f, FontStyle.Bold, GraphicsUnit.Point);
+
+                foreach (var marker in context.Markers)
+                {
+                    var px = TransformX(marker.PositionMs);
+                    if (float.IsNaN(px) || float.IsInfinity(px))
+                        continue;
+                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                        continue;
+
+                    var markerColor = GetMarkerColor(marker);
+                    using var markerPen = new Pen(markerColor, 1.5f) { DashPattern = new[] { 6f, 4f } };
+                    graphics.DrawLine(markerPen, px, chartRect.Top, px, chartRect.Bottom);
+
+                    var label = GetMarkerLabel(marker);
+                    using var markerBrush = new SolidBrush(markerColor);
+                    var size = graphics.MeasureString(label, markerFont);
+                    float labelY = chartRect.Top - size.Height;
+                    if (labelY < 2f)
+                        labelY = chartRect.Top + 2f;
+                    graphics.DrawString(label, markerFont, markerBrush, px - size.Width / 2f, labelY);
+                }
+            }
+
             double graphDt = test.GraphDt;
             bool hasGraphDt = graphDt > 0;
 
