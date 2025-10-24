@@ -982,6 +982,7 @@ public static class ErgReportBuilder
                 column.Spacing(6);
                 column.Item().Text(text =>
                 {
+                    text.DefaultTextStyle(style => style.FontSize(11));
                     text.Span(_label).SemiBold();
                     var quality = FormatQualityCompact(_eye.QualityIndex);
                     if (!string.IsNullOrWhiteSpace(quality))
@@ -989,7 +990,7 @@ public static class ErgReportBuilder
                         text.Span(" ");
                         text.Span(quality).FontColor(Colors.Grey.Darken1);
                     }
-                }).FontSize(11);
+                });
 
                 if (_eye.IsFlat)
                 {
