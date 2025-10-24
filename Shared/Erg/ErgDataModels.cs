@@ -90,7 +90,13 @@ public sealed record EyeData
     public byte? AWaveMarker { get; init; }
     public byte? BWaveMarker { get; init; }
     public byte GraphCount { get; init; }
-    public double[][]? Graphs { get; init; }
+
+    [JsonPropertyName("Graphs")]
+    public short[][]? GraphSamples { get; init; }
+
+    [JsonIgnore]
+    public double[][]? GraphsNormalized { get; init; }
+
     public byte Rezerv1 { get; init; }
     public byte Rezerv2 { get; init; }
     public int Rezerv3 { get; init; }

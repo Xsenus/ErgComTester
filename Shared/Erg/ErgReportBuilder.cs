@@ -619,8 +619,8 @@ public static class ErgReportBuilder
                 ? "Стили графиков: " + string.Join("; ", styles)
                 : null;
 
-            var previewRight = "Первые 10 точек (правый глаз, график 1): " + BuildGraphPreview(test.RightEye.Graphs, test.GraphNumPoints);
-            var previewLeft = "Первые 10 точек (левый глаз, график 1): " + BuildGraphPreview(test.LeftEye.Graphs, test.GraphNumPoints);
+            var previewRight = "Первые 10 точек (правый глаз, график 1): " + BuildGraphPreview(test.RightEye.GraphsNormalized, test.GraphNumPoints);
+            var previewLeft = "Первые 10 точек (левый глаз, график 1): " + BuildGraphPreview(test.LeftEye.GraphsNormalized, test.GraphNumPoints);
 
             var graphWidth = (ContentWidth - _graphGap) / 2f;
             float graphHeight = 0f;
@@ -844,8 +844,8 @@ public static class ErgReportBuilder
                     });
                 }
 
-                column.Item().Text("Первые 10 точек (правый глаз, график 1): " + BuildGraphPreview(_test.RightEye.Graphs, _test.GraphNumPoints)).FontSize(10);
-                column.Item().Text("Первые 10 точек (левый глаз, график 1): " + BuildGraphPreview(_test.LeftEye.Graphs, _test.GraphNumPoints)).FontSize(10);
+                column.Item().Text("Первые 10 точек (правый глаз, график 1): " + BuildGraphPreview(_test.RightEye.GraphsNormalized, _test.GraphNumPoints)).FontSize(10);
+                column.Item().Text("Первые 10 точек (левый глаз, график 1): " + BuildGraphPreview(_test.LeftEye.GraphsNormalized, _test.GraphNumPoints)).FontSize(10);
             });
         }
     }
@@ -996,7 +996,7 @@ public static class ErgReportBuilder
     {
         context = default!;
 
-        var graphs = eye.Graphs;
+        var graphs = eye.GraphsNormalized;
         if (graphs == null || graphs.Length == 0)
             return false;
 
@@ -1630,8 +1630,8 @@ public static class ErgReportBuilder
             body.Append(CreateGraphTable(mainPart, rightGraph, leftGraph, ref imageId));
         }
 
-        body.Append(CreateParagraph("Первые 10 точек (правый глаз, график 1): " + BuildGraphPreview(test.RightEye.Graphs, test.GraphNumPoints), fontSizePt: 10));
-        body.Append(CreateParagraph("Первые 10 точек (левый глаз, график 1): " + BuildGraphPreview(test.LeftEye.Graphs, test.GraphNumPoints), fontSizePt: 10));
+        body.Append(CreateParagraph("Первые 10 точек (правый глаз, график 1): " + BuildGraphPreview(test.RightEye.GraphsNormalized, test.GraphNumPoints), fontSizePt: 10));
+        body.Append(CreateParagraph("Первые 10 точек (левый глаз, график 1): " + BuildGraphPreview(test.LeftEye.GraphsNormalized, test.GraphNumPoints), fontSizePt: 10));
     }
 
     private static Table CreateGraphTable(MainDocumentPart mainPart, GraphImage? rightGraph, GraphImage? leftGraph, ref uint imageId)

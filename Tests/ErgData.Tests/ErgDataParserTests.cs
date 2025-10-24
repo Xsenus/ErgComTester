@@ -148,7 +148,7 @@ public sealed class ErgDataParserTests
         {
             for (int point = 0; point < 128; point++)
             {
-                writer.Write(sampleFactory(graph, point));
+                WriteInt16BigEndian(writer, sampleFactory(graph, point));
             }
         }
 
@@ -369,14 +369,20 @@ public sealed class ErgDataParserTests
         Assert.Equal(-100, test.GraphYScaleMin);
         Assert.Equal(180, test.GraphYScaleMax);
         Assert.Equal<byte>(1, test.RightEye.GraphCount);
-        Assert.NotNull(test.RightEye.Graphs);
-        Assert.Single(test.RightEye.Graphs!);
-        Assert.Equal(128, test.RightEye.Graphs![0].Length);
-        Assert.Equal(-32.0, test.RightEye.Graphs![0][0], 5);
-        Assert.Equal(31.5, test.RightEye.Graphs![0][127], 5);
+        Assert.NotNull(test.RightEye.GraphSamples);
+        var rawGraph = Assert.Single(test.RightEye.GraphSamples!);
+        Assert.Equal(128, rawGraph.Length);
+        Assert.Equal<short>(-64, rawGraph[0]);
+        Assert.Equal<short>(63, rawGraph[127]);
+
+        Assert.NotNull(test.RightEye.GraphsNormalized);
+        var normalizedGraph = Assert.Single(test.RightEye.GraphsNormalized!);
+        Assert.Equal(-32.0, normalizedGraph[0], 5);
+        Assert.Equal(31.5, normalizedGraph[127], 5);
 
         Assert.Equal<byte>(0, test.LeftEye.GraphCount);
-        Assert.Null(test.LeftEye.Graphs);
+        Assert.Null(test.LeftEye.GraphSamples);
+        Assert.Null(test.LeftEye.GraphsNormalized);
     }
 
     [Fact]
@@ -411,7 +417,12 @@ public sealed class ErgDataParserTests
         Assert.Equal((byte)1, test.GraphDt);
         Assert.Equal((byte)14, test.GraphDiscrPerMkV);
 
-        var graph = Assert.Single(test.RightEye.Graphs!);
+        Assert.NotNull(test.RightEye.GraphSamples);
+        var rawGraph = Assert.Single(test.RightEye.GraphSamples!);
+        Assert.Equal<short>(14 * 14 * 40, rawGraph[34]);
+
+        Assert.NotNull(test.RightEye.GraphsNormalized);
+        var graph = Assert.Single(test.RightEye.GraphsNormalized!);
         Assert.InRange(graph[34], 13.5, 14.5);
         Assert.Equal<uint?>(14u, test.RightEye.BWaveMkV![0]);
         Assert.Equal<ushort?>(34, test.RightEye.BWaveMs![0]);

@@ -231,10 +231,12 @@ internal class Program
                         var jsonDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "out", "structured"));
                         var pdfDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "out", "pdf"));
                         var docxDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "out", "docx"));
+                        var logSnapshotDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "out", "logs"));
                         Directory.CreateDirectory(outDir);
                         Directory.CreateDirectory(jsonDir);
                         Directory.CreateDirectory(pdfDir);
                         Directory.CreateDirectory(docxDir);
+                        Directory.CreateDirectory(logSnapshotDir);
                         logger.Info($"Fetching up to {Math.Max(1, common.TotalNumId)} patient(s)...");
 
                         string? lastPdfWarning = null;
@@ -322,6 +324,20 @@ internal class Program
                                     catch (Exception ex)
                                     {
                                         logger.Warn($"Word export failed: {ex.Message}");
+                                    }
+
+                                    try
+                                    {
+                                        logger.Flush();
+                                        var logSnapshotPath = Path.Combine(logSnapshotDir, $"patient_{i:000}.log");
+                                        using var source = new FileStream(logger.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                                        using var target = new FileStream(logSnapshotPath, FileMode.Create, FileAccess.Write, FileShare.Read);
+                                        source.CopyTo(target);
+                                        logger.Info($"Снимок журнала сохранён: {logSnapshotPath}");
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        logger.Warn($"Не удалось сохранить снимок журнала: {ex.Message}");
                                     }
                                 }
                                 else logger.Warn($"Patient parse warning: {perr}");
