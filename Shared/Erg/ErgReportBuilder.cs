@@ -305,7 +305,7 @@ public static class ErgReportBuilder
             AppendGraphSection(body, mainPart, test, ref imageId);
         }
 
-        ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 2.5, bottomCm: 2.5);
+        ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
 
         mainPart.Document.Save();
     }
@@ -333,10 +333,6 @@ public static class ErgReportBuilder
         for (int i = 0; i < patient.Tests.Count; i++)
         {
             var testTable = CreateClientTestTable(mainPart, patient.Tests[i], i + 1, ref imageId);
-            if (i > 0)
-            {
-                body.Append(CreateParagraph(string.Empty, spacingBefore: TwipsFromPoints(12)));
-            }
             body.Append(testTable);
         }
 
@@ -356,7 +352,7 @@ public static class ErgReportBuilder
             body.Append(CreateParagraph($"Версия отчета: {version}", fontSizePt: 8, colorHex: "777777", justification: JustificationValues.Center, spacingBefore: TwipsFromPoints(12)));
         }
 
-        ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 2.5, bottomCm: 2.5);
+        ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
 
         mainPart.Document.Save();
     }
@@ -2468,9 +2464,14 @@ public static class ErgReportBuilder
         headerRow.Append(CreateClientHeaderCell(FormatClientTestTitle(index, test), gridSpan: 2));
         table.Append(headerRow);
 
+        var eyeHeaderRow = new TableRow();
+        eyeHeaderRow.Append(CreateClientEyeHeaderCell("Правый глаз", test.RightEye));
+        eyeHeaderRow.Append(CreateClientEyeHeaderCell("Левый глаз", test.LeftEye));
+        table.Append(eyeHeaderRow);
+
         var contentRow = new TableRow();
-        contentRow.Append(CreateClientEyeCell(mainPart, test, test.RightEye, "Правый глаз", index, "right", ref imageId));
-        contentRow.Append(CreateClientEyeCell(mainPart, test, test.LeftEye, "Левый глаз", index, "left", ref imageId));
+        contentRow.Append(CreateClientEyeCell(mainPart, test, test.RightEye, index, "right", ref imageId));
+        contentRow.Append(CreateClientEyeCell(mainPart, test, test.LeftEye, index, "left", ref imageId));
         table.Append(contentRow);
 
         return table;
@@ -2496,21 +2497,36 @@ public static class ErgReportBuilder
         return cell;
     }
 
-    private static TableCell CreateClientEyeCell(MainDocumentPart mainPart, ErgTest test, EyeData eye, string label, int index, string suffix, ref uint imageId)
+    private static TableCell CreateClientEyeHeaderCell(string label, EyeData eye)
+    {
+        var props = new TableCellProperties(new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center });
+        props.Append(new TableCellMargin
+        {
+            LeftMargin = new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+            RightMargin = new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+            TopMargin = new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+            BottomMargin = new BottomMargin { Width = "20", Type = TableWidthUnitValues.Dxa }
+        });
+
+        var cell = new TableCell(props);
+        var quality = FormatQualityCompact(eye.QualityIndex);
+        var text = quality != null ? $"{label} {quality}" : label;
+        cell.Append(CreateParagraph(text, fontSizePt: 11, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(4)));
+        return cell;
+    }
+
+    private static TableCell CreateClientEyeCell(MainDocumentPart mainPart, ErgTest test, EyeData eye, int index, string suffix, ref uint imageId)
     {
         var props = new TableCellProperties(new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Top });
         props.Append(new TableCellMargin
         {
             LeftMargin = new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
             RightMargin = new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
-            TopMargin = new TopMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+            TopMargin = new TopMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
             BottomMargin = new BottomMargin { Width = "80", Type = TableWidthUnitValues.Dxa }
         });
 
         var cell = new TableCell(props);
-        var quality = FormatQualityCompact(eye.QualityIndex);
-        var labelText = quality != null ? $"{label} {quality}" : label;
-        cell.Append(CreateParagraph(labelText, fontSizePt: 11, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(4)));
 
         if (eye.IsFlat)
         {
