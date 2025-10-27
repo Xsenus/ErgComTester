@@ -272,108 +272,84 @@ public static class ErgReportBuilder
             ? "Отчет по результатам ЭРГ-исследования сетчатки"
             : clinicName;
 
-        using (var document = WordprocessingDocument.Create(docxPath, WordprocessingDocumentType.Document))
+        using var composer = DocxComposer.Create(docxPath);
+
+        composer.AppendParagraph(headerTitle, fontSizePt: 16, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(12));
+        composer.AppendTable(CreateHeaderTable(patient, deviceInfo));
+
+        if (!string.IsNullOrWhiteSpace(patient.Description))
         {
-            var mainPart = document.AddMainDocumentPart();
-            mainPart.Document = new WordDocument(new Body());
-            var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
-
-            body.Append(CreateParagraph(headerTitle, fontSizePt: 16, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(12)));
-            body.Append(CreateHeaderTable(patient, deviceInfo));
-
-            if (!string.IsNullOrWhiteSpace(patient.Description))
-            {
-                body.Append(CreateDescriptionTable(patient.Description));
-            }
-
-            if (!string.IsNullOrWhiteSpace(rawFilePath))
-            {
-                body.Append(CreateParagraph($"Источник бинарных данных: {rawFilePath}", fontSizePt: 9, colorHex: "666666", spacingBefore: TwipsFromPoints(6)));
-            }
-
-            uint imageId = 1;
-
-            for (int i = 0; i < patient.Tests.Count; i++)
-            {
-                var test = patient.Tests[i];
-
-                body.Append(CreateParagraph($"Тест №{i + 1}: {test.TestName}", fontSizePt: 13, bold: true, spacingBefore: TwipsFromPoints(16), spacingAfter: TwipsFromPoints(4)));
-                body.Append(CreateParagraph($"Точек: {test.GraphNumPoints}, Δt: {test.GraphDt} мс, дискрет/мкВ: {test.GraphDiscrPerMkV}", fontSizePt: 11));
-                body.Append(CreateParagraph($"Вспышка: {test.GraphFlashPosition} мс", fontSizePt: 11));
-                body.Append(CreateParagraph($"Диапазон X: {test.GraphXScaleMin}…{test.GraphXScaleMax} мс (шаг {test.GraphXValueStep})", fontSizePt: 11));
-                body.Append(CreateParagraph($"Диапазон Y: {test.GraphYScaleMin}…{test.GraphYScaleMax} мкВ (шаг {test.GraphYValueStep})", fontSizePt: 11));
-                body.Append(CreateParagraph($"a-волна: {(test.AWaveExists ? "есть" : "нет")}, нормы ms: {FormatRange(test.AWaveMsNormalMin, test.AWaveMsNormalMax)}, мкВ: {FormatRange(test.AWaveMkVNormalMin, test.AWaveMkVNormalMax)}", fontSizePt: 11));
-                body.Append(CreateParagraph($"b-волна нормы ms: {FormatRange(test.BWaveMsNormalMin, test.BWaveMsNormalMax)}, мкВ: {FormatRange(test.BWaveMkVNormalMin, test.BWaveMkVNormalMax)}", fontSizePt: 11));
-
-                body.Append(CreateMeasurementTable(test));
-                AppendGraphSection(body, mainPart, test, ref imageId);
-            }
-
-            ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
-
-            EnsureWordStyles(document);
-            EnsureWordSettings(document);
-            EnsureDocumentPropertiesParts(document, headerTitle);
-
-            mainPart.Document.Save();
+            composer.AppendTable(CreateDescriptionTable(patient.Description));
         }
 
-        NormalizeWordContentTypes(docxPath);
+        if (!string.IsNullOrWhiteSpace(rawFilePath))
+        {
+            composer.AppendParagraph($"Источник бинарных данных: {rawFilePath}", fontSizePt: 9, colorHex: "666666", spacingBefore: TwipsFromPoints(6));
+        }
+
+        uint imageId = 1;
+
+        for (int i = 0; i < patient.Tests.Count; i++)
+        {
+            var test = patient.Tests[i];
+
+            composer.AppendParagraph($"Тест №{i + 1}: {test.TestName}", fontSizePt: 13, bold: true, spacingBefore: TwipsFromPoints(16), spacingAfter: TwipsFromPoints(4));
+            composer.AppendParagraph($"Точек: {test.GraphNumPoints}, Δt: {test.GraphDt} мс, дискрет/мкВ: {test.GraphDiscrPerMkV}", fontSizePt: 11);
+            composer.AppendParagraph($"Вспышка: {test.GraphFlashPosition} мс", fontSizePt: 11);
+            composer.AppendParagraph($"Диапазон X: {test.GraphXScaleMin}…{test.GraphXScaleMax} мс (шаг {test.GraphXValueStep})", fontSizePt: 11);
+            composer.AppendParagraph($"Диапазон Y: {test.GraphYScaleMin}…{test.GraphYScaleMax} мкВ (шаг {test.GraphYValueStep})", fontSizePt: 11);
+            composer.AppendParagraph($"a-волна: {(test.AWaveExists ? "есть" : "нет")}, нормы ms: {FormatRange(test.AWaveMsNormalMin, test.AWaveMsNormalMax)}, мкВ: {FormatRange(test.AWaveMkVNormalMin, test.AWaveMkVNormalMax)}", fontSizePt: 11);
+            composer.AppendParagraph($"b-волна нормы ms: {FormatRange(test.BWaveMsNormalMin, test.BWaveMsNormalMax)}, мкВ: {FormatRange(test.BWaveMkVNormalMin, test.BWaveMkVNormalMax)}", fontSizePt: 11);
+
+            composer.AppendTable(CreateMeasurementTable(test));
+            composer.AppendGraphSection(test, ref imageId);
+        }
+
+        composer.ApplyPageMargins(leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
+        composer.Save(headerTitle);
     }
 
     private static void BuildPatientWordReportClient(ErgPatient patient, string docxPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
     {
-        using (var document = WordprocessingDocument.Create(docxPath, WordprocessingDocumentType.Document))
+        using var composer = DocxComposer.Create(docxPath);
+
+        var clinicHeader = string.IsNullOrWhiteSpace(clinicName)
+            ? "Шапка [название организации]"
+            : clinicName!;
+        composer.AppendParagraph(clinicHeader, fontSizePt: 12, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(4));
+
+        var reportTitle = !string.IsNullOrWhiteSpace(deviceInfo?.ReportName)
+            ? deviceInfo!.ReportName!
+            : "Отчет по результатам ЭРГ-исследования сетчатки";
+        composer.AppendParagraph(reportTitle, fontSizePt: 18, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(14));
+        composer.AppendTable(CreateClientInfoTable(patient, deviceInfo));
+
+        uint imageId = 1;
+
+        for (int i = 0; i < patient.Tests.Count; i++)
         {
-            var mainPart = document.AddMainDocumentPart();
-            mainPart.Document = new WordDocument(new Body());
-            var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
-
-            var clinicHeader = string.IsNullOrWhiteSpace(clinicName)
-                ? "Шапка [название организации]"
-                : clinicName!;
-            body.Append(CreateParagraph(clinicHeader, fontSizePt: 12, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(4)));
-
-            var reportTitle = !string.IsNullOrWhiteSpace(deviceInfo?.ReportName)
-                ? deviceInfo!.ReportName!
-                : "Отчет по результатам ЭРГ-исследования сетчатки";
-            body.Append(CreateParagraph(reportTitle, fontSizePt: 18, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(14)));
-            body.Append(CreateClientInfoTable(patient, deviceInfo));
-
-            uint imageId = 1;
-
-            for (int i = 0; i < patient.Tests.Count; i++)
-            {
-                var testTable = CreateClientTestTable(mainPart, patient.Tests[i], i + 1, ref imageId);
-                body.Append(testTable);
-            }
-
-            if (!string.IsNullOrWhiteSpace(patient.Description))
-            {
-                AppendClientDescription(body, patient.Description);
-            }
-
-            if (!string.IsNullOrWhiteSpace(rawFilePath))
-            {
-                body.Append(CreateParagraph($"Источник бинарных данных: {rawFilePath}", fontSizePt: 9, colorHex: "777777", spacingBefore: TwipsFromPoints(6)));
-            }
-
-            var version = GetApplicationVersion();
-            if (!string.IsNullOrWhiteSpace(version) && version != "—")
-            {
-                body.Append(CreateParagraph($"Версия отчета: {version}", fontSizePt: 8, colorHex: "777777", justification: JustificationValues.Center, spacingBefore: TwipsFromPoints(12)));
-            }
-
-            ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
-
-            EnsureWordStyles(document);
-            EnsureWordSettings(document);
-            EnsureDocumentPropertiesParts(document, reportTitle);
-
-            mainPart.Document.Save();
+            var testTable = CreateClientTestTable(composer.MainPart, patient.Tests[i], i + 1, ref imageId);
+            composer.AppendTable(testTable);
         }
 
-        NormalizeWordContentTypes(docxPath);
+        if (!string.IsNullOrWhiteSpace(patient.Description))
+        {
+            AppendClientDescription(composer.Body, patient.Description);
+        }
+
+        if (!string.IsNullOrWhiteSpace(rawFilePath))
+        {
+            composer.AppendParagraph($"Источник бинарных данных: {rawFilePath}", fontSizePt: 9, colorHex: "777777", spacingBefore: TwipsFromPoints(6));
+        }
+
+        var version = GetApplicationVersion();
+        if (!string.IsNullOrWhiteSpace(version) && version != "—")
+        {
+            composer.AppendParagraph($"Версия отчета: {version}", fontSizePt: 8, colorHex: "777777", justification: JustificationValues.Center, spacingBefore: TwipsFromPoints(12));
+        }
+
+        composer.ApplyPageMargins(leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
+        composer.Save(reportTitle);
     }
 
     private static void NormalizeWordContentTypes(string docxPath)
@@ -405,6 +381,101 @@ public static class ErgReportBuilder
         catch (Exception ex)
         {
             throw new InvalidOperationException($"Не удалось обновить типы содержимого DOCX-файла '{docxPath}'.", ex);
+        }
+    }
+
+    private sealed class DocxComposer : IDisposable
+    {
+        private readonly string _path;
+        private readonly WordprocessingDocument _document;
+        private bool _saved;
+        private bool _disposed;
+
+        private DocxComposer(string path)
+        {
+            _path = path;
+
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            _document = WordprocessingDocument.Create(path, WordprocessingDocumentType.Document);
+            MainPart = _document.AddMainDocumentPart();
+            MainPart.Document = new WordDocument(new Body());
+            Body = MainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
+        }
+
+        public static DocxComposer Create(string path) => new(path);
+
+        public Body Body { get; }
+
+        public MainDocumentPart MainPart { get; }
+
+        public void AppendParagraph(string text, double fontSizePt, bool bold = false, JustificationValues? justification = null, int spacingBefore = 0, int spacingAfter = 0, bool italic = false, string? colorHex = null)
+        {
+            EnsureWritable();
+            Body.Append(CreateParagraph(text, fontSizePt, bold, justification, spacingBefore, spacingAfter, italic, colorHex));
+        }
+
+        public void AppendTable(Table table)
+        {
+            if (table == null)
+                return;
+
+            EnsureWritable();
+            Body.Append(table);
+        }
+
+        public void AppendGraphSection(ErgTest test, ref uint imageId)
+        {
+            EnsureWritable();
+            AppendGraphSection(Body, MainPart, test, ref imageId);
+        }
+
+        public void ApplyPageMargins(double leftCm, double rightCm, double? topCm, double? bottomCm)
+        {
+            EnsureWritable();
+            ApplyPageMargins(Body, leftCm, rightCm, topCm, bottomCm);
+        }
+
+        public void Save(string title)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(DocxComposer));
+
+            if (_saved)
+                return;
+
+            EnsureWordStyles(_document);
+            EnsureWordSettings(_document);
+            EnsureDocumentPropertiesParts(_document, title);
+
+            MainPart.Document.Save();
+            _document.Dispose();
+            _disposed = true;
+            _saved = true;
+
+            NormalizeWordContentTypes(_path);
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            _document.Dispose();
+            _disposed = true;
+        }
+
+        private void EnsureWritable()
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(DocxComposer));
+
+            if (_saved)
+                throw new InvalidOperationException("Документ уже сохранен и недоступен для модификации.");
         }
     }
 
@@ -595,7 +666,7 @@ public static class ErgReportBuilder
         => new CompatibilitySetting
         {
             Name = CompatSettingNameValues.CompatibilityMode,
-            Val = "15",
+            Val = "14",
             Uri = "http://schemas.microsoft.com/office/word"
         };
 
