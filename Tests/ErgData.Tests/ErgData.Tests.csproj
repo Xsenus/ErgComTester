@@ -12,9 +12,17 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.3.0" />
+    <PackageReference Include="QuestPDF" Version="2025.7.3" />
+    <PackageReference Include="SkiaSharp" Version="3.119.1" />
+    <PackageReference Include="PdfSharpCore" Version="1.3.49" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.8" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\..\Shared\Erg\ErgDataModels.cs" Link="Erg/ErgDataModels.cs" />
     <Compile Include="..\..\Shared\Erg\ErgDataParser.cs" Link="Erg/ErgDataParser.cs" />
+    <Compile Include="..\..\Shared\Erg\RenderingSupport.cs" Link="Erg/RenderingSupport.cs" />
+    <Compile Include="..\..\Shared\Erg\ErgReportBuilder.cs" Link="Erg/ErgReportBuilder.cs" />
+    <Compile Include="..\..\Shared\Erg\ReportTemplate.cs" Link="Erg/ReportTemplate.cs" />
   </ItemGroup>
 </Project>
