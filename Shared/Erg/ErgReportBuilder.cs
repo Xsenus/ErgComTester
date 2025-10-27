@@ -25,6 +25,10 @@ using PdfSharpCore.Pdf;
 using A = DocumentFormat.OpenXml.Drawing;
 using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
+using DrawingColor = System.Drawing.Color;
+using DrawingFont = System.Drawing.Font;
+using DrawingImage = System.Drawing.Image;
+using DrawingImageFormat = System.Drawing.Imaging.ImageFormat;
 
 namespace ErgData;
 
@@ -384,19 +388,19 @@ public static class ErgReportBuilder
 
         private float ContentWidth => PageWidth - _marginLeft - _marginRight;
 
-        private readonly Font _clinicFont = new("Arial", 12f, FontStyle.Bold, GraphicsUnit.Point);
-        private readonly Font _reportTitleFont = new("Arial", 18f, FontStyle.Bold, GraphicsUnit.Point);
-        private readonly Font _infoLabelFont = new("Arial", 11f, FontStyle.Bold, GraphicsUnit.Point);
-        private readonly Font _infoValueFont = new("Arial", 11f, FontStyle.Regular, GraphicsUnit.Point);
-        private readonly Font _testTitleFont = new("Arial", 14f, FontStyle.Bold, GraphicsUnit.Point);
-        private readonly Font _descriptionTitleFont = new("Arial", 12f, FontStyle.Bold, GraphicsUnit.Point);
-        private readonly Font _descriptionFont = new("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
-        private readonly Font _infoSmallFont = new("Arial", 9f, FontStyle.Regular, GraphicsUnit.Point);
-        private readonly Font _eyeLabelFont = new("Arial", 11f, FontStyle.Bold, GraphicsUnit.Point);
-        private readonly Font _valueFont = new("Arial", 26f, FontStyle.Bold, GraphicsUnit.Point);
-        private readonly Font _unitFont = new("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
-        private readonly Font _normFont = new("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
-        private readonly Font _placeholderFont = new("Arial", 10f, FontStyle.Italic, GraphicsUnit.Point);
+        private readonly DrawingFont _clinicFont = new("Arial", 12f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly DrawingFont _reportTitleFont = new("Arial", 18f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly DrawingFont _infoLabelFont = new("Arial", 11f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly DrawingFont _infoValueFont = new("Arial", 11f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly DrawingFont _testTitleFont = new("Arial", 14f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly DrawingFont _descriptionTitleFont = new("Arial", 12f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly DrawingFont _descriptionFont = new("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly DrawingFont _infoSmallFont = new("Arial", 9f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly DrawingFont _eyeLabelFont = new("Arial", 11f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly DrawingFont _valueFont = new("Arial", 26f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly DrawingFont _unitFont = new("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly DrawingFont _normFont = new("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly DrawingFont _placeholderFont = new("Arial", 10f, FontStyle.Italic, GraphicsUnit.Point);
 
         private readonly StringFormat _formatLeft = new(StringFormatFlags.LineLimit)
         {
@@ -419,8 +423,8 @@ public static class ErgReportBuilder
             Trimming = StringTrimming.Word
         };
 
-        private readonly SolidBrush _mutedBrush = new(Color.FromArgb(100, 100, 100));
-        private readonly SolidBrush _descriptionBackgroundBrush = new(Color.FromArgb(245, 245, 245));
+        private readonly SolidBrush _mutedBrush = new(DrawingColor.FromArgb(100, 100, 100));
+        private readonly SolidBrush _descriptionBackgroundBrush = new(DrawingColor.FromArgb(245, 245, 245));
 
         public LegacyPdfRenderer(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
         {
@@ -492,7 +496,7 @@ public static class ErgReportBuilder
             _graphics = Graphics.FromImage(_bitmap);
             _graphics.SmoothingMode = SmoothingMode.AntiAlias;
             _graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-            _graphics.Clear(Color.White);
+            _graphics.Clear(DrawingColor.White);
             _y = _marginTop;
         }
 
@@ -503,7 +507,7 @@ public static class ErgReportBuilder
 
             _graphics.Dispose();
             using var ms = new MemoryStream();
-            _bitmap.Save(ms, ImageFormat.Png);
+            _bitmap.Save(ms, DrawingImageFormat.Png);
             _pages.Add(ms.ToArray());
             _bitmap.Dispose();
             _bitmap = null;
@@ -522,7 +526,7 @@ public static class ErgReportBuilder
             StartNewPage();
         }
 
-        private float MeasureText(string text, Font font, float width, StringFormat? format = null)
+        private float MeasureText(string text, DrawingFont font, float width, StringFormat? format = null)
         {
             if (_graphics == null || string.IsNullOrWhiteSpace(text))
                 return 0f;
@@ -532,7 +536,7 @@ public static class ErgReportBuilder
             return size.Height;
         }
 
-        private void DrawParagraph(string text, Font font, Brush brush, float spacingBefore, float spacingAfter, StringFormat? format = null)
+        private void DrawParagraph(string text, DrawingFont font, Brush brush, float spacingBefore, float spacingAfter, StringFormat? format = null)
         {
             if (_graphics == null)
                 return;
@@ -920,7 +924,7 @@ public static class ErgReportBuilder
             if (image != null)
             {
                 using var stream = new MemoryStream(image.Data);
-                using var bitmap = Image.FromStream(stream);
+                using var bitmap = DrawingImage.FromStream(stream);
                 var scale = Math.Min(graphRect.Width / image.Width, graphRect.Height / image.Height);
                 var drawWidth = image.Width * scale;
                 var drawHeight = image.Height * scale;
@@ -930,7 +934,7 @@ public static class ErgReportBuilder
             }
             else
             {
-                using var dashedPen = new Pen(Color.FromArgb(200, 200, 200)) { DashPattern = new[] { 4f, 4f } };
+                using var dashedPen = new Pen(DrawingColor.FromArgb(200, 200, 200)) { DashPattern = new[] { 4f, 4f } };
                 _graphics.DrawRectangle(dashedPen, graphRect.X, graphRect.Y, graphRect.Width, graphRect.Height);
                 _graphics.DrawString("Нет данных", _placeholderFont, _mutedBrush, graphRect, _formatCenter);
             }
