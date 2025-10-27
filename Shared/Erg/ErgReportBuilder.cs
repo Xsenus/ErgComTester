@@ -3051,8 +3051,8 @@ public static class ErgReportBuilder
             sectionProps.Append(pageMargin);
         }
 
-        pageMargin.Left = new Int32Value(TwipsFromCentimeters(leftCm));
-        pageMargin.Right = new Int32Value(TwipsFromCentimeters(rightCm));
+        pageMargin.Left = UInt32Value.FromUInt32((uint)TwipsFromCentimeters(leftCm));
+        pageMargin.Right = UInt32Value.FromUInt32((uint)TwipsFromCentimeters(rightCm));
 
         if (topCm.HasValue)
             pageMargin.Top = new Int32Value(TwipsFromCentimeters(topCm.Value));
