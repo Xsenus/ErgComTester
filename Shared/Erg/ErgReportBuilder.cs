@@ -434,10 +434,25 @@ public static class ErgReportBuilder
             AppendGraphSection(Body, MainPart, test, ref imageId);
         }
 
+        public void AppendGraphSection(ErgTest test, bool includeNormalized, bool includeNormalizedFirst, ref uint imageId)
+        {
+            // Сохранена сигнатура старого API для совместимости. Параметры управления
+            // отображением нормированных данных в актуальной верстке не используются,
+            // но поддерживаются, чтобы сторонний код, вызывающий старый вариант метода,
+            // продолжил успешно компилироваться.
+            AppendGraphSection(test, ref imageId);
+        }
+
         public void ApplyPageMargins(double leftCm, double rightCm, double? topCm, double? bottomCm)
         {
             EnsureWritable();
             ApplyPageMargins(Body, leftCm, rightCm, topCm, bottomCm);
+        }
+
+        public void ApplyPageMargins(double leftCm, double rightCm, double? topCm, double? bottomCm, double? gutterCm)
+        {
+            EnsureWritable();
+            ApplyPageMargins(Body, leftCm, rightCm, topCm, bottomCm, gutterCm);
         }
 
         public void Save(string title)
@@ -3533,6 +3548,12 @@ public static class ErgReportBuilder
         body.Append(CreateParagraph("Первые 10 точек (левый глаз, график 1): " + BuildGraphPreview(test.LeftEye.GraphsNormalized, test.GraphNumPoints), fontSizePt: 10));
     }
 
+    private static void AppendGraphSection(Body body, MainDocumentPart mainPart, ErgTest test, bool includeNormalized, bool includeNormalizedFirst, ref uint imageId)
+    {
+        // Для обратной совместимости со старым интерфейсом просто перенаправляем в новую реализацию.
+        AppendGraphSection(body, mainPart, test, ref imageId);
+    }
+
     private static Table CreateGraphTable(MainDocumentPart mainPart, GraphImage? rightGraph, GraphImage? leftGraph, ref uint imageId)
     {
         var table = new Table(
@@ -3822,7 +3843,7 @@ public static class ErgReportBuilder
         return new XDocument(new XDeclaration("1.0", "UTF-8", "yes"), root);
     }
 
-    private static void ApplyPageMargins(Body body, double leftCm, double rightCm, double? topCm, double? bottomCm)
+    private static void ApplyPageMargins(Body body, double leftCm, double rightCm, double? topCm, double? bottomCm, double? gutterCm = null)
     {
         if (body == null)
             return;
@@ -3852,6 +3873,9 @@ public static class ErgReportBuilder
 
         if (bottomCm.HasValue)
             pageMargin.Bottom = new Int32Value(TwipsFromCentimeters(bottomCm.Value));
+
+        if (gutterCm.HasValue)
+            pageMargin.Gutter = UInt32Value.FromUInt32((uint)TwipsFromCentimeters(gutterCm.Value));
 
         body.Append(sectionProps);
     }
