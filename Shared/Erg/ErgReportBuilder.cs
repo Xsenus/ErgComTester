@@ -276,6 +276,7 @@ public static class ErgReportBuilder
         {
             var mainPart = document.AddMainDocumentPart();
             mainPart.Document = new WordDocument(new Body());
+            EnsureDefaultWordStyles(mainPart);
             var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
             body.Append(CreateParagraph(headerTitle, fontSizePt: 16, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(12)));
@@ -325,6 +326,7 @@ public static class ErgReportBuilder
         {
             var mainPart = document.AddMainDocumentPart();
             mainPart.Document = new WordDocument(new Body());
+            EnsureDefaultWordStyles(mainPart);
             var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
             var clinicHeader = string.IsNullOrWhiteSpace(clinicName)
@@ -3481,6 +3483,110 @@ public static class ErgReportBuilder
 
         var appPart = document.ExtendedFilePropertiesPart ?? document.AddExtendedFilePropertiesPart();
         WriteExtendedProperties(appPart);
+    }
+
+    private static void EnsureDefaultWordStyles(MainDocumentPart mainPart)
+    {
+        if (mainPart == null)
+            return;
+
+        if (mainPart.StyleDefinitionsPart != null)
+            return;
+
+        var stylePart = mainPart.AddNewPart<StyleDefinitionsPart>();
+        var styles = new Styles(
+            new DocDefaults(
+                new RunPropertiesDefault(
+                    new RunProperties(
+                        new RunFonts { Ascii = "Calibri", HighAnsi = "Calibri", ComplexScript = "Calibri", EastAsia = "Calibri" },
+                        new FontSize { Val = "22" },
+                        new FontSizeComplexScript { Val = "22" }
+                    )
+                ),
+                new ParagraphPropertiesDefault(
+                    new ParagraphProperties(
+                        new SpacingBetweenLines { After = "160", Line = "259", LineRule = LineSpacingRuleValues.Auto }
+                    )
+                )
+            ),
+            new LatentStyles { DefLockedState = false, LatentStyleCount = 267 },
+            new Style(
+                new StyleName { Val = "Normal" },
+                new UIPriority { Val = 0 },
+                new PrimaryStyle(),
+                new Rsid { Val = "00000000" },
+                new StyleParagraphProperties(
+                    new SpacingBetweenLines { After = "160", Line = "259", LineRule = LineSpacingRuleValues.Auto }
+                ),
+                new StyleRunProperties(
+                    new RunFonts { Ascii = "Calibri", HighAnsi = "Calibri", ComplexScript = "Calibri", EastAsia = "Calibri" },
+                    new FontSize { Val = "22" },
+                    new FontSizeComplexScript { Val = "22" }
+                )
+            )
+            {
+                Type = StyleValues.Paragraph,
+                StyleId = "Normal",
+                Default = true
+            },
+            new Style(
+                new StyleName { Val = "Default Paragraph Font" },
+                new UIPriority { Val = 1 },
+                new SemiHidden(),
+                new UnhideWhenUsed()
+            )
+            {
+                Type = StyleValues.Character,
+                StyleId = "DefaultParagraphFont",
+                Default = true
+            },
+            new Style(
+                new StyleName { Val = "Table Normal" },
+                new UIPriority { Val = 99 },
+                new SemiHidden(),
+                new UnhideWhenUsed(),
+                new PrimaryStyle(),
+                new StyleTableProperties(
+                    new TableBorders(
+                        new TopBorder { Val = BorderValues.Single, Size = 0U, Space = 0U, Color = "auto" },
+                        new LeftBorder { Val = BorderValues.Single, Size = 0U, Space = 0U, Color = "auto" },
+                        new BottomBorder { Val = BorderValues.Single, Size = 0U, Space = 0U, Color = "auto" },
+                        new RightBorder { Val = BorderValues.Single, Size = 0U, Space = 0U, Color = "auto" },
+                        new InsideHorizontalBorder { Val = BorderValues.Single, Size = 0U, Space = 0U, Color = "auto" },
+                        new InsideVerticalBorder { Val = BorderValues.Single, Size = 0U, Space = 0U, Color = "auto" }
+                    )
+                )
+            )
+            {
+                Type = StyleValues.Table,
+                StyleId = "TableNormal",
+                Default = true
+            },
+            new Style(
+                new StyleName { Val = "Table Grid" },
+                new BasedOn { Val = "TableNormal" },
+                new UIPriority { Val = 60 },
+                new PrimaryStyle(),
+                new UnhideWhenUsed(),
+                new StyleTableProperties(
+                    new TableBorders(
+                        new TopBorder { Val = BorderValues.Single, Size = 8U, Space = 0U, Color = "000000" },
+                        new LeftBorder { Val = BorderValues.Single, Size = 8U, Space = 0U, Color = "000000" },
+                        new BottomBorder { Val = BorderValues.Single, Size = 8U, Space = 0U, Color = "000000" },
+                        new RightBorder { Val = BorderValues.Single, Size = 8U, Space = 0U, Color = "000000" },
+                        new InsideHorizontalBorder { Val = BorderValues.Single, Size = 8U, Space = 0U, Color = "000000" },
+                        new InsideVerticalBorder { Val = BorderValues.Single, Size = 8U, Space = 0U, Color = "000000" }
+                    )
+                )
+            )
+            {
+                Type = StyleValues.Table,
+                StyleId = "TableGrid"
+            }
+        );
+
+        stylePart.Styles = styles;
+        stylePart.Styles.Save();
     }
 
     private static void WriteCoreProperties(CoreFilePropertiesPart part, string? title)
