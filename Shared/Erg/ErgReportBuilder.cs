@@ -431,7 +431,7 @@ public static class ErgReportBuilder
         public void AppendGraphSection(ErgTest test, ref uint imageId)
         {
             EnsureWritable();
-            AppendGraphSection(Body, MainPart, test, ref imageId);
+            ErgReportBuilder.AppendGraphSection(Body, MainPart, test, ref imageId);
         }
 
         public void AppendGraphSection(ErgTest test, bool includeNormalized, bool includeNormalizedFirst, ref uint imageId)
@@ -446,13 +446,13 @@ public static class ErgReportBuilder
         public void ApplyPageMargins(double leftCm, double rightCm, double? topCm, double? bottomCm)
         {
             EnsureWritable();
-            ApplyPageMargins(Body, leftCm, rightCm, topCm, bottomCm);
+            ErgReportBuilder.ApplyPageMargins(Body, leftCm, rightCm, topCm, bottomCm);
         }
 
         public void ApplyPageMargins(double leftCm, double rightCm, double? topCm, double? bottomCm, double? gutterCm)
         {
             EnsureWritable();
-            ApplyPageMargins(Body, leftCm, rightCm, topCm, bottomCm, gutterCm);
+            ErgReportBuilder.ApplyPageMargins(Body, leftCm, rightCm, topCm, bottomCm, gutterCm);
         }
 
         public void Save(string title)
