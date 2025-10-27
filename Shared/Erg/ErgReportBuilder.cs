@@ -3051,14 +3051,14 @@ public static class ErgReportBuilder
             sectionProps.Append(pageMargin);
         }
 
-        pageMargin.Left = (UInt32Value)(uint)TwipsFromCentimeters(leftCm);
-        pageMargin.Right = (UInt32Value)(uint)TwipsFromCentimeters(rightCm);
+        pageMargin.Left = new Int32Value(TwipsFromCentimeters(leftCm));
+        pageMargin.Right = new Int32Value(TwipsFromCentimeters(rightCm));
 
         if (topCm.HasValue)
-            pageMargin.Top = (UInt32Value)(uint)TwipsFromCentimeters(topCm.Value);
+            pageMargin.Top = new Int32Value(TwipsFromCentimeters(topCm.Value));
 
         if (bottomCm.HasValue)
-            pageMargin.Bottom = (UInt32Value)(uint)TwipsFromCentimeters(bottomCm.Value);
+            pageMargin.Bottom = new Int32Value(TwipsFromCentimeters(bottomCm.Value));
 
         body.Append(sectionProps);
     }
