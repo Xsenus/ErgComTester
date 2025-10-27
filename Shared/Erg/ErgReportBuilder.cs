@@ -277,6 +277,7 @@ public static class ErgReportBuilder
             var mainPart = document.AddMainDocumentPart();
             mainPart.Document = new WordDocument(new Body());
             EnsureDefaultWordStyles(mainPart);
+            EnsureDefaultWordSettings(mainPart);
             var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
             body.Append(CreateParagraph(headerTitle, fontSizePt: 16, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(12)));
@@ -327,6 +328,7 @@ public static class ErgReportBuilder
             var mainPart = document.AddMainDocumentPart();
             mainPart.Document = new WordDocument(new Body());
             EnsureDefaultWordStyles(mainPart);
+            EnsureDefaultWordSettings(mainPart);
             var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
             var clinicHeader = string.IsNullOrWhiteSpace(clinicName)
@@ -3498,9 +3500,20 @@ public static class ErgReportBuilder
             new DocDefaults(
                 new RunPropertiesDefault(
                     new RunProperties(
-                        new RunFonts { Ascii = "Calibri", HighAnsi = "Calibri", ComplexScript = "Calibri", EastAsia = "Calibri" },
+                        new RunFonts
+                        {
+                            Ascii = "Calibri",
+                            HighAnsi = "Calibri",
+                            ComplexScript = "Calibri",
+                            EastAsia = "Calibri",
+                            AsciiTheme = ThemeFontValues.MinorHighAnsi,
+                            HighAnsiTheme = ThemeFontValues.MinorHighAnsi,
+                            ComplexScriptTheme = ThemeFontValues.MinorBidi,
+                            EastAsiaTheme = ThemeFontValues.MinorEastAsia
+                        },
                         new FontSize { Val = "22" },
-                        new FontSizeComplexScript { Val = "22" }
+                        new FontSizeComplexScript { Val = "22" },
+                        new Languages { Val = "en-US", EastAsia = "en-US", Bidi = "ar-SA" }
                     )
                 ),
                 new ParagraphPropertiesDefault(
@@ -3509,19 +3522,46 @@ public static class ErgReportBuilder
                     )
                 )
             ),
-            new LatentStyles { DefLockedState = false, LatentStyleCount = 267 },
+            new LatentStyles(
+                new LatentStyleExceptionInfo { Name = "Normal", UIPriority = 0, PrimaryStyle = true, QFormat = true },
+                new LatentStyleExceptionInfo { Name = "heading 1", UIPriority = 9, PrimaryStyle = true, QFormat = true },
+                new LatentStyleExceptionInfo { Name = "heading 2", UIPriority = 9, PrimaryStyle = true, QFormat = true },
+                new LatentStyleExceptionInfo { Name = "heading 3", UIPriority = 9, PrimaryStyle = true, QFormat = true },
+                new LatentStyleExceptionInfo { Name = "Title", UIPriority = 10, PrimaryStyle = true, QFormat = true },
+                new LatentStyleExceptionInfo { Name = "Subtitle", UIPriority = 11, PrimaryStyle = true, QFormat = true },
+                new LatentStyleExceptionInfo { Name = "List Paragraph", UIPriority = 34, PrimaryStyle = true, QFormat = true }
+            )
+            {
+                DefaultLockedState = false,
+                DefaultUIPriority = 99,
+                DefaultSemiHidden = true,
+                DefaultUnhideWhenUsed = true,
+                Count = 371
+            },
             new Style(
                 new StyleName { Val = "Normal" },
                 new UIPriority { Val = 0 },
                 new PrimaryStyle(),
+                new QFormat(),
                 new Rsid { Val = "00000000" },
                 new StyleParagraphProperties(
                     new SpacingBetweenLines { After = "160", Line = "259", LineRule = LineSpacingRuleValues.Auto }
                 ),
                 new StyleRunProperties(
-                    new RunFonts { Ascii = "Calibri", HighAnsi = "Calibri", ComplexScript = "Calibri", EastAsia = "Calibri" },
+                    new RunFonts
+                    {
+                        Ascii = "Calibri",
+                        HighAnsi = "Calibri",
+                        ComplexScript = "Calibri",
+                        EastAsia = "Calibri",
+                        AsciiTheme = ThemeFontValues.MinorHighAnsi,
+                        HighAnsiTheme = ThemeFontValues.MinorHighAnsi,
+                        ComplexScriptTheme = ThemeFontValues.MinorBidi,
+                        EastAsiaTheme = ThemeFontValues.MinorEastAsia
+                    },
                     new FontSize { Val = "22" },
-                    new FontSizeComplexScript { Val = "22" }
+                    new FontSizeComplexScript { Val = "22" },
+                    new Languages { Val = "en-US", EastAsia = "en-US", Bidi = "ar-SA" }
                 )
             )
             {
@@ -3582,11 +3622,77 @@ public static class ErgReportBuilder
             {
                 Type = StyleValues.Table,
                 StyleId = "TableGrid"
+            },
+            new Style(
+                new StyleName { Val = "No List" },
+                new UIPriority { Val = 99 },
+                new SemiHidden(),
+                new UnhideWhenUsed()
+            )
+            {
+                Type = StyleValues.Numbering,
+                StyleId = "NoList",
+                Default = true
             }
         );
 
         stylePart.Styles = styles;
         stylePart.Styles.Save();
+    }
+
+    private static void EnsureDefaultWordSettings(MainDocumentPart mainPart)
+    {
+        if (mainPart == null)
+            return;
+
+        var settingsPart = mainPart.DocumentSettingsPart ?? mainPart.AddNewPart<DocumentSettingsPart>();
+        var settings = settingsPart.Settings;
+        if (settings == null)
+        {
+            settings = new Settings();
+            settingsPart.Settings = settings;
+        }
+
+        if (!settings.Elements<Compatibility>().Any())
+        {
+            settings.Append(new Compatibility(
+                new CompatibilitySetting
+                {
+                    Name = CompatSettingNameValues.CompatibilityMode,
+                    Val = "15",
+                    Uri = "http://schemas.microsoft.com/office/word"
+                },
+                new CompatibilitySetting
+                {
+                    Name = CompatSettingNameValues.OverrideTableStyleFontSizeAndJustification,
+                    Val = "1",
+                    Uri = "http://schemas.microsoft.com/office/word"
+                },
+                new CompatibilitySetting
+                {
+                    Name = CompatSettingNameValues.UseFELayout,
+                    Val = "0",
+                    Uri = "http://schemas.microsoft.com/office/word"
+                }
+            ));
+        }
+
+        if (!settings.Elements<Zoom>().Any())
+        {
+            settings.Append(new Zoom { Percent = 100 });
+        }
+
+        if (!settings.Elements<DefaultTabStop>().Any())
+        {
+            settings.Append(new DefaultTabStop { Val = 720 });
+        }
+
+        if (!settings.Elements<UpdateFieldsOnOpen>().Any())
+        {
+            settings.Append(new UpdateFieldsOnOpen { Val = true });
+        }
+
+        settings.Save();
     }
 
     private static void WriteCoreProperties(CoreFilePropertiesPart part, string? title)
