@@ -233,6 +233,48 @@ public class RenderingSupportTests
                 var mainOverride = root.Elements(ns + "Override").FirstOrDefault(e => string.Equals((string?)e.Attribute("PartName"), "/word/document.xml", StringComparison.OrdinalIgnoreCase));
                 Assert.NotNull(mainOverride);
                 Assert.Equal("application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml", (string?)mainOverride!.Attribute("ContentType"));
+
+                var packageRelsEntry = archive.GetEntry("_rels/.rels");
+                Assert.NotNull(packageRelsEntry);
+                if (packageRelsEntry != null)
+                {
+                    XDocument relsDoc;
+                    using (var relStream = packageRelsEntry.Open())
+                    {
+                        relsDoc = XDocument.Load(relStream);
+                    }
+
+                    var relsNs = XNamespace.Get("http://schemas.openxmlformats.org/package/2006/relationships");
+                    var rels = relsDoc.Root?.Elements(relsNs + "Relationship").ToList() ?? new List<XElement>();
+                    Assert.Contains(rels, r =>
+                        string.Equals((string?)r.Attribute("Target"), "/word/document.xml", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals((string?)r.Attribute("Type"), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", StringComparison.OrdinalIgnoreCase));
+                }
+
+                Assert.NotNull(archive.GetEntry("docProps/core.xml"));
+                Assert.NotNull(archive.GetEntry("docProps/app.xml"));
+
+                var documentRelsEntry = archive.GetEntry("word/_rels/document.xml.rels");
+                if (documentRelsEntry != null)
+                {
+                    XDocument docRels;
+                    using (var relStream = documentRelsEntry.Open())
+                    {
+                        docRels = XDocument.Load(relStream);
+                    }
+
+                    var relsNs = XNamespace.Get("http://schemas.openxmlformats.org/package/2006/relationships");
+                    foreach (var rel in docRels.Root?.Elements(relsNs + "Relationship") ?? Enumerable.Empty<XElement>())
+                    {
+                        var target = (string?)rel.Attribute("Target");
+                        if (string.IsNullOrWhiteSpace(target))
+                            continue;
+
+                        var normalized = NormalizeRelationshipTargetForTest("word/document.xml", target);
+                        Assert.False(string.IsNullOrWhiteSpace(normalized));
+                        Assert.NotNull(archive.GetEntry(normalized));
+                    }
+                }
             }
 
             using var document = WordprocessingDocument.Open(outputPath, false);
@@ -247,5 +289,35 @@ public class RenderingSupportTests
                 File.Delete(outputPath);
             }
         }
+    }
+
+    private static string NormalizeRelationshipTargetForTest(string sourcePart, string target)
+    {
+        if (string.IsNullOrWhiteSpace(target))
+            return string.Empty;
+
+        if (target.StartsWith("/", StringComparison.Ordinal))
+            return target.TrimStart('/');
+
+        var baseSegments = sourcePart.Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
+        if (baseSegments.Count > 0)
+            baseSegments.RemoveAt(baseSegments.Count - 1);
+
+        foreach (var segment in target.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (segment == ".")
+                continue;
+
+            if (segment == "..")
+            {
+                if (baseSegments.Count > 0)
+                    baseSegments.RemoveAt(baseSegments.Count - 1);
+                continue;
+            }
+
+            baseSegments.Add(segment);
+        }
+
+        return string.Join('/', baseSegments);
     }
 }

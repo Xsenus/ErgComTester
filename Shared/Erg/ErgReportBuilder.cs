@@ -12,6 +12,7 @@ using System.Drawing.Imaging;
 using System.Drawing.Text;
 using System.Runtime.InteropServices;
 using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.ExtendedProperties;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using QuestPDF.Drawing;
@@ -311,10 +312,12 @@ public static class ErgReportBuilder
 
             ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
 
+            ApplyPackageProperties(document, patient, deviceInfo, clinicName);
+
             mainPart.Document.Save();
         }
 
-        NormalizeWordContentTypes(docxPath);
+        NormalizeWordPackage(docxPath);
     }
 
     private static void BuildPatientWordReportClient(ErgPatient patient, string docxPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
@@ -362,13 +365,15 @@ public static class ErgReportBuilder
 
             ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
 
+            ApplyPackageProperties(document, patient, deviceInfo, clinicName);
+
             mainPart.Document.Save();
         }
 
-        NormalizeWordContentTypes(docxPath);
+        NormalizeWordPackage(docxPath);
     }
 
-    private static void NormalizeWordContentTypes(string docxPath)
+    private static void NormalizeWordPackage(string docxPath)
     {
         if (string.IsNullOrWhiteSpace(docxPath) || !File.Exists(docxPath))
             return;
@@ -376,78 +381,248 @@ public static class ErgReportBuilder
         try
         {
             using var archive = ZipFile.Open(docxPath, ZipArchiveMode.Update);
-            var entry = archive.GetEntry("[Content_Types].xml");
-            if (entry == null)
-                return;
-
-            XDocument document;
-            using (var stream = entry.Open())
-            using (var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 4096, leaveOpen: false))
-            {
-                document = XDocument.Load(reader);
-            }
-
-            var ns = XNamespace.Get("http://schemas.openxmlformats.org/package/2006/content-types");
-            var root = document.Root ?? new XElement(ns + "Types");
-            if (document.Root == null)
-            {
-                document.Add(root);
-            }
-
-            bool changed = false;
-
-            void EnsureDefault(string extension, string contentType)
-            {
-                var element = root.Elements(ns + "Default").FirstOrDefault(e => string.Equals((string?)e.Attribute("Extension"), extension, StringComparison.OrdinalIgnoreCase));
-                if (element == null)
-                {
-                    root.Add(new XElement(ns + "Default",
-                        new XAttribute("Extension", extension),
-                        new XAttribute("ContentType", contentType)));
-                    changed = true;
-                }
-                else if (!string.Equals((string?)element.Attribute("ContentType"), contentType, StringComparison.OrdinalIgnoreCase))
-                {
-                    element.SetAttributeValue("ContentType", contentType);
-                    changed = true;
-                }
-            }
-
-            void EnsureOverride(string partName, string contentType)
-            {
-                var element = root.Elements(ns + "Override").FirstOrDefault(e => string.Equals((string?)e.Attribute("PartName"), partName, StringComparison.OrdinalIgnoreCase));
-                if (element == null)
-                {
-                    root.Add(new XElement(ns + "Override",
-                        new XAttribute("PartName", partName),
-                        new XAttribute("ContentType", contentType)));
-                    changed = true;
-                }
-                else if (!string.Equals((string?)element.Attribute("ContentType"), contentType, StringComparison.OrdinalIgnoreCase))
-                {
-                    element.SetAttributeValue("ContentType", contentType);
-                    changed = true;
-                }
-            }
-
-            EnsureDefault("rels", "application/vnd.openxmlformats-package.relationships+xml");
-            EnsureDefault("xml", "application/xml");
-            EnsureDefault("png", "image/png");
-            EnsureOverride("/word/document.xml", "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
-
-            if (!changed)
-                return;
-
-            entry.Delete();
-            var newEntry = archive.CreateEntry("[Content_Types].xml", CompressionLevel.Optimal);
-            using var newStream = newEntry.Open();
-            using var writer = new StreamWriter(newStream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            document.Save(writer);
+            RewritePackageRelationships(archive);
+            RewriteContentTypes(archive);
+            PruneDanglingDocumentRelationships(archive);
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException($"Не удалось обновить типы содержимого DOCX-файла '{docxPath}'.", ex);
+            throw new InvalidOperationException($"Не удалось нормализовать структуру DOCX-файла '{docxPath}'.", ex);
         }
+    }
+
+    private static void ApplyPackageProperties(WordprocessingDocument document, ErgPatient patient, CommonInfo? deviceInfo, string? clinicName)
+    {
+        if (document == null)
+            return;
+
+        var package = document.PackageProperties;
+        var title = !string.IsNullOrWhiteSpace(deviceInfo?.ReportName)
+            ? deviceInfo!.ReportName!
+            : "Отчет по результатам ЭРГ-исследования сетчатки";
+        var creator = !string.IsNullOrWhiteSpace(clinicName)
+            ? clinicName!
+            : "Microlux";
+        var now = DateTimeOffset.UtcNow;
+
+        package.Title = title;
+        package.Subject = "Электроретинография";
+        package.Creator = creator;
+        package.LastModifiedBy = creator;
+        package.Description = $"Отчет по пациенту #{patient.PatientId}";
+        if (!package.Created.HasValue)
+            package.Created = now;
+        package.Modified = now;
+
+        var appPart = document.ExtendedFilePropertiesPart ?? document.AddExtendedFilePropertiesPart();
+        var properties = appPart.Properties ?? new Properties();
+        properties.Application = new Application { Text = "Microlux ErgComTester" };
+        if (!string.IsNullOrWhiteSpace(clinicName))
+            properties.Company = new Company { Text = clinicName! };
+        else
+            properties.Company = null;
+        properties.ApplicationVersion = new ApplicationVersion { Text = GetApplicationVersion() };
+        appPart.Properties = properties;
+        appPart.Properties.Save();
+    }
+
+    private static void RewritePackageRelationships(ZipArchive archive)
+    {
+        var ns = XNamespace.Get("http://schemas.openxmlformats.org/package/2006/relationships");
+        var relationships = new XElement(ns + "Relationships");
+
+        int nextId = 1;
+
+        XElement CreateRel(string target, string type)
+        {
+            return new XElement(ns + "Relationship",
+                new XAttribute("Id", $"rId{nextId++}"),
+                new XAttribute("Type", type),
+                new XAttribute("Target", target));
+        }
+
+        relationships.Add(CreateRel("/word/document.xml", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"));
+
+        if (ArchiveHasEntry(archive, "/docProps/core.xml"))
+        {
+            relationships.Add(CreateRel("/docProps/core.xml", "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties"));
+        }
+
+        if (ArchiveHasEntry(archive, "/docProps/app.xml"))
+        {
+            relationships.Add(CreateRel("/docProps/app.xml", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties"));
+        }
+
+        OverwriteZipEntry(archive, "_rels/.rels", new XDocument(new XDeclaration("1.0", "utf-8", "yes"), relationships));
+    }
+
+    private static void RewriteContentTypes(ZipArchive archive)
+    {
+        var ns = XNamespace.Get("http://schemas.openxmlformats.org/package/2006/content-types");
+        var root = new XElement(ns + "Types");
+        var defaults = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var overrides = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddDefault(string extension, string contentType)
+        {
+            if (defaults.Add(extension))
+            {
+                root.Add(new XElement(ns + "Default",
+                    new XAttribute("Extension", extension),
+                    new XAttribute("ContentType", contentType)));
+            }
+        }
+
+        void AddOverride(string partName, string contentType)
+        {
+            if (overrides.Add(partName))
+            {
+                root.Add(new XElement(ns + "Override",
+                    new XAttribute("PartName", partName),
+                    new XAttribute("ContentType", contentType)));
+            }
+        }
+
+        AddDefault("rels", "application/vnd.openxmlformats-package.relationships+xml");
+        AddDefault("xml", "application/xml");
+
+        var knownOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["/word/document.xml"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+            ["/word/styles.xml"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml",
+            ["/word/settings.xml"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml",
+            ["/word/webSettings.xml"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml",
+            ["/word/theme/theme1.xml"] = "application/vnd.openxmlformats-officedocument.theme+xml",
+            ["/word/fontTable.xml"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml",
+            ["/docProps/core.xml"] = "application/vnd.openxmlformats-package.core-properties+xml",
+            ["/docProps/app.xml"] = "application/vnd.openxmlformats-officedocument.extended-properties+xml"
+        };
+
+        foreach (var pair in knownOverrides)
+        {
+            if (ArchiveHasEntry(archive, pair.Key))
+            {
+                AddOverride(pair.Key, pair.Value);
+            }
+        }
+
+        var mediaContentTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["png"] = "image/png",
+            ["jpg"] = "image/jpeg",
+            ["jpeg"] = "image/jpeg",
+            ["gif"] = "image/gif",
+            ["bmp"] = "image/bmp"
+        };
+
+        foreach (var entry in archive.Entries)
+        {
+            if (string.IsNullOrEmpty(entry.Name) || entry.FullName.EndsWith("/", StringComparison.Ordinal))
+                continue;
+
+            var extension = Path.GetExtension(entry.Name);
+            if (string.IsNullOrEmpty(extension))
+                continue;
+
+            var key = extension.TrimStart('.');
+            if (mediaContentTypes.TryGetValue(key, out var mediaType))
+            {
+                AddDefault(key, mediaType);
+            }
+        }
+
+        OverwriteZipEntry(archive, "[Content_Types].xml", new XDocument(new XDeclaration("1.0", "utf-8", "yes"), root));
+    }
+
+    private static void PruneDanglingDocumentRelationships(ZipArchive archive)
+    {
+        var relsEntry = archive.GetEntry("word/_rels/document.xml.rels");
+        if (relsEntry == null)
+            return;
+
+        XDocument document;
+        using (var stream = relsEntry.Open())
+        {
+            document = XDocument.Load(stream);
+        }
+
+        var ns = XNamespace.Get("http://schemas.openxmlformats.org/package/2006/relationships");
+        var relationships = document.Root?.Elements(ns + "Relationship").ToList();
+        if (relationships == null || relationships.Count == 0)
+            return;
+
+        bool changed = false;
+        foreach (var rel in relationships)
+        {
+            var target = (string?)rel.Attribute("Target");
+            if (string.IsNullOrWhiteSpace(target))
+                continue;
+
+            var normalized = NormalizeRelationshipTargetPath("word/document.xml", target);
+            if (string.IsNullOrWhiteSpace(normalized))
+                continue;
+
+            if (!ArchiveHasEntry(archive, normalized))
+            {
+                rel.Remove();
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            OverwriteZipEntry(archive, "word/_rels/document.xml.rels", document);
+        }
+    }
+
+    private static void OverwriteZipEntry(ZipArchive archive, string entryName, XDocument document)
+    {
+        var existing = archive.GetEntry(entryName);
+        existing?.Delete();
+
+        var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+        using var stream = entry.Open();
+        using var writer = new StreamWriter(stream, new UTF8Encoding(false));
+        document.Save(writer);
+    }
+
+    private static bool ArchiveHasEntry(ZipArchive archive, string partName)
+    {
+        if (string.IsNullOrWhiteSpace(partName))
+            return false;
+
+        var normalized = partName.TrimStart('/');
+        return archive.GetEntry(normalized) != null;
+    }
+
+    private static string NormalizeRelationshipTargetPath(string sourcePart, string target)
+    {
+        if (string.IsNullOrWhiteSpace(target))
+            return string.Empty;
+
+        if (target.StartsWith("/", StringComparison.Ordinal))
+            return target.TrimStart('/');
+
+        var baseSegments = sourcePart.Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
+        if (baseSegments.Count > 0)
+            baseSegments.RemoveAt(baseSegments.Count - 1);
+
+        foreach (var segment in target.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (segment == ".")
+                continue;
+
+            if (segment == "..")
+            {
+                if (baseSegments.Count > 0)
+                    baseSegments.RemoveAt(baseSegments.Count - 1);
+                continue;
+            }
+
+            baseSegments.Add(segment);
+        }
+
+        return string.Join('/', baseSegments);
     }
 
     private sealed class LegacyPdfRenderer : IDisposable
@@ -789,6 +964,12 @@ public static class ErgReportBuilder
                 return total;
             }
 
+            if (!HasEyeMeasurements(eye))
+            {
+                total += _placeholderFont.GetHeight(_graphics) + _summarySpacingSmall;
+                return total;
+            }
+
             foreach (var (waveLabel, kind) in GetClientWaveOrder(test))
             {
                 var display = BuildWaveDisplay(test, eye, kind);
@@ -858,6 +1039,18 @@ public static class ErgReportBuilder
             {
                 DrawCenteredValue(rect.Left, rect.Width, ref cursor, "FLAT");
                 cursor += _summarySpacingSmall;
+                return;
+            }
+
+            if (!HasEyeMeasurements(eye))
+            {
+                if (_graphics != null)
+                {
+                    var height = _placeholderFont.GetHeight(_graphics);
+                    var placeholderRect = new RectangleF(rect.Left, cursor, rect.Width, height);
+                    _graphics.DrawString("Нет данных", _placeholderFont, _mutedBrush, placeholderRect, _formatCenter);
+                    cursor += height + _summarySpacingSmall;
+                }
                 return;
             }
 
@@ -1221,6 +1414,12 @@ public static class ErgReportBuilder
                 if (_eye.IsFlat)
                 {
                     column.Item().AlignCenter().Text("FLAT").FontSize(26).SemiBold();
+                    return;
+                }
+
+                if (!HasEyeMeasurements(_eye))
+                {
+                    column.Item().AlignCenter().Text("Нет данных").FontSize(10).Italic().FontColor(Colors.Grey.Darken1);
                     return;
                 }
 
@@ -1627,6 +1826,14 @@ public static class ErgReportBuilder
         if (!min.HasValue) return $"≤ {max}";
         if (!max.HasValue) return $"≥ {min}";
         return $"{min}..{max}";
+    }
+
+    private static bool HasEyeMeasurements(EyeData eye)
+    {
+        if (eye == null)
+            return false;
+
+        return eye.GraphCount > 0 && eye.QualityIndex > 0;
     }
 
     private static IEnumerable<(string Label, WaveKind Kind)> GetClientWaveOrder(ErgTest test)
@@ -2629,6 +2836,12 @@ public static class ErgReportBuilder
         }
         else
         {
+            if (!HasEyeMeasurements(eye))
+            {
+                cell.Append(CreateParagraph("Нет данных", fontSizePt: 10, italic: true, colorHex: "666666", justification: JustificationValues.Center));
+                return cell;
+            }
+
             foreach (var (waveLabel, kind) in GetClientWaveOrder(test))
             {
                 var display = BuildWaveDisplay(test, eye, kind);
