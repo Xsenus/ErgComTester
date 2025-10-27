@@ -217,6 +217,9 @@ public class RenderingSupportTests
                 var entry = archive.GetEntry("[Content_Types].xml");
                 Assert.NotNull(entry);
 
+                Assert.NotNull(archive.GetEntry("docProps/core.xml"));
+                Assert.NotNull(archive.GetEntry("docProps/app.xml"));
+
                 XDocument manifest;
                 using (var stream = entry!.Open())
                 {
@@ -246,6 +249,14 @@ public class RenderingSupportTests
                     Assert.Contains(relationships, rel =>
                         string.Equals((string?)rel.Attribute("Type"), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", StringComparison.OrdinalIgnoreCase)
                         && string.Equals(NormalizeRelationshipTarget((string?)rel.Attribute("Target")), "word/document.xml", StringComparison.OrdinalIgnoreCase));
+
+                    Assert.Contains(relationships, rel =>
+                        string.Equals((string?)rel.Attribute("Type"), "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(NormalizeRelationshipTarget((string?)rel.Attribute("Target")), "docProps/core.xml", StringComparison.OrdinalIgnoreCase));
+
+                    Assert.Contains(relationships, rel =>
+                        string.Equals((string?)rel.Attribute("Type"), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(NormalizeRelationshipTarget((string?)rel.Attribute("Target")), "docProps/app.xml", StringComparison.OrdinalIgnoreCase));
                 }
 
                 var documentRelsEntry = archive.GetEntry("word/_rels/document.xml.rels");

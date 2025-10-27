@@ -376,6 +376,7 @@ public static class ErgReportBuilder
         try
         {
             using var archive = ZipFile.Open(docxPath, ZipArchiveMode.Update);
+            EnsureDocumentPropertiesParts(archive);
             var manifestEntry = archive.GetEntry("[Content_Types].xml");
             if (manifestEntry == null)
                 return;
@@ -540,34 +541,170 @@ public static class ErgReportBuilder
         if (document.Root == null)
             document.Add(root);
 
+        var entries = new HashSet<string>(archive.Entries.Select(e => e.FullName), StringComparer.OrdinalIgnoreCase);
         var relationships = root.Elements(ns + "Relationship").ToList();
-        var hasMain = relationships.Any(r =>
-            string.Equals((string?)r.Attribute("Type"), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(NormalizeRelationshipTarget((string?)r.Attribute("Target")), "word/document.xml", StringComparison.OrdinalIgnoreCase));
-
-        if (hasMain)
-            return;
-
         var existingIds = new HashSet<string>(relationships
             .Select(r => (string?)r.Attribute("Id") ?? string.Empty), StringComparer.OrdinalIgnoreCase);
 
-        var counter = 1;
-        string id;
-        do
-        {
-            id = $"rId{counter++}";
-        } while (!existingIds.Add(id));
+        bool changed = false;
 
-        root.Add(new XElement(ns + "Relationship",
-            new XAttribute("Id", id),
-            new XAttribute("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"),
-            new XAttribute("Target", "word/document.xml")));
+        foreach (var relationship in relationships.ToList())
+        {
+            var target = NormalizePackageRelationshipTarget((string?)relationship.Attribute("Target"));
+            if (string.IsNullOrEmpty(target))
+                continue;
+
+            if (!entries.Contains(target))
+            {
+                relationship.Remove();
+                changed = true;
+            }
+        }
+
+        relationships = root.Elements(ns + "Relationship").ToList();
+
+        if (!relationships.Any(r =>
+                string.Equals((string?)r.Attribute("Type"), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(NormalizePackageRelationshipTarget((string?)r.Attribute("Target")), "word/document.xml", StringComparison.OrdinalIgnoreCase)))
+        {
+            var id = GenerateRelationshipId(existingIds);
+            root.Add(new XElement(ns + "Relationship",
+                new XAttribute("Id", id),
+                new XAttribute("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"),
+                new XAttribute("Target", "word/document.xml")));
+            changed = true;
+        }
+
+        changed |= EnsureOptionalRelationship(root, existingIds, entries, "docProps/core.xml", "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties");
+        changed |= EnsureOptionalRelationship(root, existingIds, entries, "docProps/app.xml", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties");
+
+        if (!changed)
+            return;
 
         relsEntry.Delete();
         var newEntry = archive.CreateEntry("_rels/.rels", CompressionLevel.Optimal);
         using var newStream = newEntry.Open();
         using var writer = new StreamWriter(newStream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         document.Save(writer);
+    }
+
+    private static void EnsureDocumentPropertiesParts(ZipArchive archive)
+    {
+        EnsureZipEntry(archive, "docProps/core.xml", WriteDefaultCoreProperties);
+        EnsureZipEntry(archive, "docProps/app.xml", WriteDefaultAppProperties);
+    }
+
+    private static void EnsureZipEntry(ZipArchive archive, string path, Action<StreamWriter> populate)
+    {
+        if (archive.GetEntry(path) != null)
+            return;
+
+        var entry = archive.CreateEntry(path, CompressionLevel.Optimal);
+        using var stream = entry.Open();
+        using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        populate(writer);
+    }
+
+    private static void WriteDefaultCoreProperties(StreamWriter writer)
+    {
+        var cp = XNamespace.Get("http://schemas.openxmlformats.org/package/2006/metadata/core-properties");
+        var dc = XNamespace.Get("http://purl.org/dc/elements/1.1/");
+        var dcterms = XNamespace.Get("http://purl.org/dc/terms/");
+        var dcmitype = XNamespace.Get("http://purl.org/dc/dcmitype/");
+        var xsi = XNamespace.Get("http://www.w3.org/2001/XMLSchema-instance");
+        var now = DateTime.UtcNow;
+        var timestamp = now.ToString("yyyy-MM-dd'T'HH:mm:ss", CultureInfo.InvariantCulture) + "Z";
+
+        var document = new XDocument(new XDeclaration("1.0", "UTF-8", "yes"),
+            new XElement(cp + "coreProperties",
+                new XAttribute(XNamespace.Xmlns + "cp", cp),
+                new XAttribute(XNamespace.Xmlns + "dc", dc),
+                new XAttribute(XNamespace.Xmlns + "dcterms", dcterms),
+                new XAttribute(XNamespace.Xmlns + "dcmitype", dcmitype),
+                new XAttribute(XNamespace.Xmlns + "xsi", xsi),
+                new XElement(dc + "title", "ERG Report"),
+                new XElement(dc + "creator", "Microlux ErgConnect"),
+                new XElement(cp + "lastModifiedBy", "Microlux ErgConnect"),
+                new XElement(dcterms + "created",
+                    new XAttribute(xsi + "type", "dcterms:W3CDTF"),
+                    timestamp),
+                new XElement(dcterms + "modified",
+                    new XAttribute(xsi + "type", "dcterms:W3CDTF"),
+                    timestamp)
+            ));
+
+        document.Save(writer);
+    }
+
+    private static void WriteDefaultAppProperties(StreamWriter writer)
+    {
+        var propsNs = XNamespace.Get("http://schemas.openxmlformats.org/officeDocument/2006/extended-properties");
+        var vt = XNamespace.Get("http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes");
+        var version = GetApplicationVersion();
+        var document = new XDocument(new XDeclaration("1.0", "UTF-8", "yes"),
+            new XElement(propsNs + "Properties",
+                new XAttribute(XNamespace.Xmlns + "vt", vt),
+                new XElement(propsNs + "Application", "Microlux ErgConnect"),
+                new XElement(propsNs + "ApplicationVersion", string.IsNullOrWhiteSpace(version) ? "1.0.0.0" : version)
+            ));
+
+        document.Save(writer);
+    }
+
+    private static string GenerateRelationshipId(HashSet<string> existingIds)
+    {
+        var counter = existingIds.Count == 0 ? 1 : existingIds
+            .Select(id => id)
+            .Where(id => id.StartsWith("rId", StringComparison.OrdinalIgnoreCase))
+            .Select(id =>
+            {
+                if (int.TryParse(id.Substring(3), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+                    return parsed;
+                return 0;
+            })
+            .DefaultIfEmpty(0)
+            .Max() + 1;
+
+        string nextId;
+        do
+        {
+            nextId = $"rId{counter++}";
+        } while (!existingIds.Add(nextId));
+
+        return nextId;
+    }
+
+    private static bool EnsureOptionalRelationship(XElement root, HashSet<string> existingIds, HashSet<string> entries, string target, string type)
+    {
+        var ns = root.Name.Namespace;
+        if (!entries.Contains(target))
+            return false;
+
+        if (root.Elements(ns + "Relationship").Any(r =>
+                string.Equals((string?)r.Attribute("Type"), type, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(NormalizePackageRelationshipTarget((string?)r.Attribute("Target")), target, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        var id = GenerateRelationshipId(existingIds);
+        root.Add(new XElement(ns + "Relationship",
+            new XAttribute("Id", id),
+            new XAttribute("Type", type),
+            new XAttribute("Target", target)));
+        return true;
+    }
+
+    private static string NormalizePackageRelationshipTarget(string? target)
+    {
+        if (string.IsNullOrWhiteSpace(target))
+            return string.Empty;
+
+        var normalized = target.Replace('\\', '/').Trim();
+        if (normalized.StartsWith("/", StringComparison.Ordinal))
+            normalized = normalized.Substring(1);
+
+        return normalized;
     }
 
     private static void EnsureDocumentRelationships(ZipArchive archive)
@@ -617,17 +754,6 @@ public static class ErgReportBuilder
         using var newStream = newEntry.Open();
         using var writer = new StreamWriter(newStream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         document.Save(writer);
-    }
-
-    private static string NormalizeRelationshipTarget(string? target)
-    {
-        if (string.IsNullOrWhiteSpace(target))
-            return string.Empty;
-
-        var trimmed = target.Replace('\\', '/').Trim();
-        if (trimmed.StartsWith("../"))
-            trimmed = trimmed.Substring(3);
-        return trimmed.TrimStart('/');
     }
 
     private static string ResolveDocumentRelationshipTarget(string target)
@@ -3096,8 +3222,12 @@ public static class ErgReportBuilder
             ? FormatRange(test.AWaveMkVNormalMin, test.AWaveMkVNormalMax)
             : FormatRange(test.BWaveMkVNormalMin, test.BWaveMkVNormalMax);
 
-        var msText = measurement.Ms.HasValue ? $"{measurement.Ms.Value:0} мс" : "—";
-        var mkvText = measurement.MkV.HasValue ? $"{measurement.MkV.Value:0} мкВ" : "—";
+        var msText = measurement.Ms.HasValue
+            ? $"{FormatMeasurementValue(measurement.Ms.Value)} мс"
+            : "—";
+        var mkvText = measurement.MkV.HasValue
+            ? $"{FormatMeasurementValue(measurement.MkV.Value)} мкВ"
+            : "—";
 
         return new WaveDisplay(eye.IsFlat, msText, mkvText, msNorm, mkvNorm);
     }
@@ -3128,6 +3258,12 @@ public static class ErgReportBuilder
         }
 
         return null;
+    }
+
+    private static string FormatMeasurementValue(double value)
+    {
+        var rounded = Math.Round(value, 0, MidpointRounding.AwayFromZero);
+        return rounded.ToString(CultureInfo.InvariantCulture);
     }
 
     private static string FormatDeviceInfo(CommonInfo? deviceInfo)
