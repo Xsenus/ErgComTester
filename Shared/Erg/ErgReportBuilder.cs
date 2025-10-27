@@ -3071,20 +3071,21 @@ public static class ErgReportBuilder
             return;
 
         var sectionProps = body.Elements<SectionProperties>().LastOrDefault();
-        if (sectionProps != null)
+        if (sectionProps == null)
+        {
+            sectionProps = body.AppendChild(new SectionProperties());
+        }
+        else if (sectionProps != body.LastChild)
         {
             sectionProps.Remove();
-        }
-        else
-        {
-            sectionProps = new SectionProperties();
+            body.Append(sectionProps);
         }
 
         var pageMargin = sectionProps.GetFirstChild<PageMargin>();
         if (pageMargin == null)
         {
             pageMargin = new PageMargin();
-            sectionProps.Append(pageMargin);
+            sectionProps.PrependChild(pageMargin);
         }
 
         pageMargin.Left = UInt32Value.FromUInt32((uint)TwipsFromCentimeters(leftCm));
@@ -3092,11 +3093,13 @@ public static class ErgReportBuilder
 
         if (topCm.HasValue)
             pageMargin.Top = new Int32Value(TwipsFromCentimeters(topCm.Value));
+        else
+            pageMargin.Top = null;
 
         if (bottomCm.HasValue)
             pageMargin.Bottom = new Int32Value(TwipsFromCentimeters(bottomCm.Value));
-
-        body.Append(sectionProps);
+        else
+            pageMargin.Bottom = null;
     }
 
     private static int TwipsFromPoints(double points) => (int)Math.Round(points * 20);
