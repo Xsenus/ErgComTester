@@ -34,6 +34,8 @@ namespace ErgData;
 
 public static class ErgReportBuilder
 {
+    private const string DefaultClientDeviceName = "Электроретинограф  Ветеринарный  МЛ-210 VET \"Микролюкс\"";
+
     static ErgReportBuilder()
     {
         QuestPDF.Settings.License = LicenseType.Community;
@@ -303,6 +305,8 @@ public static class ErgReportBuilder
             AppendGraphSection(body, mainPart, test, ref imageId);
         }
 
+        ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 2.5, bottomCm: 2.5);
+
         mainPart.Document.Save();
     }
 
@@ -351,6 +355,8 @@ public static class ErgReportBuilder
         {
             body.Append(CreateParagraph($"Версия отчета: {version}", fontSizePt: 8, colorHex: "777777", justification: JustificationValues.Center, spacingBefore: TwipsFromPoints(12)));
         }
+
+        ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 2.5, bottomCm: 2.5);
 
         mainPart.Document.Save();
     }
@@ -1635,7 +1641,7 @@ public static class ErgReportBuilder
     private static string GetClientDeviceName(CommonInfo? info)
     {
         if (info == null)
-            return "—";
+            return DefaultClientDeviceName;
 
         if (!string.IsNullOrWhiteSpace(info.DeviceName))
             return info.DeviceName;
@@ -1643,7 +1649,7 @@ public static class ErgReportBuilder
         if (!string.IsNullOrWhiteSpace(info.ReportName))
             return info.ReportName;
 
-        return "—";
+        return DefaultClientDeviceName;
     }
 
     private static string? GetClientSoftwareVersion(CommonInfo? info)
@@ -2362,15 +2368,17 @@ public static class ErgReportBuilder
         var props = new TableCellProperties(new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center });
         var margin = new TableCellMargin
         {
-            LeftMargin = new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
-            RightMargin = new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa }
+            TopMargin = new TopMargin { Width = "20", Type = TableWidthUnitValues.Dxa },
+            LeftMargin = new LeftMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
+            BottomMargin = new BottomMargin { Width = "20", Type = TableWidthUnitValues.Dxa },
+            RightMargin = new RightMargin { Width = "60", Type = TableWidthUnitValues.Dxa }
         };
         props.Append(margin);
         if (gridSpan > 1)
             props.Append(new GridSpan { Val = gridSpan });
 
         var cell = new TableCell(props);
-        cell.Append(CreateParagraph(text ?? string.Empty, fontSizePt: 11, justification: justification));
+        cell.Append(CreateParagraph(text ?? string.Empty, fontSizePt: 11, justification: justification, tightenLineSpacing: true));
         return cell;
     }
 
@@ -2411,10 +2419,10 @@ public static class ErgReportBuilder
                 new TableWidth { Type = TableWidthUnitValues.Pct, Width = "5000" },
                 new TableLook { Val = "04A0", FirstRow = true, LastRow = false, NoHorizontalBand = false, NoVerticalBand = false },
                 new TableCellMarginDefault(
-                    new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-                    new TableCellLeftMargin { Type = TableWidthValues.Dxa, Width = 120 },
+                    new TopMargin { Width = "20", Type = TableWidthUnitValues.Dxa },
+                    new TableCellLeftMargin { Type = TableWidthValues.Dxa, Width = 80 },
                     new BottomMargin { Width = "20", Type = TableWidthUnitValues.Dxa },
-                    new TableCellRightMargin { Type = TableWidthValues.Dxa, Width = 120 }
+                    new TableCellRightMargin { Type = TableWidthValues.Dxa, Width = 80 }
                 )
             ),
             new TableGrid(new GridColumn { Width = "5000" })
@@ -2891,20 +2899,46 @@ public static class ErgReportBuilder
         return cell;
     }
 
-    private static Paragraph CreateParagraph(string text, double fontSizePt = 11, bool bold = false, JustificationValues? justification = null, int spacingBefore = 0, int spacingAfter = 0, bool italic = false, string? colorHex = null)
+    private static Paragraph CreateParagraph(string text, double fontSizePt = 11, bool bold = false, JustificationValues? justification = null, int spacingBefore = 0, int spacingAfter = 0, bool italic = false, string? colorHex = null, bool tightenLineSpacing = false)
     {
         var paragraph = new Paragraph();
         var paragraphProps = new ParagraphProperties();
         if (justification.HasValue)
             paragraphProps.Append(new Justification { Val = justification.Value });
-        if (spacingBefore > 0 || spacingAfter > 0)
+        var spacing = new SpacingBetweenLines();
+        var hasSpacing = false;
+
+        if (spacingBefore > 0)
         {
-            paragraphProps.Append(new SpacingBetweenLines
-            {
-                Before = spacingBefore > 0 ? spacingBefore.ToString(CultureInfo.InvariantCulture) : null,
-                After = spacingAfter > 0 ? spacingAfter.ToString(CultureInfo.InvariantCulture) : null
-            });
+            spacing.Before = spacingBefore.ToString(CultureInfo.InvariantCulture);
+            hasSpacing = true;
         }
+        else if (tightenLineSpacing)
+        {
+            spacing.Before = "0";
+            hasSpacing = true;
+        }
+
+        if (spacingAfter > 0)
+        {
+            spacing.After = spacingAfter.ToString(CultureInfo.InvariantCulture);
+            hasSpacing = true;
+        }
+        else if (tightenLineSpacing)
+        {
+            spacing.After = "0";
+            hasSpacing = true;
+        }
+
+        if (tightenLineSpacing)
+        {
+            spacing.LineRule = LineSpacingRuleValues.Auto;
+            spacing.Line = "240";
+            hasSpacing = true;
+        }
+
+        if (hasSpacing)
+            paragraphProps.Append(spacing);
         paragraph.ParagraphProperties = paragraphProps;
 
         var run = new Run();
@@ -2995,7 +3029,44 @@ public static class ErgReportBuilder
 
     private static long InchesToEmus(double inches) => (long)(inches * 914400);
 
+    private static void ApplyPageMargins(Body body, double leftCm, double rightCm, double? topCm, double? bottomCm)
+    {
+        if (body == null)
+            return;
+
+        var sectionProps = body.Elements<SectionProperties>().LastOrDefault();
+        if (sectionProps != null)
+        {
+            sectionProps.Remove();
+        }
+        else
+        {
+            sectionProps = new SectionProperties();
+        }
+
+        var pageMargin = sectionProps.GetFirstChild<PageMargin>();
+        if (pageMargin == null)
+        {
+            pageMargin = new PageMargin();
+            sectionProps.Append(pageMargin);
+        }
+
+        pageMargin.Left = (UInt32Value)(uint)TwipsFromCentimeters(leftCm);
+        pageMargin.Right = (UInt32Value)(uint)TwipsFromCentimeters(rightCm);
+
+        if (topCm.HasValue)
+            pageMargin.Top = (UInt32Value)(uint)TwipsFromCentimeters(topCm.Value);
+
+        if (bottomCm.HasValue)
+            pageMargin.Bottom = (UInt32Value)(uint)TwipsFromCentimeters(bottomCm.Value);
+
+        body.Append(sectionProps);
+    }
+
     private static int TwipsFromPoints(double points) => (int)Math.Round(points * 20);
+
+    private static int TwipsFromCentimeters(double centimeters)
+        => (int)Math.Round(centimeters / 2.54 * 1440);
 
     private static string PointsToHalfPointString(double points)
         => Math.Round(points * 2).ToString(CultureInfo.InvariantCulture);
