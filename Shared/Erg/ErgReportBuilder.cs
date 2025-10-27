@@ -889,8 +889,8 @@ public static class ErgReportBuilder
             if (graphHeight <= 0f)
                 graphHeight = columnWidth * 0.55f;
 
-            var labelHeight = _eyeLabelFont.GetHeight(_graphics);
-            var totalHeight = labelHeight + graphHeight + _summarySpacingSmall;
+            var topPadding = _summarySpacingSmall * 0.5f;
+            var totalHeight = topPadding + graphHeight;
 
             EnsureSpace(totalHeight + _spacingSmall);
 
@@ -898,8 +898,8 @@ public static class ErgReportBuilder
             var rightRect = new RectangleF(_marginLeft, top, columnWidth, totalHeight);
             var leftRect = new RectangleF(_marginLeft + columnWidth + _graphGap, top, columnWidth, totalHeight);
 
-            DrawGraphColumn(rightRect, "Правый глаз", rightGraph, graphHeight);
-            DrawGraphColumn(leftRect, "Левый глаз", leftGraph, graphHeight);
+            DrawGraphColumn(rightRect, rightGraph, graphHeight, topPadding);
+            DrawGraphColumn(leftRect, leftGraph, graphHeight, topPadding);
 
             _y = top + totalHeight + _spacingSmall;
         }
@@ -912,16 +912,12 @@ public static class ErgReportBuilder
             return graph.Height / (float)graph.Width * targetWidth;
         }
 
-        private void DrawGraphColumn(RectangleF rect, string label, GraphImage? image, float graphHeight)
+        private void DrawGraphColumn(RectangleF rect, GraphImage? image, float graphHeight, float topPadding)
         {
             if (_graphics == null)
                 return;
 
-            var labelRect = new RectangleF(rect.Left, rect.Top, rect.Width, _eyeLabelFont.GetHeight(_graphics));
-            _graphics.DrawString(label, _eyeLabelFont, Brushes.Black, labelRect, _formatCenter);
-
-            var graphTop = labelRect.Bottom + _summarySpacingSmall * 0.5f;
-            var graphRect = new RectangleF(rect.Left, graphTop, rect.Width, graphHeight);
+            var graphRect = new RectangleF(rect.Left, rect.Top + topPadding, rect.Width, graphHeight);
 
             if (image != null)
             {
@@ -2469,10 +2465,15 @@ public static class ErgReportBuilder
         eyeHeaderRow.Append(CreateClientEyeHeaderCell("Левый глаз", test.LeftEye));
         table.Append(eyeHeaderRow);
 
-        var contentRow = new TableRow();
-        contentRow.Append(CreateClientEyeCell(mainPart, test, test.RightEye, index, "right", ref imageId));
-        contentRow.Append(CreateClientEyeCell(mainPart, test, test.LeftEye, index, "left", ref imageId));
-        table.Append(contentRow);
+        var summaryRow = new TableRow();
+        summaryRow.Append(CreateClientEyeSummaryCell(test, test.RightEye));
+        summaryRow.Append(CreateClientEyeSummaryCell(test, test.LeftEye));
+        table.Append(summaryRow);
+
+        var graphRow = new TableRow();
+        graphRow.Append(CreateClientGraphCell(mainPart, test, test.RightEye, index, "right", ref imageId));
+        graphRow.Append(CreateClientGraphCell(mainPart, test, test.LeftEye, index, "left", ref imageId));
+        table.Append(graphRow);
 
         return table;
     }
@@ -2515,15 +2516,15 @@ public static class ErgReportBuilder
         return cell;
     }
 
-    private static TableCell CreateClientEyeCell(MainDocumentPart mainPart, ErgTest test, EyeData eye, int index, string suffix, ref uint imageId)
+    private static TableCell CreateClientEyeSummaryCell(ErgTest test, EyeData eye)
     {
         var props = new TableCellProperties(new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Top });
         props.Append(new TableCellMargin
         {
             LeftMargin = new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
             RightMargin = new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
-            TopMargin = new TopMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
-            BottomMargin = new BottomMargin { Width = "80", Type = TableWidthUnitValues.Dxa }
+            TopMargin = new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+            BottomMargin = new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa }
         });
 
         var cell = new TableCell(props);
@@ -2543,6 +2544,22 @@ public static class ErgReportBuilder
                 AppendClientWaveParagraphs(cell, waveLabel, display);
             }
         }
+
+        return cell;
+    }
+
+    private static TableCell CreateClientGraphCell(MainDocumentPart mainPart, ErgTest test, EyeData eye, int index, string suffix, ref uint imageId)
+    {
+        var props = new TableCellProperties(new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center });
+        props.Append(new TableCellMargin
+        {
+            LeftMargin = new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+            RightMargin = new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+            TopMargin = new TopMargin { Width = "20", Type = TableWidthUnitValues.Dxa },
+            BottomMargin = new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa }
+        });
+
+        var cell = new TableCell(props);
 
         var graph = TryRenderGraphImage(test, eye);
         if (graph != null)
