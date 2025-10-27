@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Xml.Linq;
 using ErgData;
 using Xunit;
 using DocumentFormat.OpenXml.Packaging;
@@ -209,6 +211,29 @@ public class RenderingSupportTests
 
             Assert.True(File.Exists(outputPath));
             Assert.True(new FileInfo(outputPath).Length > 0);
+
+            using (var archive = ZipFile.OpenRead(outputPath))
+            {
+                var entry = archive.GetEntry("[Content_Types].xml");
+                Assert.NotNull(entry);
+
+                XDocument manifest;
+                using (var stream = entry!.Open())
+                {
+                    manifest = XDocument.Load(stream);
+                }
+
+                var ns = XNamespace.Get("http://schemas.openxmlformats.org/package/2006/content-types");
+                var root = manifest.Root ?? throw new InvalidOperationException("Файл [Content_Types].xml поврежден.");
+
+                var xmlDefault = root.Elements(ns + "Default").FirstOrDefault(e => string.Equals((string?)e.Attribute("Extension"), "xml", StringComparison.OrdinalIgnoreCase));
+                Assert.NotNull(xmlDefault);
+                Assert.Equal("application/xml", (string?)xmlDefault!.Attribute("ContentType"));
+
+                var mainOverride = root.Elements(ns + "Override").FirstOrDefault(e => string.Equals((string?)e.Attribute("PartName"), "/word/document.xml", StringComparison.OrdinalIgnoreCase));
+                Assert.NotNull(mainOverride);
+                Assert.Equal("application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml", (string?)mainOverride!.Attribute("ContentType"));
+            }
 
             using var document = WordprocessingDocument.Open(outputPath, false);
             var validator = new OpenXmlValidator();

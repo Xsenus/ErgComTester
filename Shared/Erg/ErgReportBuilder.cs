@@ -2,7 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Text;
+using System.Xml.Linq;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -269,92 +272,182 @@ public static class ErgReportBuilder
             ? "Отчет по результатам ЭРГ-исследования сетчатки"
             : clinicName;
 
-        using var document = WordprocessingDocument.Create(docxPath, WordprocessingDocumentType.Document);
-        var mainPart = document.AddMainDocumentPart();
-        mainPart.Document = new WordDocument(new Body());
-        var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
-
-        body.Append(CreateParagraph(headerTitle, fontSizePt: 16, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(12)));
-        body.Append(CreateHeaderTable(patient, deviceInfo));
-
-        if (!string.IsNullOrWhiteSpace(patient.Description))
+        using (var document = WordprocessingDocument.Create(docxPath, WordprocessingDocumentType.Document))
         {
-            body.Append(CreateDescriptionTable(patient.Description));
+            var mainPart = document.AddMainDocumentPart();
+            mainPart.Document = new WordDocument(new Body());
+            var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
+
+            body.Append(CreateParagraph(headerTitle, fontSizePt: 16, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(12)));
+            body.Append(CreateHeaderTable(patient, deviceInfo));
+
+            if (!string.IsNullOrWhiteSpace(patient.Description))
+            {
+                body.Append(CreateDescriptionTable(patient.Description));
+            }
+
+            if (!string.IsNullOrWhiteSpace(rawFilePath))
+            {
+                body.Append(CreateParagraph($"Источник бинарных данных: {rawFilePath}", fontSizePt: 9, colorHex: "666666", spacingBefore: TwipsFromPoints(6)));
+            }
+
+            uint imageId = 1;
+
+            for (int i = 0; i < patient.Tests.Count; i++)
+            {
+                var test = patient.Tests[i];
+
+                body.Append(CreateParagraph($"Тест №{i + 1}: {test.TestName}", fontSizePt: 13, bold: true, spacingBefore: TwipsFromPoints(16), spacingAfter: TwipsFromPoints(4)));
+                body.Append(CreateParagraph($"Точек: {test.GraphNumPoints}, Δt: {test.GraphDt} мс, дискрет/мкВ: {test.GraphDiscrPerMkV}", fontSizePt: 11));
+                body.Append(CreateParagraph($"Вспышка: {test.GraphFlashPosition} мс", fontSizePt: 11));
+                body.Append(CreateParagraph($"Диапазон X: {test.GraphXScaleMin}…{test.GraphXScaleMax} мс (шаг {test.GraphXValueStep})", fontSizePt: 11));
+                body.Append(CreateParagraph($"Диапазон Y: {test.GraphYScaleMin}…{test.GraphYScaleMax} мкВ (шаг {test.GraphYValueStep})", fontSizePt: 11));
+                body.Append(CreateParagraph($"a-волна: {(test.AWaveExists ? "есть" : "нет")}, нормы ms: {FormatRange(test.AWaveMsNormalMin, test.AWaveMsNormalMax)}, мкВ: {FormatRange(test.AWaveMkVNormalMin, test.AWaveMkVNormalMax)}", fontSizePt: 11));
+                body.Append(CreateParagraph($"b-волна нормы ms: {FormatRange(test.BWaveMsNormalMin, test.BWaveMsNormalMax)}, мкВ: {FormatRange(test.BWaveMkVNormalMin, test.BWaveMkVNormalMax)}", fontSizePt: 11));
+
+                body.Append(CreateMeasurementTable(test));
+                AppendGraphSection(body, mainPart, test, ref imageId);
+            }
+
+            ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
+
+            mainPart.Document.Save();
         }
 
-        if (!string.IsNullOrWhiteSpace(rawFilePath))
-        {
-            body.Append(CreateParagraph($"Источник бинарных данных: {rawFilePath}", fontSizePt: 9, colorHex: "666666", spacingBefore: TwipsFromPoints(6)));
-        }
-
-        uint imageId = 1;
-
-        for (int i = 0; i < patient.Tests.Count; i++)
-        {
-            var test = patient.Tests[i];
-
-            body.Append(CreateParagraph($"Тест №{i + 1}: {test.TestName}", fontSizePt: 13, bold: true, spacingBefore: TwipsFromPoints(16), spacingAfter: TwipsFromPoints(4)));
-            body.Append(CreateParagraph($"Точек: {test.GraphNumPoints}, Δt: {test.GraphDt} мс, дискрет/мкВ: {test.GraphDiscrPerMkV}", fontSizePt: 11));
-            body.Append(CreateParagraph($"Вспышка: {test.GraphFlashPosition} мс", fontSizePt: 11));
-            body.Append(CreateParagraph($"Диапазон X: {test.GraphXScaleMin}…{test.GraphXScaleMax} мс (шаг {test.GraphXValueStep})", fontSizePt: 11));
-            body.Append(CreateParagraph($"Диапазон Y: {test.GraphYScaleMin}…{test.GraphYScaleMax} мкВ (шаг {test.GraphYValueStep})", fontSizePt: 11));
-            body.Append(CreateParagraph($"a-волна: {(test.AWaveExists ? "есть" : "нет")}, нормы ms: {FormatRange(test.AWaveMsNormalMin, test.AWaveMsNormalMax)}, мкВ: {FormatRange(test.AWaveMkVNormalMin, test.AWaveMkVNormalMax)}", fontSizePt: 11));
-            body.Append(CreateParagraph($"b-волна нормы ms: {FormatRange(test.BWaveMsNormalMin, test.BWaveMsNormalMax)}, мкВ: {FormatRange(test.BWaveMkVNormalMin, test.BWaveMkVNormalMax)}", fontSizePt: 11));
-
-            body.Append(CreateMeasurementTable(test));
-            AppendGraphSection(body, mainPart, test, ref imageId);
-        }
-
-        ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
-
-        mainPart.Document.Save();
+        NormalizeWordContentTypes(docxPath);
     }
 
     private static void BuildPatientWordReportClient(ErgPatient patient, string docxPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
     {
-        using var document = WordprocessingDocument.Create(docxPath, WordprocessingDocumentType.Document);
-        var mainPart = document.AddMainDocumentPart();
-        mainPart.Document = new WordDocument(new Body());
-        var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
-
-        var clinicHeader = string.IsNullOrWhiteSpace(clinicName)
-            ? "Шапка [название организации]"
-            : clinicName!;
-        body.Append(CreateParagraph(clinicHeader, fontSizePt: 12, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(4)));
-
-        var reportTitle = !string.IsNullOrWhiteSpace(deviceInfo?.ReportName)
-            ? deviceInfo!.ReportName!
-            : "Отчет по результатам ЭРГ-исследования сетчатки";
-        body.Append(CreateParagraph(reportTitle, fontSizePt: 18, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(14)));
-        body.Append(CreateClientInfoTable(patient, deviceInfo));
-
-        uint imageId = 1;
-
-        for (int i = 0; i < patient.Tests.Count; i++)
+        using (var document = WordprocessingDocument.Create(docxPath, WordprocessingDocumentType.Document))
         {
-            var testTable = CreateClientTestTable(mainPart, patient.Tests[i], i + 1, ref imageId);
-            body.Append(testTable);
+            var mainPart = document.AddMainDocumentPart();
+            mainPart.Document = new WordDocument(new Body());
+            var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
+
+            var clinicHeader = string.IsNullOrWhiteSpace(clinicName)
+                ? "Шапка [название организации]"
+                : clinicName!;
+            body.Append(CreateParagraph(clinicHeader, fontSizePt: 12, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(4)));
+
+            var reportTitle = !string.IsNullOrWhiteSpace(deviceInfo?.ReportName)
+                ? deviceInfo!.ReportName!
+                : "Отчет по результатам ЭРГ-исследования сетчатки";
+            body.Append(CreateParagraph(reportTitle, fontSizePt: 18, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(14)));
+            body.Append(CreateClientInfoTable(patient, deviceInfo));
+
+            uint imageId = 1;
+
+            for (int i = 0; i < patient.Tests.Count; i++)
+            {
+                var testTable = CreateClientTestTable(mainPart, patient.Tests[i], i + 1, ref imageId);
+                body.Append(testTable);
+            }
+
+            if (!string.IsNullOrWhiteSpace(patient.Description))
+            {
+                AppendClientDescription(body, patient.Description);
+            }
+
+            if (!string.IsNullOrWhiteSpace(rawFilePath))
+            {
+                body.Append(CreateParagraph($"Источник бинарных данных: {rawFilePath}", fontSizePt: 9, colorHex: "777777", spacingBefore: TwipsFromPoints(6)));
+            }
+
+            var version = GetApplicationVersion();
+            if (!string.IsNullOrWhiteSpace(version) && version != "—")
+            {
+                body.Append(CreateParagraph($"Версия отчета: {version}", fontSizePt: 8, colorHex: "777777", justification: JustificationValues.Center, spacingBefore: TwipsFromPoints(12)));
+            }
+
+            ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
+
+            mainPart.Document.Save();
         }
 
-        if (!string.IsNullOrWhiteSpace(patient.Description))
+        NormalizeWordContentTypes(docxPath);
+    }
+
+    private static void NormalizeWordContentTypes(string docxPath)
+    {
+        if (string.IsNullOrWhiteSpace(docxPath) || !File.Exists(docxPath))
+            return;
+
+        try
         {
-            AppendClientDescription(body, patient.Description);
-        }
+            using var archive = ZipFile.Open(docxPath, ZipArchiveMode.Update);
+            var entry = archive.GetEntry("[Content_Types].xml");
+            if (entry == null)
+                return;
 
-        if (!string.IsNullOrWhiteSpace(rawFilePath))
+            XDocument document;
+            using (var stream = entry.Open())
+            using (var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 4096, leaveOpen: false))
+            {
+                document = XDocument.Load(reader);
+            }
+
+            var ns = XNamespace.Get("http://schemas.openxmlformats.org/package/2006/content-types");
+            var root = document.Root ?? new XElement(ns + "Types");
+            if (document.Root == null)
+            {
+                document.Add(root);
+            }
+
+            bool changed = false;
+
+            void EnsureDefault(string extension, string contentType)
+            {
+                var element = root.Elements(ns + "Default").FirstOrDefault(e => string.Equals((string?)e.Attribute("Extension"), extension, StringComparison.OrdinalIgnoreCase));
+                if (element == null)
+                {
+                    root.Add(new XElement(ns + "Default",
+                        new XAttribute("Extension", extension),
+                        new XAttribute("ContentType", contentType)));
+                    changed = true;
+                }
+                else if (!string.Equals((string?)element.Attribute("ContentType"), contentType, StringComparison.OrdinalIgnoreCase))
+                {
+                    element.SetAttributeValue("ContentType", contentType);
+                    changed = true;
+                }
+            }
+
+            void EnsureOverride(string partName, string contentType)
+            {
+                var element = root.Elements(ns + "Override").FirstOrDefault(e => string.Equals((string?)e.Attribute("PartName"), partName, StringComparison.OrdinalIgnoreCase));
+                if (element == null)
+                {
+                    root.Add(new XElement(ns + "Override",
+                        new XAttribute("PartName", partName),
+                        new XAttribute("ContentType", contentType)));
+                    changed = true;
+                }
+                else if (!string.Equals((string?)element.Attribute("ContentType"), contentType, StringComparison.OrdinalIgnoreCase))
+                {
+                    element.SetAttributeValue("ContentType", contentType);
+                    changed = true;
+                }
+            }
+
+            EnsureDefault("rels", "application/vnd.openxmlformats-package.relationships+xml");
+            EnsureDefault("xml", "application/xml");
+            EnsureDefault("png", "image/png");
+            EnsureOverride("/word/document.xml", "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
+
+            if (!changed)
+                return;
+
+            entry.Delete();
+            var newEntry = archive.CreateEntry("[Content_Types].xml", CompressionLevel.Optimal);
+            using var newStream = newEntry.Open();
+            using var writer = new StreamWriter(newStream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            document.Save(writer);
+        }
+        catch (Exception ex)
         {
-            body.Append(CreateParagraph($"Источник бинарных данных: {rawFilePath}", fontSizePt: 9, colorHex: "777777", spacingBefore: TwipsFromPoints(6)));
+            throw new InvalidOperationException($"Не удалось обновить типы содержимого DOCX-файла '{docxPath}'.", ex);
         }
-
-        var version = GetApplicationVersion();
-        if (!string.IsNullOrWhiteSpace(version) && version != "—")
-        {
-            body.Append(CreateParagraph($"Версия отчета: {version}", fontSizePt: 8, colorHex: "777777", justification: JustificationValues.Center, spacingBefore: TwipsFromPoints(12)));
-        }
-
-        ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
-
-        mainPart.Document.Save();
     }
 
     private sealed class LegacyPdfRenderer : IDisposable

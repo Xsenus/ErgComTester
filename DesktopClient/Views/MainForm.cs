@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using ErgData;
@@ -470,7 +472,7 @@ public partial class MainForm : Form
         {
             Title = "Выберите файл пациента",
             Filter = "Файлы пациента (*.bin)|*.bin|Все файлы (*.*)|*.*",
-            Multiselect = false
+            Multiselect = true
         };
 
         if (dialog.ShowDialog(this) != DialogResult.OK)
@@ -478,71 +480,64 @@ public partial class MainForm : Form
             return;
         }
 
-        var filePath = dialog.FileName;
-        AppServices.Log.Info($"Пользователь выбрал файл для ручного преобразования: {filePath}");
+        var filePaths = dialog.FileNames
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (filePaths.Length == 0)
+        {
+            return;
+        }
+
+        AppServices.Log.Info($"Пользователь выбрал {filePaths.Length} файл(ов) для ручного преобразования: {string.Join(", ", filePaths)}");
 
         var previousCursor = Cursor;
         Cursor = Cursors.WaitCursor;
 
         try
         {
-            var result = await _viewModel.ConvertRawFileAsync(filePath);
-            if (result.Success)
+            var successBlocks = new List<string>();
+            var errorBlocks = new List<string>();
+
+            foreach (var filePath in filePaths)
             {
-                var detailsBuilder = new System.Text.StringBuilder();
-                if (!string.IsNullOrWhiteSpace(result.JsonPath))
+                var result = await _viewModel.ConvertRawFileAsync(filePath);
+                if (result.Success)
                 {
-                    detailsBuilder.AppendLine($"JSON: {result.JsonPath}");
+                    successBlocks.Add(BuildManualConversionSuccessBlock(result));
                 }
-                if (!string.IsNullOrWhiteSpace(result.PdfPath))
+                else
                 {
-                    detailsBuilder.AppendLine($"PDF: {result.PdfPath}");
+                    errorBlocks.Add(BuildManualConversionErrorBlock(result));
                 }
-                if (!string.IsNullOrWhiteSpace(result.DocxPath))
-                {
-                    detailsBuilder.AppendLine($"Word: {result.DocxPath}");
-                }
-                var details = detailsBuilder.Length > 0
-                    ? detailsBuilder.ToString().TrimEnd()
-                    : "Файлы отчета сохранены";
+            }
 
-                if (!string.IsNullOrWhiteSpace(result.RawPath))
-                {
-                    details = $"Исходный файл: {result.RawPath}{Environment.NewLine}{details}";
-                }
+            if (successBlocks.Count > 0)
+            {
+                var header = successBlocks.Count == 1
+                    ? "Файл успешно обработан."
+                    : $"Успешно обработаны файлы ({successBlocks.Count} из {filePaths.Length}).";
 
-                if (result.Patient?.Warnings is { Count: > 0 } warnings)
-                {
-                    var warningsText = string.Join(Environment.NewLine, warnings
-                        .Take(3)
-                        .Select(w => $"• {w}"));
-                    details += $"{Environment.NewLine}Предупреждения:{Environment.NewLine}{warningsText}";
-                    if (warnings.Count > 3)
-                    {
-                        details += $"{Environment.NewLine}… и ещё {warnings.Count - 3}";
-                    }
-                }
+                var message = header + Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine + Environment.NewLine, successBlocks);
                 MessageBox.Show(
                     this,
-                    $"Файл успешно обработан.{Environment.NewLine}{details}",
+                    message.TrimEnd(),
                     "Microlux ERG-Connect",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
             }
-            else
+
+            if (errorBlocks.Count > 0)
             {
-                var reason = result.ErrorMessage ?? "Неизвестная ошибка.";
-                if (!string.IsNullOrWhiteSpace(result.RawPath))
-                {
-                    reason += $"{Environment.NewLine}Файл: {result.RawPath}";
-                }
-                if (!string.IsNullOrWhiteSpace(result.JsonPath))
-                {
-                    reason += $"{Environment.NewLine}JSON: {result.JsonPath}";
-                }
+                var header = errorBlocks.Count == 1
+                    ? "Не удалось обработать файл."
+                    : $"Не удалось обработать файлы ({errorBlocks.Count} из {filePaths.Length}).";
+
+                var message = header + Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine + Environment.NewLine, errorBlocks);
                 MessageBox.Show(
                     this,
-                    $"Не удалось обработать файл.{Environment.NewLine}{reason}",
+                    message.TrimEnd(),
                     "Microlux ERG-Connect",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
@@ -566,6 +561,88 @@ public partial class MainForm : Form
         {
             Cursor = previousCursor;
         }
+    }
+
+    private static string BuildManualConversionSuccessBlock(ManualConversionResult result)
+    {
+        var builder = new StringBuilder();
+        var title = !string.IsNullOrWhiteSpace(result.RawPath)
+            ? Path.GetFileName(result.RawPath)
+            : "Файл";
+        builder.AppendLine(title + ":");
+
+        var detailsAdded = false;
+
+        if (!string.IsNullOrWhiteSpace(result.RawPath))
+        {
+            builder.AppendLine($"  Исходный файл: {result.RawPath}");
+            detailsAdded = true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.JsonPath))
+        {
+            builder.AppendLine($"  JSON: {result.JsonPath}");
+            detailsAdded = true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.PdfPath))
+        {
+            builder.AppendLine($"  PDF: {result.PdfPath}");
+            detailsAdded = true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.DocxPath))
+        {
+            builder.AppendLine($"  Word: {result.DocxPath}");
+            detailsAdded = true;
+        }
+
+        if (!detailsAdded)
+        {
+            builder.AppendLine("  Файлы отчета сохранены.");
+        }
+
+        if (result.Patient?.Warnings is { Count: > 0 } warnings)
+        {
+            builder.AppendLine("  Предупреждения:");
+            foreach (var warning in warnings.Take(3))
+            {
+                builder.AppendLine($"    • {warning}");
+            }
+
+            if (warnings.Count > 3)
+            {
+                builder.AppendLine($"    … и ещё {warnings.Count - 3}");
+            }
+        }
+
+        return builder.ToString().TrimEnd();
+    }
+
+    private static string BuildManualConversionErrorBlock(ManualConversionResult result)
+    {
+        var builder = new StringBuilder();
+        var title = !string.IsNullOrWhiteSpace(result.RawPath)
+            ? Path.GetFileName(result.RawPath)
+            : "Файл";
+        builder.AppendLine(title + ":");
+
+        var reason = string.IsNullOrWhiteSpace(result.ErrorMessage)
+            ? "Неизвестная ошибка."
+            : result.ErrorMessage!;
+        builder.AppendLine($"  Причина: {reason}");
+
+        if (!string.IsNullOrWhiteSpace(result.RawPath))
+        {
+            builder.AppendLine($"  Файл: {result.RawPath}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.JsonPath))
+        {
+            builder.AppendLine($"  JSON: {result.JsonPath}");
+        }
+
+        return builder.ToString().TrimEnd();
     }
 
     private void OnCheckUpdatesClicked(object? sender, EventArgs e)
