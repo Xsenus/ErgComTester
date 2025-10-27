@@ -311,6 +311,8 @@ public static class ErgReportBuilder
 
             ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
 
+            EnsureWordStyles(document);
+            EnsureWordSettings(document);
             EnsureDocumentPropertiesParts(document, headerTitle);
 
             mainPart.Document.Save();
@@ -364,6 +366,8 @@ public static class ErgReportBuilder
 
             ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
 
+            EnsureWordStyles(document);
+            EnsureWordSettings(document);
             EnsureDocumentPropertiesParts(document, reportTitle);
 
             mainPart.Document.Save();
@@ -403,6 +407,197 @@ public static class ErgReportBuilder
             throw new InvalidOperationException($"Не удалось обновить типы содержимого DOCX-файла '{docxPath}'.", ex);
         }
     }
+
+    private static void EnsureWordStyles(WordprocessingDocument document)
+    {
+        if (document?.MainDocumentPart == null)
+            return;
+
+        var stylesPart = document.MainDocumentPart.StyleDefinitionsPart;
+        if (stylesPart == null)
+        {
+            stylesPart = document.MainDocumentPart.AddNewPart<StyleDefinitionsPart>();
+            stylesPart.Styles = BuildDefaultStyles();
+            stylesPart.Styles.Save();
+            return;
+        }
+
+        if (stylesPart.Styles == null)
+        {
+            stylesPart.Styles = BuildDefaultStyles();
+            stylesPart.Styles.Save();
+            return;
+        }
+
+        bool updated = false;
+
+        if (stylesPart.Styles.GetFirstChild<DocDefaults>() == null)
+        {
+            stylesPart.Styles.PrependChild(CreateDefaultDocDefaults());
+            updated = true;
+        }
+
+        if (!stylesPart.Styles.Elements<Style>().Any(s => string.Equals(s.StyleId, "Normal", StringComparison.OrdinalIgnoreCase)))
+        {
+            stylesPart.Styles.Append(CreateNormalParagraphStyle());
+            updated = true;
+        }
+
+        if (!stylesPart.Styles.Elements<Style>().Any(s => string.Equals(s.StyleId, "TableGrid", StringComparison.OrdinalIgnoreCase)))
+        {
+            stylesPart.Styles.Append(CreateTableGridStyle());
+            updated = true;
+        }
+
+        if (updated)
+        {
+            stylesPart.Styles.Save();
+        }
+    }
+
+    private static Styles BuildDefaultStyles()
+        => new Styles(
+            CreateDefaultDocDefaults(),
+            CreateNormalParagraphStyle(),
+            CreateTableGridStyle());
+
+    private static DocDefaults CreateDefaultDocDefaults()
+        => new DocDefaults(
+            new RunPropertiesDefault(
+                new RunPropertiesBaseStyle(
+                    new RunFonts { Ascii = "Arial", HighAnsi = "Arial", EastAsia = "Arial", ComplexScript = "Arial" },
+                    new WordColor { Val = "000000" },
+                    new FontSize { Val = "22" },
+                    new FontSizeComplexScript { Val = "22" }
+                )
+            ),
+            new ParagraphPropertiesDefault(
+                new ParagraphPropertiesBaseStyle(
+                    new SpacingBetweenLines { After = "160", Line = "240", LineRule = LineSpacingRuleValues.Auto }
+                )
+            )
+        );
+
+    private static Style CreateNormalParagraphStyle()
+    {
+        var style = new Style
+        {
+            Type = StyleValues.Paragraph,
+            StyleId = "Normal",
+            Default = new OnOffValue(true)
+        };
+
+        style.Append(new StyleName { Val = "Normal" });
+        style.Append(new PrimaryStyle());
+        style.Append(new UIPriority { Val = 1 });
+        style.Append(new UnhideWhenUsed());
+        style.Append(new StyleParagraphProperties(
+            new SpacingBetweenLines { After = "160", Line = "240", LineRule = LineSpacingRuleValues.Auto }
+        ));
+        style.Append(new StyleRunProperties(
+            new RunFonts { Ascii = "Arial", HighAnsi = "Arial", EastAsia = "Arial", ComplexScript = "Arial" },
+            new WordColor { Val = "000000" },
+            new FontSize { Val = "22" },
+            new FontSizeComplexScript { Val = "22" }
+        ));
+
+        return style;
+    }
+
+    private static Style CreateTableGridStyle()
+    {
+        var style = new Style
+        {
+            Type = StyleValues.Table,
+            StyleId = "TableGrid"
+        };
+
+        style.Append(new StyleName { Val = "Table Grid" });
+        style.Append(new StyleTableProperties(
+            new TableBorders(
+                new TopBorder { Val = BorderValues.Single, Color = "000000", Size = 4, Space = 0 },
+                new LeftBorder { Val = BorderValues.Single, Color = "000000", Size = 4, Space = 0 },
+                new BottomBorder { Val = BorderValues.Single, Color = "000000", Size = 4, Space = 0 },
+                new RightBorder { Val = BorderValues.Single, Color = "000000", Size = 4, Space = 0 },
+                new InsideHorizontalBorder { Val = BorderValues.Single, Color = "000000", Size = 4, Space = 0 },
+                new InsideVerticalBorder { Val = BorderValues.Single, Color = "000000", Size = 4, Space = 0 }
+            )
+        ));
+
+        return style;
+    }
+
+    private static void EnsureWordSettings(WordprocessingDocument document)
+    {
+        if (document?.MainDocumentPart == null)
+            return;
+
+        var settingsPart = document.MainDocumentPart.DocumentSettingsPart;
+        if (settingsPart == null)
+        {
+            settingsPart = document.MainDocumentPart.AddNewPart<DocumentSettingsPart>();
+            settingsPart.Settings = BuildDefaultSettings();
+            settingsPart.Settings.Save();
+            return;
+        }
+
+        if (settingsPart.Settings == null)
+        {
+            settingsPart.Settings = BuildDefaultSettings();
+            settingsPart.Settings.Save();
+            return;
+        }
+
+        bool updated = false;
+
+        if (!settingsPart.Settings.Elements<Compatibility>().Any())
+        {
+            settingsPart.Settings.Append(CreateCompatibilitySettings());
+            updated = true;
+        }
+        else if (!settingsPart.Settings.Elements<Compatibility>().Any(c =>
+                     c.Elements<CompatibilitySetting>().Any(s => s.Name == CompatSettingNameValues.CompatibilityMode)))
+        {
+            var compatibility = settingsPart.Settings.Elements<Compatibility>().First();
+            compatibility.Append(CreateCompatibilitySetting());
+            updated = true;
+        }
+
+        if (!settingsPart.Settings.Elements<DefaultTabStop>().Any())
+        {
+            settingsPart.Settings.Append(new DefaultTabStop { Val = 720 });
+            updated = true;
+        }
+
+        if (!settingsPart.Settings.Elements<CharacterSpacingControl>().Any())
+        {
+            settingsPart.Settings.Append(new CharacterSpacingControl { Val = CharacterSpacingValues.DoNotCompress });
+            updated = true;
+        }
+
+        if (updated)
+        {
+            settingsPart.Settings.Save();
+        }
+    }
+
+    private static Settings BuildDefaultSettings()
+        => new Settings(
+            CreateCompatibilitySettings(),
+            new DefaultTabStop { Val = 720 },
+            new CharacterSpacingControl { Val = CharacterSpacingValues.DoNotCompress }
+        );
+
+    private static Compatibility CreateCompatibilitySettings()
+        => new Compatibility(CreateCompatibilitySetting());
+
+    private static CompatibilitySetting CreateCompatibilitySetting()
+        => new CompatibilitySetting
+        {
+            Name = CompatSettingNameValues.CompatibilityMode,
+            Val = "15",
+            Uri = "http://schemas.microsoft.com/office/word"
+        };
 
     private static XDocument BuildContentTypesManifest(IReadOnlyCollection<ZipArchiveEntry> entries)
     {
