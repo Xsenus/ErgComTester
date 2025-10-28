@@ -500,15 +500,20 @@ public static class ErgReportBuilder
     private static void EnsurePackageRelationships(ZipArchive archive)
     {
         var relsEntry = archive.GetEntry("_rels/.rels");
-        if (relsEntry == null)
-            return;
-
         var ns = XNamespace.Get("http://schemas.openxmlformats.org/package/2006/relationships");
         XDocument document;
-        using (var stream = relsEntry.Open())
-        using (var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 4096, leaveOpen: false))
+        bool createdDocument = false;
+
+        if (relsEntry != null)
         {
+            using var stream = relsEntry.Open();
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 4096, leaveOpen: false);
             document = XDocument.Load(reader);
+        }
+        else
+        {
+            document = new XDocument();
+            createdDocument = true;
         }
 
         var root = document.Root ?? new XElement(ns + "Relationships");
@@ -517,7 +522,7 @@ public static class ErgReportBuilder
 
         var entries = new HashSet<string>(archive.Entries.Select(e => e.FullName), StringComparer.OrdinalIgnoreCase);
         var relationships = root.Elements(ns + "Relationship").ToList();
-        bool changed = false;
+        bool changed = createdDocument;
 
         foreach (var relationship in relationships.ToList())
         {
@@ -582,7 +587,7 @@ public static class ErgReportBuilder
         if (!changed)
             return;
 
-        relsEntry.Delete();
+        relsEntry?.Delete();
         var newEntry = archive.CreateEntry("_rels/.rels", CompressionLevel.Optimal);
         using var newStream = newEntry.Open();
         using var writer = new StreamWriter(newStream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
