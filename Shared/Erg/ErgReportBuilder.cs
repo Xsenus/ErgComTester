@@ -275,6 +275,7 @@ public static class ErgReportBuilder
         using (var document = WordprocessingDocument.Create(docxPath, WordprocessingDocumentType.Document))
         {
             var mainPart = document.AddMainDocumentPart();
+            EnsureMainDocumentStructure(mainPart);
             mainPart.Document = new WordDocument(new Body());
             var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
@@ -319,6 +320,7 @@ public static class ErgReportBuilder
         using (var document = WordprocessingDocument.Create(docxPath, WordprocessingDocumentType.Document))
         {
             var mainPart = document.AddMainDocumentPart();
+            EnsureMainDocumentStructure(mainPart);
             mainPart.Document = new WordDocument(new Body());
             var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
@@ -3606,6 +3608,339 @@ public static class ErgReportBuilder
             )
             { DistanceFromTop = 0U, DistanceFromBottom = 0U, DistanceFromLeft = 0U, DistanceFromRight = 0U }
         );
+    }
+
+    private static void EnsureMainDocumentStructure(MainDocumentPart? mainPart)
+    {
+        if (mainPart == null)
+            return;
+
+        EnsureStylesPart(mainPart);
+        EnsureFontTablePart(mainPart);
+        EnsureSettingsPart(mainPart);
+    }
+
+    private static void EnsureStylesPart(MainDocumentPart mainPart)
+    {
+        var stylesPart = mainPart.StyleDefinitionsPart;
+        if (stylesPart == null)
+        {
+            stylesPart = mainPart.AddNewPart<StyleDefinitionsPart>();
+            stylesPart.Styles = BuildDefaultStyles();
+            stylesPart.Styles.Save();
+            return;
+        }
+
+        stylesPart.Styles ??= new Styles();
+        EnsureDocDefaults(stylesPart.Styles);
+        EnsureParagraphNormalStyle(stylesPart.Styles);
+        EnsureTableGridStyle(stylesPart.Styles);
+        stylesPart.Styles.Save();
+    }
+
+    private static void EnsureFontTablePart(MainDocumentPart mainPart)
+    {
+        var fontPart = mainPart.FontTablePart;
+        if (fontPart == null)
+        {
+            fontPart = mainPart.AddNewPart<FontTablePart>();
+            fontPart.Fonts = BuildDefaultFonts();
+            fontPart.Fonts.Save();
+            return;
+        }
+
+        fontPart.Fonts ??= new Fonts();
+        EnsureFontDefinition(fontPart.Fonts, "Calibri", FontFamilyNumberingValues.Swiss, FontPitchValues.Variable, "020F0502020204030204");
+        EnsureFontDefinition(fontPart.Fonts, "Arial", FontFamilyNumberingValues.Swiss, FontPitchValues.Variable, "020B0604020202020204");
+        EnsureFontDefinition(fontPart.Fonts, "Times New Roman", FontFamilyNumberingValues.Roman, FontPitchValues.Variable, "02020603050405020304");
+        fontPart.Fonts.Save();
+    }
+
+    private static void EnsureSettingsPart(MainDocumentPart mainPart)
+    {
+        var settingsPart = mainPart.DocumentSettingsPart;
+        if (settingsPart == null)
+        {
+            settingsPart = mainPart.AddNewPart<DocumentSettingsPart>();
+            settingsPart.Settings = BuildDefaultSettings();
+            settingsPart.Settings.Save();
+            return;
+        }
+
+        settingsPart.Settings ??= new Settings();
+        EnsureCompatibilitySettings(settingsPart.Settings);
+        EnsureDefaultTabStop(settingsPart.Settings);
+        EnsureCharacterSpacing(settingsPart.Settings);
+        settingsPart.Settings.Save();
+    }
+
+    private static void EnsureDocDefaults(Styles styles)
+    {
+        var docDefaults = styles.Elements<DocDefaults>().FirstOrDefault();
+        if (docDefaults == null)
+        {
+            docDefaults = BuildDocDefaults();
+            styles.PrependChild(docDefaults);
+            return;
+        }
+
+        var runDefaults = docDefaults.RunPropertiesDefault ??= new RunPropertiesDefault();
+        var runBase = runDefaults.RunPropertiesBaseStyle ??= new RunPropertiesBaseStyle();
+        if (!runBase.Elements<RunFonts>().Any())
+        {
+            runBase.Append(new RunFonts
+            {
+                Ascii = "Calibri",
+                HighAnsi = "Calibri",
+                EastAsia = "Calibri",
+                ComplexScript = "Calibri"
+            });
+        }
+        if (!runBase.Elements<FontSize>().Any())
+        {
+            runBase.Append(new FontSize { Val = "22" });
+        }
+        if (!runBase.Elements<FontSizeComplexScript>().Any())
+        {
+            runBase.Append(new FontSizeComplexScript { Val = "22" });
+        }
+
+        var paragraphDefaults = docDefaults.ParagraphPropertiesDefault ??= new ParagraphPropertiesDefault();
+        var paragraphBase = paragraphDefaults.ParagraphPropertiesBaseStyle ??= new ParagraphPropertiesBaseStyle();
+        if (!paragraphBase.Elements<SpacingBetweenLines>().Any())
+        {
+            paragraphBase.Append(new SpacingBetweenLines
+            {
+                After = "160",
+                Line = "259",
+                LineRule = LineSpacingRuleValues.Auto
+            });
+        }
+    }
+
+    private static void EnsureParagraphNormalStyle(Styles styles)
+    {
+        bool HasNormalStyle(Style style)
+            => style?.Type?.Value == StyleValues.Paragraph
+               && string.Equals(style.StyleId, "Normal", StringComparison.OrdinalIgnoreCase);
+
+        var normalStyle = styles.Elements<Style>().FirstOrDefault(HasNormalStyle);
+        if (normalStyle != null)
+            return;
+
+        styles.Append(BuildNormalParagraphStyle());
+    }
+
+    private static void EnsureTableGridStyle(Styles styles)
+    {
+        bool HasTableGrid(Style style)
+            => style?.Type?.Value == StyleValues.Table
+               && string.Equals(style.StyleId, "TableGrid", StringComparison.OrdinalIgnoreCase);
+
+        var tableGrid = styles.Elements<Style>().FirstOrDefault(HasTableGrid);
+        if (tableGrid != null)
+            return;
+
+        styles.Append(BuildTableGridStyle());
+    }
+
+    private static void EnsureFontDefinition(Fonts fonts, string name, FontFamilyNumberingValues family, FontPitchValues pitch, string panose)
+    {
+        if (fonts.Elements<Font>().Any(f => string.Equals(f?.Name?.Value, name, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        fonts.Append(BuildFont(name, family, pitch, panose));
+    }
+
+    private static void EnsureCompatibilitySettings(Settings settings)
+    {
+        const string CompatibilityUri = "http://schemas.microsoft.com/office/word";
+
+        var compatibility = settings.GetFirstChild<Compatibility>();
+        if (compatibility == null)
+        {
+            compatibility = new Compatibility();
+            settings.Append(compatibility);
+        }
+
+        var modeSetting = compatibility.Elements<CompatibilitySetting>()
+            .FirstOrDefault(s => s.Name != null && s.Name == CompatibilitySettingNameValues.CompatibilityMode);
+
+        if (modeSetting == null)
+        {
+            modeSetting = new CompatibilitySetting
+            {
+                Name = CompatibilitySettingNameValues.CompatibilityMode,
+                Val = 15,
+                Uri = CompatibilityUri
+            };
+            compatibility.Append(modeSetting);
+        }
+        else
+        {
+            if (modeSetting.Val == null)
+                modeSetting.Val = 15;
+            if (string.IsNullOrEmpty(modeSetting.Uri?.Value))
+                modeSetting.Uri = CompatibilityUri;
+        }
+
+        var tableSetting = compatibility.Elements<CompatibilitySetting>()
+            .FirstOrDefault(s => s.Name != null && s.Name == CompatibilitySettingNameValues.OverrideTableStyleFontSizeAndJustification);
+
+        if (tableSetting == null)
+        {
+            compatibility.Append(new CompatibilitySetting
+            {
+                Name = CompatibilitySettingNameValues.OverrideTableStyleFontSizeAndJustification,
+                Val = 1,
+                Uri = CompatibilityUri
+            });
+        }
+    }
+
+    private static void EnsureDefaultTabStop(Settings settings)
+    {
+        if (settings.Elements<DefaultTabStop>().Any())
+            return;
+
+        settings.Append(new DefaultTabStop { Val = 720 });
+    }
+
+    private static void EnsureCharacterSpacing(Settings settings)
+    {
+        if (settings.Elements<CharacterSpacingControl>().Any())
+            return;
+
+        settings.Append(new CharacterSpacingControl { Val = CharacterSpacingValues.DoNotCompress });
+    }
+
+    private static Styles BuildDefaultStyles()
+    {
+        var styles = new Styles();
+        styles.Append(BuildDocDefaults());
+        styles.Append(BuildNormalParagraphStyle());
+        styles.Append(BuildTableGridStyle());
+        return styles;
+    }
+
+    private static DocDefaults BuildDocDefaults()
+    {
+        return new DocDefaults(
+            new RunPropertiesDefault(
+                new RunPropertiesBaseStyle(
+                    new RunFonts
+                    {
+                        Ascii = "Calibri",
+                        HighAnsi = "Calibri",
+                        EastAsia = "Calibri",
+                        ComplexScript = "Calibri"
+                    },
+                    new FontSize { Val = "22" },
+                    new FontSizeComplexScript { Val = "22" }
+                )
+            ),
+            new ParagraphPropertiesDefault(
+                new ParagraphPropertiesBaseStyle(
+                    new SpacingBetweenLines
+                    {
+                        After = "160",
+                        Line = "259",
+                        LineRule = LineSpacingRuleValues.Auto
+                    }
+                )
+            )
+        );
+    }
+
+    private static Style BuildNormalParagraphStyle()
+    {
+        var style = new Style
+        {
+            Type = StyleValues.Paragraph,
+            StyleId = "Normal",
+            Default = true
+        };
+
+        style.Append(new StyleName { Val = "Normal" });
+        style.Append(new UIPriority { Val = 0 });
+        style.Append(new PrimaryStyle());
+        style.Append(new Rsid { Val = "00000000" });
+        style.Append(new StyleParagraphProperties(
+            new SpacingBetweenLines
+            {
+                After = "160",
+                Line = "259",
+                LineRule = LineSpacingRuleValues.Auto
+            }
+        ));
+        style.Append(new StyleRunProperties(
+            new RunFonts
+            {
+                Ascii = "Calibri",
+                HighAnsi = "Calibri",
+                EastAsia = "Calibri",
+                ComplexScript = "Calibri"
+            },
+            new FontSize { Val = "22" },
+            new FontSizeComplexScript { Val = "22" }
+        ));
+
+        return style;
+    }
+
+    private static Style BuildTableGridStyle()
+    {
+        var style = new Style
+        {
+            Type = StyleValues.Table,
+            StyleId = "TableGrid"
+        };
+
+        style.Append(new StyleName { Val = "Table Grid" });
+        style.Append(new UIPriority { Val = 59 });
+        style.Append(new UnhideWhenUsed());
+        style.Append(new PrimaryStyle());
+        style.Append(new Rsid { Val = "00000000" });
+
+        var borders = new TableBorders(
+            new TopBorder { Val = BorderValues.Single, Size = 4, Color = "000000" },
+            new LeftBorder { Val = BorderValues.Single, Size = 4, Color = "000000" },
+            new BottomBorder { Val = BorderValues.Single, Size = 4, Color = "000000" },
+            new RightBorder { Val = BorderValues.Single, Size = 4, Color = "000000" },
+            new InsideHorizontalBorder { Val = BorderValues.Single, Size = 4, Color = "000000" },
+            new InsideVerticalBorder { Val = BorderValues.Single, Size = 4, Color = "000000" }
+        );
+
+        style.Append(new StyleTableProperties(borders));
+        return style;
+    }
+
+    private static Fonts BuildDefaultFonts()
+    {
+        var fonts = new Fonts();
+        fonts.Append(BuildFont("Calibri", FontFamilyNumberingValues.Swiss, FontPitchValues.Variable, "020F0502020204030204"));
+        fonts.Append(BuildFont("Arial", FontFamilyNumberingValues.Swiss, FontPitchValues.Variable, "020B0604020202020204"));
+        fonts.Append(BuildFont("Times New Roman", FontFamilyNumberingValues.Roman, FontPitchValues.Variable, "02020603050405020304"));
+        return fonts;
+    }
+
+    private static Font BuildFont(string name, FontFamilyNumberingValues family, FontPitchValues pitch, string panose)
+    {
+        var font = new Font { Name = name };
+        font.Append(new Panose { Val = panose });
+        font.Append(new Charset { Val = "00" });
+        font.Append(new FontFamilyNumbering { Val = family });
+        font.Append(new Pitch { Val = pitch });
+        return font;
+    }
+
+    private static Settings BuildDefaultSettings()
+    {
+        var settings = new Settings();
+        EnsureCompatibilitySettings(settings);
+        EnsureDefaultTabStop(settings);
+        EnsureCharacterSpacing(settings);
+        return settings;
     }
 
     private static long PixelsToEmus(int pixels) => (long)(pixels / 96.0 * 914400);
