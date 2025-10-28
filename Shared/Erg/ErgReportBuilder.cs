@@ -275,6 +275,7 @@ public static class ErgReportBuilder
         using (var document = WordprocessingDocument.Create(docxPath, WordprocessingDocumentType.Document))
         {
             var mainPart = document.AddMainDocumentPart();
+            EnsureMainDocumentStructure(mainPart);
             mainPart.Document = new WordDocument(new Body());
             var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
@@ -319,6 +320,7 @@ public static class ErgReportBuilder
         using (var document = WordprocessingDocument.Create(docxPath, WordprocessingDocumentType.Document))
         {
             var mainPart = document.AddMainDocumentPart();
+            EnsureMainDocumentStructure(mainPart);
             mainPart.Document = new WordDocument(new Body());
             var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
@@ -3611,6 +3613,132 @@ public static class ErgReportBuilder
     private static long PixelsToEmus(int pixels) => (long)(pixels / 96.0 * 914400);
 
     private static long InchesToEmus(double inches) => (long)(inches * 914400);
+
+    private static void EnsureMainDocumentStructure(MainDocumentPart? mainPart)
+    {
+        if (mainPart == null)
+            return;
+
+        EnsureStylesPart(mainPart);
+        EnsureDocumentSettingsPart(mainPart);
+    }
+
+    private static void EnsureStylesPart(MainDocumentPart mainPart)
+    {
+        if (mainPart.StyleDefinitionsPart?.Styles != null)
+            return;
+
+        var stylesPart = mainPart.StyleDefinitionsPart ?? mainPart.AddNewPart<StyleDefinitionsPart>();
+        var styles = BuildDefaultStyles();
+        styles.Save(stylesPart);
+    }
+
+    private static Styles BuildDefaultStyles()
+    {
+        var styles = new Styles();
+
+        styles.Append(new DocumentDefaults(
+            new RunPropertiesDefault(new RunProperties(
+                new RunFonts
+                {
+                    Ascii = "Calibri",
+                    HighAnsi = "Calibri",
+                    EastAsia = "Calibri",
+                    ComplexScript = "Calibri"
+                },
+                new FontSize { Val = "22" },
+                new FontSizeComplexScript { Val = "22" }
+            )),
+            new ParagraphPropertiesDefault(new ParagraphProperties(
+                new SpacingBetweenLines { After = "160", Line = "259", LineRule = LineSpacingRuleValues.Auto }
+            ))
+        ));
+
+        styles.Append(new Style(
+            new Name { Val = "Normal" },
+            new UIPriority { Val = 0 },
+            new PrimaryStyle(),
+            new Rsid { Val = "00000000" },
+            new StyleParagraphProperties(new SpacingBetweenLines { After = "160", Line = "259", LineRule = LineSpacingRuleValues.Auto }),
+            new StyleRunProperties(
+                new RunFonts
+                {
+                    Ascii = "Calibri",
+                    HighAnsi = "Calibri",
+                    EastAsia = "Calibri",
+                    ComplexScript = "Calibri"
+                },
+                new FontSize { Val = "22" },
+                new FontSizeComplexScript { Val = "22" }
+            )
+        )
+        {
+            Type = StyleValues.Paragraph,
+            Default = true,
+            StyleId = "Normal"
+        });
+
+        styles.Append(new Style(
+            new Name { Val = "Table Normal" },
+            new UIPriority { Val = 99 },
+            new PrimaryStyle()
+        )
+        {
+            Type = StyleValues.Table,
+            Default = true,
+            StyleId = "TableNormal"
+        });
+
+        styles.Append(new Style(
+            new Name { Val = "Table Grid" },
+            new BasedOn { Val = "TableNormal" },
+            new UIPriority { Val = 39 },
+            new PrimaryStyle(),
+            new StyleTableProperties(
+                new TableBorders(
+                    new TopBorder { Val = BorderValues.Single, Size = 4, Color = "000000" },
+                    new LeftBorder { Val = BorderValues.Single, Size = 4, Color = "000000" },
+                    new BottomBorder { Val = BorderValues.Single, Size = 4, Color = "000000" },
+                    new RightBorder { Val = BorderValues.Single, Size = 4, Color = "000000" },
+                    new InsideHorizontalBorder { Val = BorderValues.Single, Size = 4, Color = "000000" },
+                    new InsideVerticalBorder { Val = BorderValues.Single, Size = 4, Color = "000000" }
+                )
+            )
+        )
+        {
+            Type = StyleValues.Table,
+            StyleId = "TableGrid"
+        });
+
+        return styles;
+    }
+
+    private static void EnsureDocumentSettingsPart(MainDocumentPart mainPart)
+    {
+        if (mainPart.DocumentSettingsPart?.Settings != null)
+            return;
+
+        var settingsPart = mainPart.DocumentSettingsPart ?? mainPart.AddNewPart<DocumentSettingsPart>();
+        var settings = new Settings(
+            new Compatibility(
+                new CompatibilitySetting
+                {
+                    Name = CompatSettingNameValues.CompatibilityMode,
+                    Val = "15",
+                    Uri = "http://schemas.microsoft.com/office/word"
+                },
+                new CompatibilitySetting
+                {
+                    Name = CompatSettingNameValues.StretchJustification,
+                    Val = "0",
+                    Uri = "http://schemas.microsoft.com/office/word"
+                }
+            ),
+            new UpdateFieldsOnOpen { Val = true }
+        );
+
+        settings.Save(settingsPart);
+    }
 
     private static void EnsureDocumentPropertiesParts(WordprocessingDocument document, string? title)
     {
