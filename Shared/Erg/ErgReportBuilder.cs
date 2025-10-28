@@ -3282,58 +3282,14 @@ public static class ErgReportBuilder
             return;
         }
 
-        cell.Append(CreateClientWaveValuesTable(display));
+        AppendClientWaveValue(cell, display.MsValue, display.MsNorm);
+        AppendClientWaveValue(cell, display.MkVValue, display.MkVNorm);
     }
 
-    private static Table CreateClientWaveValuesTable(WaveDisplay display)
+    private static void AppendClientWaveValue(TableCell cell, string value, string norm)
     {
-        var table = new Table(
-            new TableProperties(
-                new TableWidth { Type = TableWidthUnitValues.Pct, Width = "4800" },
-                new TableBorders(
-                    new TopBorder { Val = BorderValues.Nil },
-                    new LeftBorder { Val = BorderValues.Nil },
-                    new BottomBorder { Val = BorderValues.Nil },
-                    new RightBorder { Val = BorderValues.Nil },
-                    new InsideHorizontalBorder { Val = BorderValues.Nil },
-                    new InsideVerticalBorder { Val = BorderValues.Nil }
-                )
-            ),
-            new TableGrid(new GridColumn { Width = "2400" }, new GridColumn { Width = "2400" })
-        );
-
-        var row = new TableRow();
-        row.Append(CreateClientWaveValueCell(display.MsValue, display.MsNorm));
-        row.Append(CreateClientWaveValueCell(display.MkVValue, display.MkVNorm));
-        table.Append(row);
-
-        return table;
-    }
-
-    private static TableCell CreateClientWaveValueCell(string value, string norm)
-    {
-        var cellProps = new TableCellProperties(
-            new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center }
-        );
-        cellProps.Append(new TableCellMargin
-        {
-            TopMargin = new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            BottomMargin = new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            LeftMargin = new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
-            RightMargin = new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa }
-        });
-
-        var cell = new TableCell { TableCellProperties = cellProps };
-
         cell.Append(CreateMeasurementParagraph(value));
-
-        var formatted = FormatNormForClient(norm);
-        if (formatted != null)
-        {
-            cell.Append(CreateParagraph(formatted, fontSizePt: 9, colorHex: "666666", justification: JustificationValues.Center));
-        }
-
-        return cell;
+        AppendClientNormParagraph(cell, norm);
     }
 
     private static Paragraph CreateMeasurementParagraph(string value)
