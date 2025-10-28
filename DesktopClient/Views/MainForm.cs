@@ -349,6 +349,10 @@ public partial class MainForm : Form
         updateIntervalTextBox.Text = _viewModel.UpdateCheckIntervalMinutes.ToString();
         manifestUrlTextBox.Text = _viewModel.UpdateManifestUrl;
         reportTemplateComboBox.SelectedValue = _viewModel.ReportTemplate;
+        reportHeaderLine1TextBox.Text = _viewModel.GetReportHeaderLine(0);
+        reportHeaderLine2TextBox.Text = _viewModel.GetReportHeaderLine(1);
+        reportHeaderLine3TextBox.Text = _viewModel.GetReportHeaderLine(2);
+        reportHeaderLine4TextBox.Text = _viewModel.GetReportHeaderLine(3);
     }
 
     private void UpdateAll()
@@ -749,6 +753,21 @@ public partial class MainForm : Form
             _viewModel.UpdateManifestUrl = url;
         }
         manifestUrlTextBox.Text = _viewModel.UpdateManifestUrl;
+    }
+
+    private void OnReportHeaderLineValidated(object? sender, EventArgs e)
+    {
+        if (sender is not TextBox textBox || textBox.Tag is not int index)
+            return;
+
+        var value = textBox.Text ?? string.Empty;
+        if (!string.Equals(value, _viewModel.GetReportHeaderLine(index), StringComparison.Ordinal))
+        {
+            AppServices.Log.Info($"Пользователь изменил строку шапки отчета {index + 1}: '{value}'.");
+            _viewModel.SetReportHeaderLine(index, value);
+        }
+
+        textBox.Text = _viewModel.GetReportHeaderLine(index);
     }
 
     private void OnReportTemplateChanged(object? sender, EventArgs e)

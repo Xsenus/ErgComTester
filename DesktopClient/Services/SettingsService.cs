@@ -64,6 +64,24 @@ public sealed class SettingsService
             saveRequired = true;
         }
 
+        if (_settings.ReportHeaderLines == null || _settings.ReportHeaderLines.Length != 4)
+        {
+            var normalized = new string[4];
+            if (_settings.ReportHeaderLines != null)
+            {
+                Array.Copy(_settings.ReportHeaderLines, normalized, Math.Min(_settings.ReportHeaderLines.Length, normalized.Length));
+            }
+            _settings.ReportHeaderLines = normalized;
+            saveRequired = true;
+        }
+        else
+        {
+            for (int i = 0; i < _settings.ReportHeaderLines.Length; i++)
+            {
+                _settings.ReportHeaderLines[i] ??= string.Empty;
+            }
+        }
+
         Directory.CreateDirectory(_settings.LogsDirectory);
         Directory.CreateDirectory(_settings.ReportsDirectory);
 

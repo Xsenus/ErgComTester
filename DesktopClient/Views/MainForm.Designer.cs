@@ -48,6 +48,12 @@ partial class MainForm
     private TextBox backgroundSyncTextBox;
     private Label reportTemplateLabel;
     private ComboBox reportTemplateComboBox;
+    private Label reportHeaderLabel;
+    private TableLayoutPanel reportHeaderLayout;
+    private TextBox reportHeaderLine1TextBox;
+    private TextBox reportHeaderLine2TextBox;
+    private TextBox reportHeaderLine3TextBox;
+    private TextBox reportHeaderLine4TextBox;
     private FlowLayoutPanel settingsButtonsPanel;
     private Button openReportsButton;
     private Button convertBinButton;
@@ -119,6 +125,12 @@ partial class MainForm
         reconnectDelayTextBox = new TextBox();
         backgroundSyncLabel = new Label();
         backgroundSyncTextBox = new TextBox();
+        reportHeaderLabel = new Label();
+        reportHeaderLayout = new TableLayoutPanel();
+        reportHeaderLine1TextBox = new TextBox();
+        reportHeaderLine2TextBox = new TextBox();
+        reportHeaderLine3TextBox = new TextBox();
+        reportHeaderLine4TextBox = new TextBox();
         reportTemplateLabel = new Label();
         reportTemplateComboBox = new ComboBox();
         settingsButtonsPanel = new FlowLayoutPanel();
@@ -642,14 +654,17 @@ partial class MainForm
         settingsLayout.Controls.Add(backgroundSyncTextBox, 1, 2);
         settingsLayout.Controls.Add(reportTemplateLabel, 0, 3);
         settingsLayout.Controls.Add(reportTemplateComboBox, 1, 3);
-        settingsLayout.Controls.Add(settingsButtonsPanel, 0, 4);
+        settingsLayout.Controls.Add(reportHeaderLabel, 0, 4);
+        settingsLayout.Controls.Add(reportHeaderLayout, 1, 4);
+        settingsLayout.Controls.Add(settingsButtonsPanel, 0, 5);
         settingsLayout.Dock = DockStyle.Fill;
         settingsLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
         settingsLayout.Location = new Point(16, 38);
         settingsLayout.Margin = new Padding(0);
         settingsLayout.Name = "settingsLayout";
         settingsLayout.Padding = new Padding(0, 4, 0, 8);
-        settingsLayout.RowCount = 5;
+        settingsLayout.RowCount = 6;
+        settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
@@ -759,19 +774,98 @@ partial class MainForm
         reportTemplateComboBox.Name = "reportTemplateComboBox";
         reportTemplateComboBox.Size = new Size(160, 25);
         reportTemplateComboBox.TabIndex = 7;
-        // 
+        //
+        // reportHeaderLabel
+        //
+        reportHeaderLabel.AutoSize = true;
+        reportHeaderLabel.Font = new Font("Segoe UI", 9F);
+        reportHeaderLabel.ForeColor = Color.FromArgb(120, 128, 145);
+        reportHeaderLabel.Location = new Point(0, 130);
+        reportHeaderLabel.Margin = new Padding(0, 10, 16, 0);
+        reportHeaderLabel.Name = "reportHeaderLabel";
+        reportHeaderLabel.Size = new Size(155, 15);
+        reportHeaderLabel.TabIndex = 8;
+        reportHeaderLabel.Text = "Шапка отчета (4 строки):";
+        //
+        // reportHeaderLayout
+        //
+        reportHeaderLayout.AutoSize = true;
+        reportHeaderLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        reportHeaderLayout.ColumnCount = 1;
+        reportHeaderLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        reportHeaderLayout.Controls.Add(reportHeaderLine1TextBox, 0, 0);
+        reportHeaderLayout.Controls.Add(reportHeaderLine2TextBox, 0, 1);
+        reportHeaderLayout.Controls.Add(reportHeaderLine3TextBox, 0, 2);
+        reportHeaderLayout.Controls.Add(reportHeaderLine4TextBox, 0, 3);
+        reportHeaderLayout.Dock = DockStyle.Fill;
+        reportHeaderLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
+        reportHeaderLayout.Location = new Point(191, 124);
+        reportHeaderLayout.Margin = new Padding(0, 4, 0, 0);
+        reportHeaderLayout.Name = "reportHeaderLayout";
+        reportHeaderLayout.RowCount = 4;
+        reportHeaderLayout.RowStyles.Add(new RowStyle());
+        reportHeaderLayout.RowStyles.Add(new RowStyle());
+        reportHeaderLayout.RowStyles.Add(new RowStyle());
+        reportHeaderLayout.RowStyles.Add(new RowStyle());
+        reportHeaderLayout.Size = new Size(200, 112);
+        reportHeaderLayout.TabIndex = 9;
+        //
+        // reportHeaderLine1TextBox
+        //
+        reportHeaderLine1TextBox.BorderStyle = BorderStyle.FixedSingle;
+        reportHeaderLine1TextBox.Dock = DockStyle.Fill;
+        reportHeaderLine1TextBox.Margin = new Padding(0);
+        reportHeaderLine1TextBox.Name = "reportHeaderLine1TextBox";
+        reportHeaderLine1TextBox.Size = new Size(200, 23);
+        reportHeaderLine1TextBox.TabIndex = 8;
+        reportHeaderLine1TextBox.Tag = 0;
+        reportHeaderLine1TextBox.Validated += OnReportHeaderLineValidated;
+        //
+        // reportHeaderLine2TextBox
+        //
+        reportHeaderLine2TextBox.BorderStyle = BorderStyle.FixedSingle;
+        reportHeaderLine2TextBox.Dock = DockStyle.Fill;
+        reportHeaderLine2TextBox.Margin = new Padding(0, 6, 0, 0);
+        reportHeaderLine2TextBox.Name = "reportHeaderLine2TextBox";
+        reportHeaderLine2TextBox.Size = new Size(200, 23);
+        reportHeaderLine2TextBox.TabIndex = 9;
+        reportHeaderLine2TextBox.Tag = 1;
+        reportHeaderLine2TextBox.Validated += OnReportHeaderLineValidated;
+        //
+        // reportHeaderLine3TextBox
+        //
+        reportHeaderLine3TextBox.BorderStyle = BorderStyle.FixedSingle;
+        reportHeaderLine3TextBox.Dock = DockStyle.Fill;
+        reportHeaderLine3TextBox.Margin = new Padding(0, 6, 0, 0);
+        reportHeaderLine3TextBox.Name = "reportHeaderLine3TextBox";
+        reportHeaderLine3TextBox.Size = new Size(200, 23);
+        reportHeaderLine3TextBox.TabIndex = 10;
+        reportHeaderLine3TextBox.Tag = 2;
+        reportHeaderLine3TextBox.Validated += OnReportHeaderLineValidated;
+        //
+        // reportHeaderLine4TextBox
+        //
+        reportHeaderLine4TextBox.BorderStyle = BorderStyle.FixedSingle;
+        reportHeaderLine4TextBox.Dock = DockStyle.Fill;
+        reportHeaderLine4TextBox.Margin = new Padding(0, 6, 0, 0);
+        reportHeaderLine4TextBox.Name = "reportHeaderLine4TextBox";
+        reportHeaderLine4TextBox.Size = new Size(200, 23);
+        reportHeaderLine4TextBox.TabIndex = 11;
+        reportHeaderLine4TextBox.Tag = 3;
+        reportHeaderLine4TextBox.Validated += OnReportHeaderLineValidated;
+        //
         // settingsButtonsPanel
-        // 
+        //
         settingsButtonsPanel.AutoSize = true;
         settingsButtonsPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         settingsLayout.SetColumnSpan(settingsButtonsPanel, 2);
         settingsButtonsPanel.Controls.Add(openReportsButton);
         settingsButtonsPanel.Controls.Add(convertBinButton);
-        settingsButtonsPanel.Location = new Point(0, 134);
+        settingsButtonsPanel.Location = new Point(0, 240);
         settingsButtonsPanel.Margin = new Padding(0, 16, 0, 0);
         settingsButtonsPanel.Name = "settingsButtonsPanel";
         settingsButtonsPanel.Size = new Size(387, 37);
-        settingsButtonsPanel.TabIndex = 8;
+        settingsButtonsPanel.TabIndex = 12;
         // 
         // openReportsButton
         // 

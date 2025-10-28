@@ -293,6 +293,39 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public IReadOnlyList<string> ReportHeaderLines => EnsureHeaderLines();
+
+    public string GetReportHeaderLine(int index)
+    {
+        var lines = EnsureHeaderLines();
+        if (index < 0 || index >= lines.Length)
+            return string.Empty;
+        return lines[index] ?? string.Empty;
+    }
+
+    public void SetReportHeaderLine(int index, string? value)
+    {
+        var lines = EnsureHeaderLines();
+        if (index < 0 || index >= lines.Length)
+        {
+            _log.Warn($"Попытка обновить строку шапки отчета с недопустимым индексом: {index}.");
+            return;
+        }
+
+        var normalized = (value ?? string.Empty).Trim();
+        var current = lines[index] ?? string.Empty;
+        if (string.Equals(current, normalized, StringComparison.Ordinal))
+        {
+            _log.Debug($"Строка шапки отчета №{index + 1} не изменилась.");
+            return;
+        }
+
+        var updated = (string[])lines.Clone();
+        updated[index] = normalized;
+
+        _ = ApplySettingAsync(nameof(ReportHeaderLines), updated, (s, v) => s.ReportHeaderLines = v);
+    }
+
     private void UpdateIntSetting(string propertyName, int value, int min, int max, Func<AppSettings, int> accessor, Action<AppSettings, int> setter)
     {
         var normalized = Math.Clamp(value, min, max);
@@ -359,5 +392,33 @@ public sealed class MainViewModel : INotifyPropertyChanged
         field = value;
         OnPropertyChanged(propertyName);
         return true;
+    }
+
+    private string[] EnsureHeaderLines()
+    {
+        var lines = _settings.Current.ReportHeaderLines;
+        if (lines == null || lines.Length != 4)
+        {
+            lines = new string[4];
+            if (_settings.Current.ReportHeaderLines != null)
+            {
+                Array.Copy(_settings.Current.ReportHeaderLines, lines, Math.Min(_settings.Current.ReportHeaderLines.Length, lines.Length));
+            }
+            for (int i = 0; i < lines.Length; i++)
+            {
+                lines[i] ??= string.Empty;
+            }
+
+            _settings.Current.ReportHeaderLines = lines;
+        }
+        else
+        {
+            for (int i = 0; i < lines.Length; i++)
+            {
+                lines[i] ??= string.Empty;
+            }
+        }
+
+        return lines;
     }
 }

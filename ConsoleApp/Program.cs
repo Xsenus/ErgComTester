@@ -284,12 +284,14 @@ internal class Program
                                     ErgDataSerializer.SaveJson(jsonPath, pinfo);
                                     logger.Info($"Saved JSON   : {jsonPath}");
 
+                                    var headerLines = string.IsNullOrWhiteSpace(opt.ClinicName) ? null : new[] { opt.ClinicName };
+
                                     if (RenderingSupport.PdfSupported)
                                     {
                                         var pdfPath = Path.Combine(pdfDir, $"patient_{i:000}.pdf");
                                         try
                                         {
-                                            ErgReportBuilder.BuildPatientReport(pinfo, pdfPath, common, clinicName: opt.ClinicName, rawFilePath: rawPath, template: opt.Template);
+                                            ErgReportBuilder.BuildPatientReport(pinfo, pdfPath, common, clinicName: opt.ClinicName, rawFilePath: rawPath, template: opt.Template, headerLines: headerLines);
                                             logger.Info($"Saved PDF    : {pdfPath}");
                                         }
                                         catch (Exception ex)
@@ -318,7 +320,7 @@ internal class Program
                                     var docxPath = Path.Combine(docxDir, $"patient_{i:000}.docx");
                                     try
                                     {
-                                        ErgReportBuilder.BuildPatientWordReport(pinfo, docxPath, common, clinicName: opt.ClinicName, rawFilePath: rawPath, template: opt.Template);
+                                        ErgReportBuilder.BuildPatientWordReport(pinfo, docxPath, common, clinicName: opt.ClinicName, rawFilePath: rawPath, template: opt.Template, headerLines: headerLines);
                                         logger.Info($"Saved Word   : {docxPath}");
                                     }
                                     catch (Exception ex)
@@ -421,6 +423,8 @@ internal class Program
         ErgDataSerializer.SaveJson(jsonPath, patient);
         logger.Info($"JSON saved: {jsonPath}");
 
+        var headerLines = string.IsNullOrWhiteSpace(options.ClinicName) ? null : new[] { options.ClinicName };
+
         if (!string.IsNullOrWhiteSpace(options.PdfOutputPath))
         {
             var pdfPath = Path.GetFullPath(options.PdfOutputPath);
@@ -429,7 +433,7 @@ internal class Program
             {
                 try
                 {
-                    ErgReportBuilder.BuildPatientReport(patient, pdfPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath, template: options.Template);
+                    ErgReportBuilder.BuildPatientReport(patient, pdfPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath, template: options.Template, headerLines: headerLines);
                     logger.Info($"PDF saved : {pdfPath}");
                 }
                 catch (Exception ex)
@@ -452,7 +456,7 @@ internal class Program
             Directory.CreateDirectory(Path.GetDirectoryName(docxPath)!);
             try
             {
-                ErgReportBuilder.BuildPatientWordReport(patient, docxPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath, template: options.Template);
+                ErgReportBuilder.BuildPatientWordReport(patient, docxPath, deviceInfo: null, clinicName: options.ClinicName, rawFilePath: inputPath, template: options.Template, headerLines: headerLines);
                 logger.Info($"Word saved: {docxPath}");
             }
             catch (Exception ex)
