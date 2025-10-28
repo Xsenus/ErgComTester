@@ -3225,7 +3225,7 @@ public static class ErgReportBuilder
 
         if (position.HasValue)
         {
-            runProperties.Append(new Position { Val = position.Value });
+            runProperties.Append(new Position { Val = position.Value.ToString() });
         }
 
         var run = new Run(runProperties);
