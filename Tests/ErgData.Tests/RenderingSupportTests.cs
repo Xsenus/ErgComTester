@@ -196,6 +196,7 @@ public class RenderingSupportTests
                                 Enumerable.Range(0, 10).Select(i => Math.Cos(i / 2.0)).ToArray()
                             }
                         }
+
                     }
                 }
             };
