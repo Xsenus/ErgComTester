@@ -1,4 +1,4 @@
-name: Build MicroluxErgConnect.Desktop → ZIP → FTP
+name: Build MicroluxErgConnect.Desktop - ZIP - FTP
 
 on:
   push:
@@ -25,7 +25,6 @@ jobs:
             8.0.x
             6.0.x
 
-      # === Поиск csproj-файла проекта MicroluxErgConnect.Desktop ===
       - name: Locate project MicroluxErgConnect.Desktop.csproj
         shell: bash
         run: |
@@ -39,11 +38,9 @@ jobs:
           echo "✅ Found project at: $MATCH"
           echo "PROJECT_PATH=$MATCH" >> "$GITHUB_ENV"
 
-      # === Проверяем, что файл найден ===
       - name: Verify found project path
         run: echo "Using project path: $PROJECT_PATH"
 
-      # === Читаем версию из csproj ===
       - name: Read Version from csproj
         id: ver
         shell: pwsh
@@ -69,7 +66,6 @@ jobs:
       - name: Publish (Release)
         run: dotnet publish "${{ env.PROJECT_PATH }}" -c Release -o "${{ env.OUT_DIR }}" --no-build
 
-      # === Формируем XML через XmlDocument (без YAML-конфликтов) ===
       - name: Create ErgComTester.Update.xml
         shell: pwsh
         run: |
@@ -112,7 +108,6 @@ jobs:
           zip -r "../${{ env.ZIP_NAME }}" ./*
           cd -
 
-      # === Загрузка на FTP ===
       - name: Upload ZIP and XML to FTP
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
@@ -123,13 +118,11 @@ jobs:
           TARGET_DIR=${FTP_DIR:-/other/ErgComTester/}
           echo "Uploading to ftp://${FTP_HOST}${TARGET_DIR}"
 
-          # ZIP
           curl --fail --show-error --ftp-create-dirs \
                -T "${{ env.ZIP_NAME }}" \
                --user "$FTP_USER:$FTP_PASS" \
                "ftp://${FTP_HOST}${TARGET_DIR%/}/${{ env.ZIP_NAME }}"
 
-          # XML
           curl --fail --show-error --ftp-create-dirs \
                -T "${{ env.XML_NAME }}" \
                --user "$FTP_USER:$FTP_PASS" \
