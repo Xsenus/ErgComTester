@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MicroluxErgConnect.Models;
 using MicroluxErgConnect;
+using MicroluxErgConnect.Infrastructure;
 
 namespace MicroluxErgConnect.Services;
 
@@ -87,12 +88,55 @@ public sealed class UpdateService : IDisposable
     {
         if (IsAutoUpdaterMode)
         {
-            var message = forceDownload
-                ? "Проверка обновлений выполняется AutoUpdater.NET. Запустите приложение заново для проверки."
-                : "Плановая проверка отключена: используется AutoUpdater.NET.";
-            _log.Info($"AutoUpdater.NET: {message}");
-            var latest = CurrentState.LatestVersion ?? CurrentVersion;
-            return UpdateStateInternal(new UpdateState(CurrentState.UpdateAvailable, latest, CurrentState.DownloadedFile, message));
+            if (!forceDownload)
+            {
+                const string scheduledMessage = "Плановая проверка отключена: используется AutoUpdater.NET.";
+                _log.Info($"AutoUpdater.NET: {scheduledMessage}");
+                var latest = CurrentState.LatestVersion ?? CurrentVersion;
+                return UpdateStateInternal(new UpdateState(CurrentState.UpdateAvailable, latest, CurrentState.DownloadedFile, scheduledMessage));
+            }
+
+            try
+            {
+                _log.Info("AutoUpdater.NET: запуск проверки по запросу пользователя.");
+                var info = await AppServices.RunAutoUpdaterAsync();
+                if (!info.Enabled)
+                {
+                    var message = info.Error ?? "AutoUpdater.NET: режим отключен.";
+                    return UpdateStateInternal(new UpdateState(false, CurrentState.LatestVersion ?? CurrentVersion, CurrentState.DownloadedFile, message));
+                }
+
+                var latest = info.Manifest?.Version ?? CurrentState.LatestVersion ?? CurrentVersion;
+                var updateAvailable = latest > CurrentVersion;
+                string status;
+                if (!string.IsNullOrWhiteSpace(info.Error))
+                {
+                    status = $"AutoUpdater.NET: ошибка проверки: {info.Error}";
+                }
+                else if (info.ExitRequested)
+                {
+                    status = "AutoUpdater.NET: обновление будет установлено после закрытия приложения.";
+                }
+                else if (updateAvailable)
+                {
+                    status = $"AutoUpdater.NET: доступна версия {latest}.";
+                }
+                else
+                {
+                    status = "AutoUpdater.NET: обновления не найдены.";
+                }
+
+                return UpdateStateInternal(new UpdateState(updateAvailable, latest, CurrentState.DownloadedFile, status));
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"AutoUpdater.NET: ошибка ручной проверки: {ex.Message}");
+                return UpdateStateInternal(new UpdateState(CurrentState.UpdateAvailable, CurrentState.LatestVersion, CurrentState.DownloadedFile, "AutoUpdater.NET: ошибка проверки обновлений"));
+            }
         }
 
         try
@@ -156,8 +200,15 @@ public sealed class UpdateService : IDisposable
             {
                 UseShellExecute = true
             };
-            Process.Start(psi);
+            var process = Process.Start(psi);
+            if (process == null)
+            {
+                _log.Warn("Установщик обновления не был запущен (Process.Start вернул null). Продолжаем работу приложения.");
+                return;
+            }
+
             _log.Info("Запущен установщик обновления.");
+            AppServices.RequestApplicationExit("Запущен установщик обновления, требуется закрыть приложение.");
         }
         catch (Exception ex)
         {

@@ -21,6 +21,8 @@ public static class AppServices
     private static bool _autoUpdaterRequestedExit;
     private static AutoUpdaterManifestInfo? _lastAutoUpdaterManifest;
 
+    public static event EventHandler<ExitRequestedEventArgs>? ExitRequested;
+
     public static SettingsService Settings { get; private set; } = null!;
     public static LogService Log { get; private set; } = null!;
     public static DeviceMonitorService DeviceMonitor { get; private set; } = null!;
@@ -60,7 +62,7 @@ public static class AppServices
         Update = new UpdateService(Settings, Log);
         MainViewModel = new MainViewModel(Settings, DeviceMonitor, Update, Reports, Log);
 
-        var autoUpdaterTask = RunAutoUpdaterIfConfiguredAsync();
+        var autoUpdaterTask = RunAutoUpdaterAsync();
         autoUpdaterTask.ContinueWith(task =>
         {
             if (task.IsFaulted)
@@ -117,7 +119,7 @@ public static class AppServices
         _initialized = false;
     }
 
-    private static Task<AutoUpdaterRunInfo> RunAutoUpdaterIfConfiguredAsync()
+    internal static Task<AutoUpdaterRunInfo> RunAutoUpdaterAsync()
     {
         var url = Settings.Current.UpdateManifestUrl;
         if (string.IsNullOrWhiteSpace(url))
@@ -355,9 +357,10 @@ public static class AppServices
     {
         _autoUpdaterRequestedExit = true;
         Log.Info("AutoUpdater.NET запросил завершение приложения для установки обновления.");
+        RequestApplicationExit("AutoUpdater.NET запросил закрытие приложения для установки обновления.");
     }
 
-    private sealed record AutoUpdaterRunInfo(bool Enabled, AutoUpdaterManifestInfo? Manifest, string? Error, bool ExitRequested);
+    internal sealed record AutoUpdaterRunInfo(bool Enabled, AutoUpdaterManifestInfo? Manifest, string? Error, bool ExitRequested);
 
     private sealed record AutoUpdaterManifestInfo(Version Version, string? PackageUrl, bool Mandatory, string? MandatoryMode, string? Description);
 
@@ -375,5 +378,29 @@ public static class AppServices
         Log.Info($"Дополнительно: RTC sync={(serial.EnableRtcSynchronization ? "вкл" : "выкл")}, получать пациентов={(serial.RequestPatientData ? "да" : "нет")}, ZIP={(serial.EnableZipPackaging ? "вкл" : "выкл")}");
         Log.Info($"Отчеты: шаблон={s.ReportTemplate}, режим={s.ReportRenderingMode}, legacy={(RenderingSupport.UseLegacyPdfGeneration ? "да" : "нет")}");
         Log.Info($"Telegram: {s.Telegram?.DescribeSafety() ?? "<не настроен>"}");
+    }
+
+    public static void RequestApplicationExit(string reason)
+    {
+        try
+        {
+            Log.Info($"Запрошено завершение приложения: {reason}");
+        }
+        catch
+        {
+            // Игнорируем исключения логирования при аварийных сценариях.
+        }
+
+        ExitRequested?.Invoke(null, new ExitRequestedEventArgs(reason));
+    }
+
+    public sealed class ExitRequestedEventArgs : EventArgs
+    {
+        public ExitRequestedEventArgs(string reason)
+        {
+            Reason = reason;
+        }
+
+        public string Reason { get; }
     }
 }
