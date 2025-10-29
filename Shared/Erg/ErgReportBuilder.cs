@@ -40,6 +40,32 @@ public static class ErgReportBuilder
     private const string DefaultClientDeviceName = "Электроретинограф  Ветеринарный  МЛ-210 VET \"Микролюкс\"";
     private const double HeaderLineSpacingPoints = 2d;
     private const double HeaderTitleSpacingPoints = 12d;
+    private const float LegacyDpi = 200f;
+    private const float PointsPerLegacyPixel = 72f / LegacyDpi;
+    private const float ClientPageMargin = 36f;
+    private static readonly float ClientContentWidth = PageSizes.A4.Width - ClientPageMargin * 2f;
+    private static readonly float ClientGraphColumnWidth = (ClientContentWidth - ClientLayoutMetrics.GraphGap) / 2f;
+    private const string MutedColorHex = "#646464";
+
+    private static class ClientLayoutMetrics
+    {
+        public const float SpacingSmall = 0.07f * LegacyDpi * PointsPerLegacyPixel; // 14 px -> ~5.04 pt
+        public const float SpacingMedium = 0.11f * LegacyDpi * PointsPerLegacyPixel; // 22 px -> ~7.92 pt
+        public const float SpacingLarge = 0.18f * LegacyDpi * PointsPerLegacyPixel; // 36 px -> ~12.96 pt
+        public const float SummarySpacingSmall = 0.05f * LegacyDpi * PointsPerLegacyPixel; // 10 px -> ~3.6 pt
+        public const float SummarySpacingSmallHalf = SummarySpacingSmall / 2f; // ~1.8 pt
+        public const float SummarySpacingMedium = 0.08f * LegacyDpi * PointsPerLegacyPixel; // 16 px -> ~5.76 pt
+        public const float InfoBlockSpacingAfter = SpacingSmall / 2f; // 7 px -> ~2.52 pt
+        public const float TestHeaderSpacingBefore = SpacingLarge * 0.4f; // 36 px * 0.4 -> ~5.18 pt
+        public const float TestHeaderSpacingAfter = SummarySpacingSmall;
+        public const float TestHeaderPadding = SummarySpacingSmall * 0.6f; // 6 px -> ~2.16 pt
+        public const float GraphGap = 0.12f * LegacyDpi * PointsPerLegacyPixel; // 24 px -> ~8.64 pt
+        public const float WaveLabelColumnWidth = 140f * PointsPerLegacyPixel; // 140 px -> ~50.4 pt
+        public const float InfoLabelValueGap = 6f * PointsPerLegacyPixel; // 6 px -> ~2.16 pt
+        public const float InfoLabelMinWidth = 120f * PointsPerLegacyPixel; // ~43.2 pt
+        public static readonly float InfoLabelMaxWidth = ClientContentWidth * 0.45f;
+        public const float MeasurementValueGap = 2f * PointsPerLegacyPixel; // small spacing between value and unit
+    }
 
     static ErgReportBuilder()
     {
@@ -194,7 +220,7 @@ public static class ErgReportBuilder
 
                 page.Content().Column(column =>
                 {
-                    column.Spacing(12);
+                    column.Spacing(0);
                     column.Item().Component(new ClientInfoComponent(patient, deviceInfo));
 
                     for (int i = 0; i < patient.Tests.Count; i++)
@@ -1519,39 +1545,62 @@ public static class ErgReportBuilder
 
         public void Compose(IContainer container)
         {
-            container.Column(column =>
-            {
-                column.Spacing(2);
-                column.Item().Text(text =>
-                {
-                    text.DefaultTextStyle(style => style.FontSize(12));
-                    text.Span("ID пациента: ").SemiBold();
-                    text.Span($"{_patient.PatientId} ({FormatAnimal(_patient.Animal)})");
-                });
-
-                column.Item().Text(text =>
-                {
-                    text.Span("Дата и время исследования: ").SemiBold();
-                    text.Span(FormatClientDateTime(_patient.TestDateTime));
-                });
-
-                column.Item().Text(text =>
-                {
-                    text.Span("Оборудование: ").SemiBold();
-                    text.Span(GetClientDeviceName(_deviceInfo));
-                });
-
-                var software = GetClientSoftwareVersion(_deviceInfo);
-                if (!string.IsNullOrEmpty(software))
-                {
-                    column.Item().Text(text =>
+            container.Element(element =>
+                element.PaddingBottom(ClientLayoutMetrics.InfoBlockSpacingAfter)
+                    .Table(table =>
                     {
-                        text.Span("Версия ПО: ").SemiBold();
-                        text.Span(software);
-                    });
-                }
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.RelativeColumn(9);
+                            columns.RelativeColumn(11);
+                        });
 
+                        AddRow(table, "ID пациента:", $"{_patient.PatientId} ({FormatAnimal(_patient.Animal)})");
+                        AddRow(table, "Дата и время исследования:", FormatClientDateTime(_patient.TestDateTime));
+                        AddRow(table, "Оборудование:", GetClientDeviceName(_deviceInfo));
+
+                        var software = GetClientSoftwareVersion(_deviceInfo);
+                        if (!string.IsNullOrWhiteSpace(software))
+                        {
+                            AddRow(table, "Версия ПО:", software!);
+                        }
+                    }));
+        }
+
+        private static void AddRow(TableDescriptor table, string label, string? value)
+        {
+            var safeValue = string.IsNullOrWhiteSpace(value) ? "—" : value!.Trim();
+
+            table.Cell().Element(LabelCell).Text(text =>
+            {
+                text.DefaultTextStyle(style => style.FontSize(11).SemiBold());
+                text.Span(label);
             });
+
+            table.Cell().Element(ValueCell).Text(text =>
+            {
+                text.DefaultTextStyle(style => style.FontSize(11));
+                text.Span(safeValue);
+            });
+        }
+
+        private static IContainer LabelCell(IContainer container)
+        {
+            return container
+                .MinWidth(ClientLayoutMetrics.InfoLabelMinWidth)
+                .MaxWidth(ClientLayoutMetrics.InfoLabelMaxWidth)
+                .PaddingRight(ClientLayoutMetrics.InfoLabelValueGap)
+                .PaddingBottom(ClientLayoutMetrics.SummarySpacingSmallHalf)
+                .AlignLeft()
+                .AlignMiddle();
+        }
+
+        private static IContainer ValueCell(IContainer container)
+        {
+            return container
+                .PaddingBottom(ClientLayoutMetrics.SummarySpacingSmallHalf)
+                .AlignLeft()
+                .AlignMiddle();
         }
     }
 
@@ -1568,29 +1617,70 @@ public static class ErgReportBuilder
 
         public void Compose(IContainer container)
         {
+            var title = FormatClientTestTitle(_index, _test);
+            var rightGraph = TryRenderGraphImage(_test, _test.RightEye);
+            var leftGraph = TryRenderGraphImage(_test, _test.LeftEye);
+            var graphHeight = CalculateClientGraphHeight(rightGraph, leftGraph);
+
             container.Column(column =>
             {
-                column.Spacing(10);
-                column.Item().Background(Colors.Grey.Lighten3)
-                    .PaddingVertical(6)
-                    .PaddingHorizontal(8)
-                    .AlignCenter()
-                    .Text(FormatClientTestTitle(_index, _test)).FontSize(12).SemiBold();
+                column.Spacing(0);
 
-                column.Item().Row(row =>
-                {
-                    row.Spacing(18);
-                    row.RelativeItem().Component(new ClientEyeSummaryComponent("Правый глаз", _test, _test.RightEye));
-                    row.RelativeItem().Component(new ClientEyeSummaryComponent("Левый глаз", _test, _test.LeftEye));
-                });
-                column.Item().Row(row =>
-                {
-                    row.Spacing(18);
-                    row.RelativeItem().Component(new ClientGraphComponent(_test, _test.RightEye));
-                    row.RelativeItem().Component(new ClientGraphComponent(_test, _test.LeftEye));
-                });
+                column.Item().Element(element =>
+                    RenderTestHeader(element, title));
+
+                column.Item().Element(element =>
+                    element.PaddingTop(ClientLayoutMetrics.SummarySpacingSmall)
+                        .PaddingBottom(ClientLayoutMetrics.SummarySpacingMedium)
+                        .Row(row =>
+                        {
+                            row.Spacing(ClientLayoutMetrics.GraphGap);
+                            row.RelativeItem().Component(new ClientEyeSummaryComponent("Правый глаз", _test, _test.RightEye));
+                            row.RelativeItem().Component(new ClientEyeSummaryComponent("Левый глаз", _test, _test.LeftEye));
+                        }));
+
+                column.Item().Element(element =>
+                    element.Row(row =>
+                    {
+                        row.Spacing(ClientLayoutMetrics.GraphGap);
+                        row.RelativeItem().Component(new ClientGraphComponent(rightGraph, graphHeight));
+                        row.RelativeItem().Component(new ClientGraphComponent(leftGraph, graphHeight));
+                    })
+                    .PaddingBottom(ClientLayoutMetrics.SpacingSmall));
             });
         }
+
+        private static void RenderTestHeader(IContainer container, string title)
+        {
+            container
+                .PaddingTop(ClientLayoutMetrics.TestHeaderSpacingBefore)
+                .PaddingBottom(ClientLayoutMetrics.TestHeaderSpacingAfter)
+                .Element(element =>
+                    element.Background(Colors.Hex("#EEEEEE"))
+                        .PaddingHorizontal(ClientLayoutMetrics.TestHeaderPadding)
+                        .PaddingVertical(ClientLayoutMetrics.TestHeaderPadding)
+                        .AlignCenter()
+                        .Text(title)
+                        .FontSize(12)
+                        .SemiBold());
+        }
+    }
+
+    private static float CalculateClientGraphHeight(GraphImage? rightGraph, GraphImage? leftGraph)
+    {
+        float targetWidth = ClientGraphColumnWidth;
+        float height = 0f;
+
+        if (rightGraph != null && rightGraph.Width > 0)
+            height = Math.Max(height, rightGraph.Height / (float)rightGraph.Width * targetWidth);
+
+        if (leftGraph != null && leftGraph.Width > 0)
+            height = Math.Max(height, leftGraph.Height / (float)leftGraph.Width * targetWidth);
+
+        if (height <= 0f)
+            height = targetWidth * 0.55f;
+
+        return height;
     }
 
     private sealed class ClientEyeSummaryComponent : IComponent
@@ -1610,7 +1700,8 @@ public static class ErgReportBuilder
         {
             container.Column(column =>
             {
-                column.Spacing(6);
+                column.Spacing(0);
+
                 column.Item().AlignCenter().Text(text =>
                 {
                     text.DefaultTextStyle(style => style.FontSize(11));
@@ -1619,19 +1710,23 @@ public static class ErgReportBuilder
                     if (!string.IsNullOrWhiteSpace(quality))
                     {
                         text.Span(" ");
-                        text.Span(quality).FontColor(Colors.Grey.Darken1);
+                        text.Span(quality).FontColor(Colors.Hex(MutedColorHex));
                     }
                 });
+
+                column.Item().Height(ClientLayoutMetrics.SummarySpacingSmall);
 
                 if (_eye.IsFlat)
                 {
                     column.Item().AlignCenter().Text("FLAT").FontSize(26).SemiBold();
+                    column.Item().Height(ClientLayoutMetrics.SummarySpacingSmall);
                     return;
                 }
 
                 if (!EyeHasUsableMeasurements(_eye))
                 {
-                    column.Item().AlignCenter().Text("Нет данных").Italic().FontColor(Colors.Grey.Darken1);
+                    column.Item().AlignCenter().Text("Нет данных").Italic().FontColor(Colors.Hex(MutedColorHex));
+                    column.Item().Height(ClientLayoutMetrics.SummarySpacingSmall);
                     return;
                 }
 
@@ -1649,7 +1744,8 @@ public static class ErgReportBuilder
 
                 if (!hasContent)
                 {
-                    column.Item().AlignCenter().Text("Нет данных").Italic().FontColor(Colors.Grey.Darken1);
+                    column.Item().AlignCenter().Text("Нет данных").Italic().FontColor(Colors.Hex(MutedColorHex));
+                    column.Item().Height(ClientLayoutMetrics.SummarySpacingSmall);
                 }
             });
         }
@@ -1669,67 +1765,64 @@ public static class ErgReportBuilder
 
         public void Compose(IContainer container)
         {
-            container.Column(column =>
+            container.PaddingVertical(ClientLayoutMetrics.SummarySpacingSmallHalf).Row(row =>
             {
-                column.Spacing(4);
+                row.Spacing(0);
 
-                column.Item().Row(row =>
-                {
-                    row.Spacing(12);
-
-                    row.AutoItem().MinWidth(68).AlignMiddle().Text(text =>
+                row.ConstantItem(ClientLayoutMetrics.WaveLabelColumnWidth)
+                    .AlignMiddle()
+                    .Text(text =>
                     {
                         text.DefaultTextStyle(style => style.FontSize(11).SemiBold());
                         text.Span(string.IsNullOrWhiteSpace(_label) ? " " : _label);
                     });
 
-                    row.RelativeItem().Column(valuesColumn =>
+                row.RelativeItem().Column(valuesColumn =>
+                {
+                    valuesColumn.Spacing(0);
+
+                    if (_display.IsFlat)
                     {
-                        valuesColumn.Spacing(4);
+                        valuesColumn.Item()
+                            .PaddingVertical(ClientLayoutMetrics.SummarySpacingSmallHalf)
+                            .AlignCenter()
+                            .Text("FLAT").FontSize(26).SemiBold();
+                        return;
+                    }
 
-                        if (_display.IsFlat)
+                    valuesColumn.Item()
+                        .PaddingVertical(ClientLayoutMetrics.SummarySpacingSmallHalf)
+                        .Row(valueRow =>
                         {
-                            valuesColumn.Item().AlignCenter().Text("FLAT").FontSize(26).SemiBold();
-                            return;
-                        }
-
-                        valuesColumn.Item().Row(valueRow =>
-                        {
-                            valueRow.Spacing(8);
-
-                            valueRow.RelativeItem().Column(msColumn =>
-                            {
-                                msColumn.Spacing(2);
-                                AppendMeasurement(msColumn, _display.MsValue);
-                                AppendNorm(msColumn, _display.MsNorm);
-                            });
-
-                            valueRow.RelativeItem().Column(mkvColumn =>
-                            {
-                                mkvColumn.Spacing(2);
-                                AppendMeasurement(mkvColumn, _display.MkVValue);
-                                AppendNorm(mkvColumn, _display.MkVNorm);
-                            });
+                            valueRow.Spacing(0);
+                            valueRow.RelativeItem().Element(e => ComposeMeasurement(e, _display.MsValue));
+                            valueRow.RelativeItem().Element(e => ComposeMeasurement(e, _display.MkVValue));
                         });
-                    });
+
+                    var msNorm = FormatNormForClient(_display.MsNorm);
+                    var mkvNorm = FormatNormForClient(_display.MkVNorm);
+                    if (msNorm != null || mkvNorm != null)
+                    {
+                        valuesColumn.Item().Row(normRow =>
+                        {
+                            normRow.Spacing(0);
+                            normRow.RelativeItem().AlignCenter().Text(msNorm ?? string.Empty)
+                                .FontSize(10)
+                                .FontColor(Colors.Hex(MutedColorHex));
+                            normRow.RelativeItem().AlignCenter().Text(mkvNorm ?? string.Empty)
+                                .FontSize(10)
+                                .FontColor(Colors.Hex(MutedColorHex));
+                        });
+                    }
                 });
             });
         }
 
-        private static void AppendNorm(ColumnDescriptor column, string value)
+        private static void ComposeMeasurement(IContainer container, string value)
         {
-            var formatted = FormatNormForClient(value);
-            if (formatted == null)
-                return;
-
-            column.Item().AlignCenter().Text(formatted).FontSize(10).FontColor(Colors.Grey.Darken1);
-        }
-
-        private static void AppendMeasurement(ColumnDescriptor column, string value)
-        {
-            column.Item().AlignCenter().Row(row =>
+            container.AlignMiddle().AlignCenter().Row(row =>
             {
-                row.Spacing(2);
+                row.Spacing(ClientLayoutMetrics.MeasurementValueGap);
 
                 if (value == "—")
                 {
@@ -1749,33 +1842,63 @@ public static class ErgReportBuilder
 
     private sealed class ClientGraphComponent : IComponent
     {
-        private readonly ErgTest _test;
-        private readonly EyeData _eye;
+        private readonly GraphImage? _graph;
+        private readonly float _targetHeight;
 
-        public ClientGraphComponent(ErgTest test, EyeData eye)
+        public ClientGraphComponent(GraphImage? graph, float targetHeight)
         {
-            _test = test;
-            _eye = eye;
+            _graph = graph;
+            _targetHeight = targetHeight;
         }
 
         public void Compose(IContainer container)
         {
-            var graph = TryRenderGraphImage(_test, _eye);
-
-            container.Column(column =>
+            container.Height(_targetHeight).Element(element =>
             {
-                column.Spacing(4);
-                if (graph != null)
+                if (_graph != null)
                 {
-                    column.Item().AlignCenter().Element(e => e.Image(graph.Data).FitWidth());
+                    element.Canvas((canvas, size) =>
+                    {
+                        using var image = SKImage.FromEncodedData(_graph.Data);
+                        if (image == null)
+                            return;
+
+                        var scale = Math.Min(size.Width / image.Width, size.Height / image.Height);
+                        var drawWidth = image.Width * scale;
+                        var drawHeight = image.Height * scale;
+                        var offsetX = (size.Width - drawWidth) / 2f;
+                        var offsetY = (size.Height - drawHeight) / 2f;
+
+                        canvas.DrawImage(image, new SKRect(offsetX, offsetY, offsetX + drawWidth, offsetY + drawHeight));
+                    });
+                    return;
                 }
-                else
+
+                element.Layer(layer =>
                 {
-                    column.Item().Border(1).BorderColor(Colors.Grey.Lighten2)
-                        .Padding(12)
-                        .AlignCenter().AlignMiddle()
-                        .Text("Нет данных").Italic().FontColor(Colors.Grey.Darken1);
-                }
+                    layer.Canvas((canvas, size) =>
+                    {
+                        using var paint = new SKPaint
+                        {
+                            Style = SKPaintStyle.Stroke,
+                            Color = new SKColor(200, 200, 200),
+                            StrokeWidth = 1f,
+                            IsAntialias = true
+                        };
+
+                        using var pathEffect = SKPathEffect.CreateDash(new float[] { 4f, 4f }, 0f);
+                        paint.PathEffect = pathEffect;
+
+                        var rect = new SKRect(0.5f, 0.5f, size.Width - 0.5f, size.Height - 0.5f);
+                        canvas.DrawRect(rect, paint);
+                    });
+
+                    layer.AlignCenter().AlignMiddle().Text(text =>
+                    {
+                        text.DefaultTextStyle(style => style.FontSize(11).Italic().FontColor(Colors.Hex(MutedColorHex)));
+                        text.Span("Нет данных");
+                    });
+                });
             });
         }
     }
@@ -1788,12 +1911,14 @@ public static class ErgReportBuilder
 
         public void Compose(IContainer container)
         {
-            container.Column(column =>
-            {
-                column.Spacing(4);
-                column.Item().Text("Заключение:").FontSize(12).SemiBold();
-                column.Item().Text(_description).FontSize(11);
-            });
+            container
+                .PaddingBottom(ClientLayoutMetrics.SpacingMedium)
+                .Column(column =>
+                {
+                    column.Spacing(ClientLayoutMetrics.SummarySpacingSmall);
+                    column.Item().Text("Заключение:").FontSize(12).SemiBold();
+                    column.Item().Text(_description).FontSize(10);
+                });
         }
     }
 
