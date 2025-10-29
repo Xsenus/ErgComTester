@@ -125,19 +125,19 @@ public static class ErgReportBuilder
                 {
                     column.Spacing(18);
 
-                    if (!string.IsNullOrWhiteSpace(patient.Description))
-                    {
-                        column.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(10).Column(desc =>
-                        {
-                            desc.Item().Text("Автоматическое заключение").SemiBold();
-                            desc.Item().Text(patient.Description).FontSize(10).WrapAnywhere();
-                        });
-                    }
-
                     for (int i = 0; i < patient.Tests.Count; i++)
                     {
                         var test = patient.Tests[i];
                         column.Item().Component(new TestComponent(i + 1, test));
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(patient.Description))
+                    {
+                        column.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(10).Column(desc =>
+                        {
+                            desc.Item().Text("Заключение:").SemiBold();
+                            desc.Item().Text(patient.Description).FontSize(10).WrapAnywhere();
+                        });
                     }
                 });
 
@@ -288,11 +288,6 @@ public static class ErgReportBuilder
             body.Append(CreateParagraph(headerTitle, fontSizePt: 16, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(12)));
             body.Append(CreateHeaderTable(patient, deviceInfo));
 
-            if (!string.IsNullOrWhiteSpace(patient.Description))
-            {
-                body.Append(CreateDescriptionTable(patient.Description));
-            }
-
             uint imageId = 1;
 
             for (int i = 0; i < patient.Tests.Count; i++)
@@ -309,6 +304,11 @@ public static class ErgReportBuilder
 
                 body.Append(CreateMeasurementTable(test));
                 AppendGraphSection(body, mainPart, test, ref imageId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(patient.Description))
+            {
+                body.Append(CreateDescriptionTable(patient.Description));
             }
 
             ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
@@ -964,7 +964,7 @@ public static class ErgReportBuilder
                 return;
 
             var innerWidth = ContentWidth - _summarySpacingSmall * 2f;
-            var titleHeight = MeasureText("Автоматическое заключение", _descriptionTitleFont, innerWidth, _formatLeft);
+            var titleHeight = MeasureText("Заключение:", _descriptionTitleFont, innerWidth, _formatLeft);
             var textHeight = MeasureText(_patient.Description, _descriptionFont, innerWidth, _formatLeft);
             var blockHeight = titleHeight + textHeight + _summarySpacingSmall * 3f;
 
@@ -978,7 +978,7 @@ public static class ErgReportBuilder
                 _y + _summarySpacingSmall,
                 innerWidth,
                 titleHeight);
-            _graphics.DrawString("Автоматическое заключение", _descriptionTitleFont, Brushes.Black, titleRect, _formatLeft);
+            _graphics.DrawString("Заключение:", _descriptionTitleFont, Brushes.Black, titleRect, _formatLeft);
 
             var textRect = new RectangleF(
                 _marginLeft + _summarySpacingSmall,
@@ -1730,7 +1730,7 @@ public static class ErgReportBuilder
             container.Column(column =>
             {
                 column.Spacing(4);
-                column.Item().Text("Описание:").FontSize(12).SemiBold();
+                column.Item().Text("Заключение:").FontSize(12).SemiBold();
                 column.Item().Text(_description).FontSize(11);
             });
         }
@@ -1872,7 +1872,9 @@ public static class ErgReportBuilder
         double XMax,
         double YMin,
         double YMax,
-        GraphMarker[] Markers);
+        GraphMarker[] Markers,
+        double DataMin,
+        double DataMax);
 
     private enum GraphMarkerKind
     {
@@ -2226,17 +2228,30 @@ public static class ErgReportBuilder
             return false;
 
         bool hasSamples = false;
+        double dataMin = double.PositiveInfinity;
+        double dataMax = double.NegativeInfinity;
+
         for (int i = 0; i < curves; i++)
         {
             var samples = graphs[i];
-            if (samples is { Length: > 1 })
+            if (samples == null || samples.Length == 0)
+                continue;
+
+            foreach (var sample in samples)
             {
+                if (double.IsNaN(sample) || double.IsInfinity(sample))
+                    continue;
+
                 hasSamples = true;
-                break;
+
+                if (sample < dataMin)
+                    dataMin = sample;
+                if (sample > dataMax)
+                    dataMax = sample;
             }
         }
 
-        if (!hasSamples)
+        if (!hasSamples || double.IsInfinity(dataMin) || double.IsInfinity(dataMax))
             return false;
 
         double xMin = test.GraphXScaleMin;
@@ -2251,7 +2266,7 @@ public static class ErgReportBuilder
 
         var markers = BuildMarkers(eye, xMin, xMax);
 
-        context = new GraphRenderContext(graphs, curves, test.GraphNumPoints, xMin, xMax, yMin, yMax, markers);
+        context = new GraphRenderContext(graphs, curves, test.GraphNumPoints, xMin, xMax, yMin, yMax, markers, dataMin, dataMax);
         return true;
     }
 
@@ -2310,7 +2325,6 @@ public static class ErgReportBuilder
             double xMax = context.XMax;
             double yMin = context.YMin;
             double yMax = context.YMax;
-            const double axisZeroEpsilon = 1e-6;
 
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
@@ -2320,25 +2334,9 @@ public static class ErgReportBuilder
             var xTicks = BuildAxisTicks(xMin, xMax, xStep);
             var yTicks = BuildAxisTicks(yMin, yMax, yStep);
 
-            using (var gridPaint = new SKPaint { Color = new SKColor(220, 220, 220), StrokeWidth = 1f, IsAntialias = true })
+            using (var borderPaint = new SKPaint { Color = new SKColor(210, 210, 210), StrokeWidth = 1f, IsAntialias = true, Style = SKPaintStyle.Stroke })
             {
-                foreach (var tick in xTicks)
-                {
-                    var px = TransformX(tick);
-                    if (px <= chartRect.Left + 1 || px >= chartRect.Right - 1)
-                        continue;
-                    canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, gridPaint);
-                }
-
-                foreach (var tick in yTicks)
-                {
-                    var py = TransformY(tick);
-                    if (py <= chartRect.Top + 1 || py >= chartRect.Bottom - 1)
-                        continue;
-                    if (Math.Abs(tick) < axisZeroEpsilon)
-                        continue;
-                    canvas.DrawLine(chartRect.Left, py, chartRect.Right, py, gridPaint);
-                }
+                canvas.DrawRect(chartRect, borderPaint);
             }
 
             using (var axisPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.8f, IsAntialias = true })
@@ -2373,6 +2371,32 @@ public static class ErgReportBuilder
                     var zeroX = TransformX(0);
                     canvas.DrawLine(zeroX, chartRect.Top, zeroX, chartRect.Bottom, zeroPaint);
                 }
+            }
+
+            void DrawExtremeLine(double value)
+            {
+                if (double.IsNaN(value) || double.IsInfinity(value))
+                    return;
+
+                var py = TransformY(value);
+                if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                    return;
+
+                using var extremePaint = new SKPaint
+                {
+                    Color = new SKColor(160, 160, 160),
+                    StrokeWidth = 1.2f,
+                    IsAntialias = true,
+                    PathEffect = SKPathEffect.CreateDash(new[] { 8f, 6f }, 0)
+                };
+
+                canvas.DrawLine(chartRect.Left, py, chartRect.Right, py, extremePaint);
+            }
+
+            DrawExtremeLine(context.DataMin);
+            if (Math.Abs(context.DataMax - context.DataMin) > 1e-9)
+            {
+                DrawExtremeLine(context.DataMax);
             }
 
             if (test.GraphFlashPosition >= xMin && test.GraphFlashPosition <= xMax)
@@ -2581,7 +2605,6 @@ public static class ErgReportBuilder
             double xMax = context.XMax;
             double yMin = context.YMin;
             double yMax = context.YMax;
-            const double axisZeroEpsilon = 1e-6;
 
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
@@ -2591,25 +2614,9 @@ public static class ErgReportBuilder
             var xTicks = BuildAxisTicks(xMin, xMax, xStep);
             var yTicks = BuildAxisTicks(yMin, yMax, yStep);
 
-            using (var gridPen = new Pen(System.Drawing.Color.FromArgb(220, 220, 220), 1f))
+            using (var borderPen = new Pen(System.Drawing.Color.FromArgb(210, 210, 210), 1f))
             {
-                foreach (var tick in xTicks)
-                {
-                    var px = TransformX(tick);
-                    if (px <= chartRect.Left + 1 || px >= chartRect.Right - 1)
-                        continue;
-                    graphics.DrawLine(gridPen, px, chartRect.Top, px, chartRect.Bottom);
-                }
-
-                foreach (var tick in yTicks)
-                {
-                    var py = TransformY(tick);
-                    if (py <= chartRect.Top + 1 || py >= chartRect.Bottom - 1)
-                        continue;
-                    if (Math.Abs(tick) < axisZeroEpsilon)
-                        continue;
-                    graphics.DrawLine(gridPen, chartRect.Left, py, chartRect.Right, py);
-                }
+                graphics.DrawRectangle(borderPen, chartRect.Left, chartRect.Top, chartRect.Width, chartRect.Height);
             }
 
             using (var axisPen = new Pen(System.Drawing.Color.Black, 1.8f))
@@ -2644,6 +2651,25 @@ public static class ErgReportBuilder
                     var zeroX = TransformX(0);
                     graphics.DrawLine(dashedPen, zeroX, chartRect.Top, zeroX, chartRect.Bottom);
                 }
+            }
+
+            void DrawExtremeLine(double value)
+            {
+                if (double.IsNaN(value) || double.IsInfinity(value))
+                    return;
+
+                var py = TransformY(value);
+                if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                    return;
+
+                using var extremePen = new Pen(System.Drawing.Color.FromArgb(160, 160, 160), 1.2f) { DashPattern = new[] { 8f, 6f } };
+                graphics.DrawLine(extremePen, chartRect.Left, py, chartRect.Right, py);
+            }
+
+            DrawExtremeLine(context.DataMin);
+            if (Math.Abs(context.DataMax - context.DataMin) > 1e-9)
+            {
+                DrawExtremeLine(context.DataMax);
             }
 
             if (test.GraphFlashPosition >= xMin && test.GraphFlashPosition <= xMax)
@@ -2969,8 +2995,8 @@ public static class ErgReportBuilder
                     new LeftBorder { Val = BorderValues.Single, Color = "CCCCCC", Size = 8 },
                     new BottomBorder { Val = BorderValues.Single, Color = "CCCCCC", Size = 8 },
                     new RightBorder { Val = BorderValues.Single, Color = "CCCCCC", Size = 8 },
-                    new InsideHorizontalBorder { Val = BorderValues.Single, Color = "CCCCCC", Size = 0 },
-                    new InsideVerticalBorder { Val = BorderValues.Single, Color = "CCCCCC", Size = 0 }
+                    new InsideHorizontalBorder { Val = BorderValues.Nil },
+                    new InsideVerticalBorder { Val = BorderValues.Nil }
                 ),
                 new TableCellMarginDefault(
                     new TopMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
@@ -2983,7 +3009,7 @@ public static class ErgReportBuilder
 
         var cellProps = new TableCellProperties(new TableCellWidth { Type = TableWidthUnitValues.Auto });
         var cell = new TableCell(cellProps);
-        cell.Append(CreateParagraph("Автоматическое заключение", fontSizePt: 11, bold: true));
+        cell.Append(CreateParagraph("Заключение:", fontSizePt: 11, bold: true));
         cell.Append(CreateParagraph(description, fontSizePt: 10));
         table.Append(new TableRow(cell));
         return table;
@@ -3023,7 +3049,7 @@ public static class ErgReportBuilder
 
     private static void AppendClientDescription(Body body, string description)
     {
-        body.Append(CreateParagraph("Описание:", fontSizePt: 12, bold: true, spacingBefore: TwipsFromPoints(18), spacingAfter: TwipsFromPoints(4)));
+        body.Append(CreateParagraph("Заключение:", fontSizePt: 12, bold: true, spacingBefore: TwipsFromPoints(18), spacingAfter: TwipsFromPoints(4)));
         body.Append(CreateParagraph(description, fontSizePt: 11));
     }
 
@@ -3751,6 +3777,69 @@ public static class ErgReportBuilder
             var numberingPart = mainPart.AddNewPart<NumberingDefinitionsPart>();
             numberingPart.Numbering = new Numbering();
         }
+
+        EnsureDocumentSettings(mainPart);
+    }
+
+    private static void EnsureDocumentSettings(MainDocumentPart mainPart)
+    {
+        if (mainPart == null)
+            return;
+
+        var settingsPart = mainPart.DocumentSettingsPart ?? mainPart.AddNewPart<DocumentSettingsPart>();
+        if (settingsPart.Settings == null)
+        {
+            settingsPart.Settings = new Settings();
+        }
+
+        var settings = settingsPart.Settings;
+
+        var view = settings.GetFirstChild<View>();
+        if (view == null)
+        {
+            view = new View { Val = ViewValues.Print };
+            settings.PrependChild(view);
+        }
+
+        if (settings.GetFirstChild<Zoom>() == null)
+        {
+            var zoom = new Zoom { Percent = 100 };
+            settings.InsertAfter(zoom, view);
+        }
+
+        var compatibility = settings.GetFirstChild<Compatibility>();
+        if (compatibility == null)
+        {
+            compatibility = new Compatibility();
+            settings.Append(compatibility);
+        }
+
+        EnsureCompatibilitySetting(compatibility, CompatSettingNameValues.CompatibilityMode, "15");
+    }
+
+    private static void EnsureCompatibilitySetting(Compatibility compatibility, CompatSettingNameValues name, string value)
+    {
+        if (compatibility == null)
+            return;
+
+        const string WordCompatibilityUri = "http://schemas.microsoft.com/office/word";
+
+        var existing = compatibility.Elements<CompatibilitySetting>()
+            .FirstOrDefault(setting => setting.Name?.Value == name);
+
+        if (existing != null)
+        {
+            existing.Val = value;
+            existing.Uri = WordCompatibilityUri;
+            return;
+        }
+
+        compatibility.Append(new CompatibilitySetting
+        {
+            Name = name,
+            Val = value,
+            Uri = WordCompatibilityUri
+        });
     }
 
     private static void EnsureDocumentPropertiesParts(WordprocessingDocument document, string? title)
