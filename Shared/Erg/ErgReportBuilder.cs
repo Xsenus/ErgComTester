@@ -467,10 +467,10 @@ public static class ErgReportBuilder
     private static IEnumerable<string> GetImageExtensions(IReadOnlyCollection<ZipArchiveEntry> entries)
     {
         return entries
-            .Where(entry => entry.FullName.StartsWith("word/media/", StringComparison.OrdinalIgnoreCase))
             .Select(entry => Path.GetExtension(entry.FullName))
             .Where(ext => !string.IsNullOrWhiteSpace(ext))
             .Select(ext => ext!.TrimStart('.').ToLowerInvariant())
+            .Where(ext => TryGetImageContentType(ext, out _))
             .Distinct();
     }
 
@@ -634,17 +634,101 @@ public static class ErgReportBuilder
 
         foreach (var relationship in relationships)
         {
-            var target = (string?)relationship.Attribute("Target");
-            if (string.IsNullOrWhiteSpace(target))
+            var originalTarget = (string?)relationship.Attribute("Target");
+            if (string.IsNullOrWhiteSpace(originalTarget))
                 continue;
 
-            var resolved = ResolveDocumentRelationshipTarget(target);
-            if (string.IsNullOrEmpty(resolved))
+            var targetMode = (string?)relationship.Attribute("TargetMode");
+            if (!string.IsNullOrEmpty(targetMode) && targetMode.Equals("External", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            if (!entries.Contains(resolved))
+            var sanitizedTarget = originalTarget.Replace('\\', '/').Trim();
+
+            bool wasAbsolute = false;
+            bool wasParentRelative = false;
+
+            if (sanitizedTarget.StartsWith("/", StringComparison.Ordinal))
+            {
+                sanitizedTarget = sanitizedTarget[1..];
+                wasAbsolute = true;
+            }
+
+            while (sanitizedTarget.StartsWith("../", StringComparison.Ordinal))
+            {
+                sanitizedTarget = sanitizedTarget.Substring(3);
+                wasParentRelative = true;
+            }
+
+            string resolvedPath;
+            if (wasAbsolute || wasParentRelative)
+            {
+                resolvedPath = sanitizedTarget;
+            }
+            else
+            {
+                resolvedPath = sanitizedTarget.StartsWith("word/", StringComparison.OrdinalIgnoreCase)
+                    ? sanitizedTarget
+                    : "word/" + sanitizedTarget;
+            }
+
+            if (sanitizedTarget.StartsWith("word/", StringComparison.OrdinalIgnoreCase))
+            {
+                sanitizedTarget = sanitizedTarget[5..];
+            }
+
+            var normalizedTarget = sanitizedTarget;
+            bool targetChanged = !string.Equals(originalTarget, normalizedTarget, StringComparison.Ordinal);
+
+            if (normalizedTarget.StartsWith("media/", StringComparison.OrdinalIgnoreCase))
+            {
+                var fileName = normalizedTarget.Substring("media/".Length);
+                var destinationPath = $"word/media/{fileName}";
+                if (!entries.Contains(destinationPath))
+                {
+                    var sourceEntry = archive.GetEntry($"media/{fileName}");
+                    if (sourceEntry != null)
+                    {
+                        var newEntry = archive.CreateEntry(destinationPath, CompressionLevel.Optimal);
+                        using (var sourceStream = sourceEntry.Open())
+                        using (var destinationStream = newEntry.Open())
+                        {
+                            sourceStream.CopyTo(destinationStream);
+                        }
+
+                        var removedPath = sourceEntry.FullName;
+                        sourceEntry.Delete();
+                        entries.Remove(removedPath);
+                        entries.Add(destinationPath);
+                        changed = true;
+                    }
+                }
+
+                if (!entries.Contains(destinationPath))
+                {
+                    relationship.Remove();
+                    changed = true;
+                    continue;
+                }
+
+                if (!string.Equals(normalizedTarget, $"media/{fileName}", StringComparison.Ordinal))
+                {
+                    normalizedTarget = $"media/{fileName}";
+                    targetChanged = true;
+                }
+
+                resolvedPath = destinationPath;
+            }
+
+            if (string.IsNullOrEmpty(resolvedPath) || !entries.Contains(resolvedPath))
             {
                 relationship.Remove();
+                changed = true;
+                continue;
+            }
+
+            if (targetChanged)
+            {
+                relationship.SetAttributeValue("Target", normalizedTarget);
                 changed = true;
             }
         }
@@ -676,15 +760,26 @@ public static class ErgReportBuilder
             return string.Empty;
 
         var normalized = target.Replace('\\', '/').Trim();
-        if (normalized.StartsWith("../", StringComparison.Ordinal))
-        {
-            return "word/" + normalized.Substring(3);
-        }
 
+        bool wasAbsolute = false;
         if (normalized.StartsWith("/", StringComparison.Ordinal))
         {
-            return normalized.TrimStart('/');
+            normalized = normalized[1..];
+            wasAbsolute = true;
         }
+
+        int parentSegments = 0;
+        while (normalized.StartsWith("../", StringComparison.Ordinal))
+        {
+            normalized = normalized.Substring(3);
+            parentSegments++;
+        }
+
+        if (normalized.StartsWith("word/", StringComparison.OrdinalIgnoreCase))
+            return normalized;
+
+        if (wasAbsolute || parentSegments > 0)
+            return normalized;
 
         return "word/" + normalized.TrimStart('/');
     }
@@ -3865,8 +3960,13 @@ public static class ErgReportBuilder
     {
         if (mainPart.StyleDefinitionsPart == null)
         {
-            var stylesPart = mainPart.AddNewPart<StyleDefinitionsPart>();
-            var styles = new Styles(
+            mainPart.AddNewPart<StyleDefinitionsPart>();
+        }
+
+        var stylesPart = mainPart.StyleDefinitionsPart!;
+        if (stylesPart.Styles == null)
+        {
+            stylesPart.Styles = new Styles(
                 new DocDefaults(
                     new RunPropertiesDefault(
                         new RunPropertiesBaseStyle(
@@ -3882,7 +3982,21 @@ public static class ErgReportBuilder
                                 Line = "240"
                             })))
             );
-            stylesPart.Styles = styles;
+        }
+
+        bool hasNormalStyle = stylesPart.Styles.Elements<Style>()
+            .Any(style => style.Type == StyleValues.Paragraph && string.Equals(style.StyleId, "Normal", StringComparison.OrdinalIgnoreCase));
+
+        if (!hasNormalStyle)
+        {
+            var normal = new Style
+            {
+                Type = StyleValues.Paragraph,
+                StyleId = "Normal",
+                Default = OnOffValue.FromBoolean(true)
+            };
+            normal.Append(new Name { Val = "Normal" });
+            stylesPart.Styles.Append(normal);
         }
 
         if (mainPart.NumberingDefinitionsPart == null)
