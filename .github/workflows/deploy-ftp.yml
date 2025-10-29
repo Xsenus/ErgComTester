@@ -1,0 +1,100 @@
+name: Build MicroluxErgConnect.Desktop → ZIP → FTP
+
+on:
+  push:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_PATH: ./MicroluxErgConnect.Desktop/MicroluxErgConnect.Desktop.csproj
+      OUT_DIR: publish
+      ZIP_NAME: ErgComTester.Update.zip
+      XML_NAME: ErgComTester.Update.xml
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            8.0.x
+            6.0.x
+
+      # Читаем версию из .csproj: сначала AssemblyVersion, иначе FileVersion
+      - name: Read Version from csproj
+        id: ver
+        shell: pwsh
+        run: |
+          $proj = "${{ env.PROJECT_PATH }}"
+          if (!(Test-Path $proj)) { throw "Project file not found: $proj" }
+          [xml]$doc = Get-Content $proj
+
+          $asmVer = $doc.SelectSingleNode("//AssemblyVersion")?.InnerText
+          $fileVer = $doc.SelectSingleNode("//FileVersion")?.InnerText
+          $version = if ([string]::IsNullOrWhiteSpace($asmVer)) { $fileVer } else { $asmVer }
+          if ([string]::IsNullOrWhiteSpace($version)) { throw "No AssemblyVersion/FileVersion found in $proj" }
+
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Detected version: $version"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build (Release)
+        run: dotnet build ${{ env.PROJECT_PATH }} -c Release --no-restore
+
+      - name: Publish (Release)
+        run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -o ${{ env.OUT_DIR }} --no-build
+
+      # Формируем ErgComTester.Update.xml с вашей схемой
+      - name: Create ErgComTester.Update.xml
+        shell: pwsh
+        run: |
+          $version = "${{ env.VERSION }}"
+          $url = "ftp://90.189.149.59/other/ErgComTester/ErgComTester.Update.zip"
+          $xml = @"
+<?xml version="1.0" encoding="UTF-8"?>
+<item>
+    <version>$version</version>
+    <url>$url</url>
+    <changelog></changelog>
+    <mandatory mode="1">true</mandatory>
+</item>
+"@
+          Set-Content -Path "${{ env.XML_NAME }}" -Value $xml -Encoding UTF8
+          Get-Content "${{ env.XML_NAME }}" | Write-Host
+
+      - name: Make ZIP from publish output
+        run: |
+          rm -f "${{ env.ZIP_NAME }}"
+          cd "${{ env.OUT_DIR }}"
+          zip -r "../${{ env.ZIP_NAME }}" ./*
+          cd -
+
+      - name: Upload ZIP and XML to FTP
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASS: ${{ secrets.FTP_PASS }}
+          FTP_DIR:  ${{ secrets.FTP_DIR }}
+        run: |
+          TARGET_DIR=${FTP_DIR:-/other/ErgComTester/}
+          echo "Uploading to ftp://${FTP_HOST}${TARGET_DIR}"
+
+          # ZIP
+          curl --fail --show-error --ftp-create-dirs \
+               -T "${{ env.ZIP_NAME }}" \
+               --user "$FTP_USER:$FTP_PASS" \
+               "ftp://${FTP_HOST}${TARGET_DIR%/}/${{ env.ZIP_NAME }}"
+
+          # XML
+          curl --fail --show-error --ftp-create-dirs \
+               -T "${{ env.XML_NAME }}" \
+               --user "$FTP_USER:$FTP_PASS" \
+               "ftp://${FTP_HOST}${TARGET_DIR%/}/${{ env.XML_NAME }}"
