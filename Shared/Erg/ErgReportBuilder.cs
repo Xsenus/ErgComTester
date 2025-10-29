@@ -733,6 +733,7 @@ public static class ErgReportBuilder
         private readonly DrawingFont _descriptionFont = new("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
         private readonly DrawingFont _infoSmallFont = new("Arial", 9f, FontStyle.Regular, GraphicsUnit.Point);
         private readonly DrawingFont _eyeLabelFont = new("Arial", 11f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly DrawingFont _eyeLabelAuxFont = new("Arial", 11f, FontStyle.Regular, GraphicsUnit.Point);
         private readonly DrawingFont _valueFont = new("Arial", 26f, FontStyle.Bold, GraphicsUnit.Point);
         private readonly DrawingFont _unitFont = new("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
         private readonly DrawingFont _normFont = new("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
@@ -767,6 +768,7 @@ public static class ErgReportBuilder
         };
 
         private readonly SolidBrush _mutedBrush = new(DrawingColor.FromArgb(100, 100, 100));
+        private readonly SolidBrush _qualityBrush = new(DrawingColor.FromArgb(120, 128, 145));
         private readonly SolidBrush _descriptionBackgroundBrush = new(DrawingColor.FromArgb(245, 245, 245));
         private readonly SolidBrush _testHeaderBackgroundBrush = new(DrawingColor.FromArgb(0xEE, 0xEE, 0xEE));
 
@@ -829,6 +831,7 @@ public static class ErgReportBuilder
             _descriptionFont.Dispose();
             _infoSmallFont.Dispose();
             _eyeLabelFont.Dispose();
+            _eyeLabelAuxFont.Dispose();
             _valueFont.Dispose();
             _unitFont.Dispose();
             _normFont.Dispose();
@@ -838,6 +841,7 @@ public static class ErgReportBuilder
             _formatRight.Dispose();
             _formatCenter.Dispose();
             _mutedBrush.Dispose();
+            _qualityBrush.Dispose();
             _descriptionBackgroundBrush.Dispose();
             _testHeaderBackgroundBrush.Dispose();
         }
@@ -968,15 +972,28 @@ public static class ErgReportBuilder
             if (_graphics == null)
                 return;
 
-            var labelWidth = Math.Min(ContentWidth * 0.45f, _graphics.MeasureString(label, _infoLabelFont).Width + 4f);
-            var lineHeight = Math.Max(_infoLabelFont.GetHeight(_graphics), _infoValueFont.GetHeight(_graphics));
+            var labelSize = _graphics.MeasureString(label, _infoLabelFont);
+            var preferredLabelWidth = Math.Min(ContentWidth * 0.45f, labelSize.Width);
+            var gap = string.IsNullOrWhiteSpace(value) ? 0f : Math.Min(8f, _graphics.MeasureString(" ", _infoValueFont).Width);
+            var valueWidth = Math.Max(0f, ContentWidth - preferredLabelWidth - gap);
+            if (valueWidth <= 0f)
+            {
+                preferredLabelWidth = Math.Min(ContentWidth * 0.6f, labelSize.Width);
+                valueWidth = Math.Max(0f, ContentWidth - preferredLabelWidth - gap);
+            }
+
+            var labelHeight = _infoLabelFont.GetHeight(_graphics);
+            var valueHeight = MeasureText(value, _infoValueFont, valueWidth <= 0f ? ContentWidth : valueWidth, _formatLeft);
+            var lineHeight = Math.Max(labelHeight, valueHeight);
 
             EnsureSpace(lineHeight + _summarySpacingSmall * 0.5f);
 
-            var labelRect = new RectangleF(_marginLeft, _y, labelWidth, lineHeight);
+            var labelRect = new RectangleF(_marginLeft, _y, preferredLabelWidth, lineHeight);
             _graphics.DrawString(label, _infoLabelFont, Brushes.Black, labelRect, _formatLeft);
 
-            var valueRect = new RectangleF(_marginLeft + labelWidth + 6f, _y, ContentWidth - labelWidth - 6f, lineHeight);
+            var valueX = labelRect.Right + gap;
+            var availableWidth = Math.Max(0f, _marginLeft + ContentWidth - valueX);
+            var valueRect = new RectangleF(valueX, _y, availableWidth, lineHeight);
             _graphics.DrawString(value, _infoValueFont, Brushes.Black, valueRect, _formatLeft);
 
             _y += lineHeight + _summarySpacingSmall * 0.5f;
@@ -1114,8 +1131,7 @@ public static class ErgReportBuilder
                 return 0f;
 
             float total = 0f;
-            var labelText = BuildEyeLabel(label, eye);
-            total += MeasureText(labelText, _eyeLabelFont, width, _formatCenter);
+            total += MeasureEyeLabelHeight(eye);
             total += _summarySpacingSmall;
 
             if (eye.IsFlat)
@@ -1178,6 +1194,50 @@ public static class ErgReportBuilder
             return quality != null ? $"{label} {quality}" : label;
         }
 
+        private float MeasureEyeLabelHeight(EyeData eye)
+        {
+            if (_graphics == null)
+                return 0f;
+
+            var labelHeight = _eyeLabelFont.GetHeight(_graphics);
+            var qualityHeight = _eyeLabelAuxFont.GetHeight(_graphics);
+            return Math.Max(labelHeight, qualityHeight);
+        }
+
+        private void DrawEyeLabel(RectangleF rect, string label, EyeData eye)
+        {
+            if (_graphics == null)
+                return;
+
+            var quality = FormatQualityCompact(eye.QualityIndex);
+            var labelSize = _graphics.MeasureString(label, _eyeLabelFont);
+            SizeF qualitySize = SizeF.Empty;
+            float spaceWidth = 0f;
+
+            if (!string.IsNullOrWhiteSpace(quality))
+            {
+                qualitySize = _graphics.MeasureString(quality!, _eyeLabelAuxFont);
+                spaceWidth = _graphics.MeasureString(" ", _eyeLabelAuxFont).Width * 0.6f;
+            }
+
+            var totalWidth = labelSize.Width + (qualitySize.Width > 0f ? spaceWidth + qualitySize.Width : 0f);
+            var startX = rect.Left + Math.Max(0f, (rect.Width - totalWidth) / 2f);
+
+            var labelRect = new RectangleF(startX, rect.Top, Math.Min(labelSize.Width, rect.Width), rect.Height);
+            _graphics.DrawString(label, _eyeLabelFont, Brushes.Black, labelRect, _formatLeftCenter);
+
+            if (qualitySize.Width > 0f)
+            {
+                var qualityRect = new RectangleF(
+                    Math.Min(rect.Right, labelRect.Right + spaceWidth),
+                    rect.Top,
+                    Math.Max(0f, Math.Min(qualitySize.Width, rect.Right - (labelRect.Right + spaceWidth))),
+                    rect.Height);
+                if (qualityRect.Width > 0f)
+                    _graphics.DrawString(quality!, _eyeLabelAuxFont, _qualityBrush, qualityRect, _formatLeftCenter);
+            }
+        }
+
         private float CalculateNormHeight(string? msText, string? mkvText, float halfWidth)
         {
             if (string.IsNullOrWhiteSpace(msText) && string.IsNullOrWhiteSpace(mkvText))
@@ -1207,10 +1267,9 @@ public static class ErgReportBuilder
                 return;
 
             float cursor = rect.Top;
-            var labelText = BuildEyeLabel(label, eye);
-            var labelHeight = MeasureText(labelText, _eyeLabelFont, rect.Width, _formatCenter);
+            var labelHeight = MeasureEyeLabelHeight(eye);
             var labelRect = new RectangleF(rect.Left, cursor, rect.Width, labelHeight);
-            _graphics.DrawString(labelText, _eyeLabelFont, Brushes.Black, labelRect, _formatCenter);
+            DrawEyeLabel(labelRect, label, eye);
             cursor += labelHeight + _summarySpacingSmall;
 
             if (eye.IsFlat)
@@ -1425,9 +1484,19 @@ public static class ErgReportBuilder
             }
             else
             {
-                using var dashedPen = new Pen(DrawingColor.FromArgb(200, 200, 200)) { DashPattern = new[] { 4f, 4f } };
-                _graphics.DrawRectangle(dashedPen, graphRect.X, graphRect.Y, graphRect.Width, graphRect.Height);
-                _graphics.DrawString("Нет данных", _placeholderFont, _mutedBrush, graphRect, _formatCenter);
+                const float placeholderPadding = 12f;
+                var placeholderRect = new RectangleF(
+                    graphRect.Left + placeholderPadding,
+                    graphRect.Top + placeholderPadding,
+                    Math.Max(0f, graphRect.Width - placeholderPadding * 2f),
+                    Math.Max(0f, graphRect.Height - placeholderPadding * 2f));
+
+                using var borderPen = new Pen(DrawingColor.FromArgb(220, 228, 236), 1.2f);
+                if (placeholderRect.Width > 0f && placeholderRect.Height > 0f)
+                    _graphics.DrawRectangle(borderPen, placeholderRect.X, placeholderRect.Y, placeholderRect.Width, placeholderRect.Height);
+
+                var textRect = placeholderRect.Width > 0f && placeholderRect.Height > 0f ? placeholderRect : graphRect;
+                _graphics.DrawString("Нет данных", _placeholderFont, _mutedBrush, textRect, _formatCenter);
             }
         }
 
