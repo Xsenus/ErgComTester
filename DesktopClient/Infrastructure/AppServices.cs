@@ -19,6 +19,7 @@ public static class AppServices
 {
     private static bool _initialized;
     private static bool _autoUpdaterRequestedExit;
+    private static AutoUpdaterManifestInfo? _lastAutoUpdaterManifest;
 
     public static SettingsService Settings { get; private set; } = null!;
     public static LogService Log { get; private set; } = null!;
@@ -184,6 +185,7 @@ public static class AppServices
         {
             ConfigureAutoUpdater();
             AutoUpdater.ApplicationExitEvent += OnAutoUpdaterExitRequested;
+            _lastAutoUpdaterManifest = manifest;
             AutoUpdater.Start(url);
             Log.Info("AutoUpdater.NET: проверка завершена.");
             return new AutoUpdaterRunInfo(true, manifest, null, _autoUpdaterRequestedExit);
@@ -197,6 +199,7 @@ public static class AppServices
         {
             AutoUpdater.ApplicationExitEvent -= OnAutoUpdaterExitRequested;
             AutoUpdater.CheckForUpdateEvent -= OnAutoUpdaterCheckForUpdate;
+            _lastAutoUpdaterManifest = null;
         }
     }
 
@@ -229,7 +232,7 @@ public static class AppServices
             return;
         }
 
-        var description = args.Description;
+        var description = _lastAutoUpdaterManifest?.Description;
         if (string.IsNullOrWhiteSpace(description))
         {
             if (!string.IsNullOrWhiteSpace(changelogUrl))
