@@ -5,8 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>ErgComTester</AssemblyName>
-    <AssemblyVersion>1.0.0.16</AssemblyVersion>
-    <FileVersion>1.0.0.16</FileVersion>
+    <AssemblyVersion>1.0.0.17</AssemblyVersion>
+    <FileVersion>1.0.0.17</FileVersion>
     <ApplicationIcon Condition="Exists('..\DesktopClient\Resources\microlux-connect.ico')">..\DesktopClient\Resources\microlux-connect.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>

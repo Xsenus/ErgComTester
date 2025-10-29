@@ -2402,7 +2402,7 @@ public static class ErgReportBuilder
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
 
-            var xAxisTicks = BuildAxisTickSet(xMin, xMax, test.GraphFlashPosition, test.GraphXValueStep, test.GraphXLineStep);
+            var xAxisTicks = BuildAxisTickSet(xMin, xMax, test.GraphFlashPosition, test.GraphXValueStep, test.GraphXLineStep, allowNegativeMajorTicks: false);
             var yAxisTicks = BuildAxisTickSet(yMin, yMax, 0, test.GraphYValueStep, test.GraphYLineStep);
             var xGridLines = xAxisTicks.GridLines;
             var yGridLines = yAxisTicks.GridLines;
@@ -2690,7 +2690,7 @@ public static class ErgReportBuilder
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
 
-            var xAxisTicks = BuildAxisTickSet(xMin, xMax, test.GraphFlashPosition, test.GraphXValueStep, test.GraphXLineStep);
+            var xAxisTicks = BuildAxisTickSet(xMin, xMax, test.GraphFlashPosition, test.GraphXValueStep, test.GraphXLineStep, allowNegativeMajorTicks: false);
             var yAxisTicks = BuildAxisTickSet(yMin, yMax, 0, test.GraphYValueStep, test.GraphYLineStep);
             var xGridLines = xAxisTicks.GridLines;
             var yGridLines = yAxisTicks.GridLines;
@@ -2970,7 +2970,7 @@ public static class ErgReportBuilder
         return stepNormalized * magnitude;
     }
 
-    private static AxisTickSet BuildAxisTickSet(double min, double max, double anchor, int valueStep, int lineStep)
+    private static AxisTickSet BuildAxisTickSet(double min, double max, double anchor, int valueStep, int lineStep, bool allowNegativeMajorTicks = true)
     {
         if (double.IsNaN(min) || double.IsNaN(max) || double.IsInfinity(min) || double.IsInfinity(max))
             return new AxisTickSet(Array.Empty<AxisTick>(), Array.Empty<AxisTick>(), Array.Empty<double>());
@@ -2987,6 +2987,11 @@ public static class ErgReportBuilder
 
         void RegisterTick(double position, double displayValue, bool isMajor, bool isAnchor)
         {
+            if (!allowNegativeMajorTicks && !isAnchor && displayValue < 0)
+            {
+                isMajor = false;
+            }
+
             long key = (long)Math.Round(position * keyScale);
             if (ticks.TryGetValue(key, out var existing))
             {
