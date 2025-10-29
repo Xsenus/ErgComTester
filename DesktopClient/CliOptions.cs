@@ -32,4 +32,5 @@ public sealed class SerialCommunicationOptions
     public TimeSpan ProbeTimeout => TimeSpan.FromMilliseconds(Math.Clamp(ProbeTimeoutMs, 500, 60_000));
     public TimeSpan PassiveProbeDelay => TimeSpan.FromMilliseconds(Math.Clamp(PassiveProbeDelayMs, 0, 5_000));
     public TimeSpan WarmupAfterToggle => TimeSpan.FromMilliseconds(Math.Clamp(WarmupAfterToggleMs, 0, 10_000));
+    public TimeSpan AttemptDelay => TimeSpan.FromMilliseconds(Math.Clamp(AttemptDelayMs, 0, 5_000));
 }

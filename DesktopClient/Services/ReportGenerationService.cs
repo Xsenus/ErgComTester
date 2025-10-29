@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Globalization;
 using System.IO;
 using System.IO.Ports;
+using System.Threading;
 using System.Threading.Tasks;
 using ErgData;
 using MicroluxErgConnect.Models;
@@ -162,16 +163,39 @@ public sealed class ReportGenerationService : IDisposable
                 var block = ReadPatientBlock(port, options);
                 if (block.Length == 0)
                 {
+                    if (attempt < Math.Max(1, options.RetryCount))
+                    {
+                        if (attempt == 1)
+                        {
+                            _log.Warn($"[{portName}] устройство не прислало данные пациента #{index} (попытка {attempt}). Повторим запрос.");
+                        }
+                        else
+                        {
+                            _log.Warn($"[{portName}] повторная передача пациента #{index} вернула пустой блок (попытка {attempt}).");
+                        }
+
+                        var retryDelay = options.AttemptDelay;
+                        if (retryDelay > TimeSpan.Zero)
+                        {
+                            _log.Debug($"[{portName}] ожидание {retryDelay.TotalMilliseconds:F0} мс перед повторным запросом пациента #{index}.");
+                            await Task.Delay(retryDelay, ct);
+                        }
+
+                        port.DiscardInBuffer();
+                        continue;
+                    }
+
                     if (attempt == 1)
                     {
                         _log.Info("Передача пациентов завершена устройством.");
-                        stopRequested = true;
                     }
                     else
                     {
-                        _log.Warn($"[{portName}] повторная передача пациента #{index} вернула пустой блок.");
-                        requestNextPatient = true;
+                        _log.Warn($"[{portName}] устройство не передало данные пациента #{index} после {attempt} попыток. Синхронизация остановлена.");
+                        _telegram?.NotifyPatientTransferTimeout(index, attempt);
                     }
+
+                    stopRequested = true;
                     break;
                 }
 

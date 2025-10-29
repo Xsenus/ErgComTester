@@ -1,9 +1,10 @@
 using System;
 using System.IO;
+using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
-using System.Net;
 using System.Xml.Linq;
 using AutoUpdaterDotNET;
 using MicroluxErgConnect.Models;
@@ -55,18 +56,38 @@ public static class AppServices
         Update = new UpdateService(Settings, Log);
         MainViewModel = new MainViewModel(Settings, DeviceMonitor, Update, Reports, Log);
 
-        var autoUpdaterInfo = RunAutoUpdaterIfConfigured();
-        if (autoUpdaterInfo.Enabled)
+        var autoUpdaterTask = RunAutoUpdaterIfConfiguredAsync();
+        autoUpdaterTask.ContinueWith(task =>
         {
-            Telegram.NotifyAutoUpdaterSummary(
-                autoUpdaterInfo.Manifest?.Version,
-                autoUpdaterInfo.Manifest?.PackageUrl,
-                autoUpdaterInfo.Manifest?.Mandatory,
-                autoUpdaterInfo.Manifest?.MandatoryMode,
-                autoUpdaterInfo.Manifest?.Description,
-                autoUpdaterInfo.Error,
-                autoUpdaterInfo.ExitRequested);
-        }
+            if (task.IsFaulted)
+            {
+                var ex = task.Exception?.GetBaseException();
+                Log.Warn($"AutoUpdater.NET: фоновая проверка завершилась ошибкой: {ex?.Message ?? task.Exception?.Message}");
+                return;
+            }
+
+            var info = task.Result;
+            if (!info.Enabled)
+            {
+                return;
+            }
+
+            try
+            {
+                Telegram?.NotifyAutoUpdaterSummary(
+                    info.Manifest?.Version,
+                    info.Manifest?.PackageUrl,
+                    info.Manifest?.Mandatory,
+                    info.Manifest?.MandatoryMode,
+                    info.Manifest?.Description,
+                    info.Error,
+                    info.ExitRequested);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Служба уведомлений уже остановлена.
+            }
+        }, TaskScheduler.Default);
 
         DeviceMonitor.DeviceConnected += (_, info) => Telegram.NotifyDeviceConnected(info);
         DeviceMonitor.DeviceDisconnected += (_, __) => Telegram.NotifyDeviceDisconnected(DeviceMonitor.CurrentStatus.Message);
@@ -92,21 +113,46 @@ public static class AppServices
         _initialized = false;
     }
 
-    private static AutoUpdaterRunInfo RunAutoUpdaterIfConfigured()
+    private static Task<AutoUpdaterRunInfo> RunAutoUpdaterIfConfiguredAsync()
     {
         var url = Settings.Current.UpdateManifestUrl;
         if (string.IsNullOrWhiteSpace(url))
         {
             Log.Info("AutoUpdater.NET: URL манифеста не задан, проверка пропущена.");
-            return new AutoUpdaterRunInfo(false, null, "URL манифеста не задан", false);
+            return Task.FromResult(new AutoUpdaterRunInfo(false, null, "URL манифеста не задан", false));
         }
 
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !string.Equals(uri.Scheme, Uri.UriSchemeFtp, StringComparison.OrdinalIgnoreCase))
         {
             Log.Info($"AutoUpdater.NET: URL '{url}' не поддерживается (ожидается ftp), используется встроенный сервис обновлений.");
-            return new AutoUpdaterRunInfo(false, null, "URL не поддерживает AutoUpdater.NET", false);
+            return Task.FromResult(new AutoUpdaterRunInfo(false, null, "URL не поддерживает AutoUpdater.NET", false));
         }
 
+        var tcs = new TaskCompletionSource<AutoUpdaterRunInfo>();
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var result = RunAutoUpdaterCore(url);
+                tcs.TrySetResult(result);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"AutoUpdater.NET: фоновая проверка завершилась исключением: {ex.Message}");
+                tcs.TrySetResult(new AutoUpdaterRunInfo(true, null, ex.Message, _autoUpdaterRequestedExit));
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "AutoUpdaterWorker"
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        return tcs.Task;
+    }
+
+    private static AutoUpdaterRunInfo RunAutoUpdaterCore(string url)
+    {
         Log.Info($"AutoUpdater.NET: подготовка проверки обновлений ({url}).");
 
         var manifest = TryReadAutoUpdaterManifest(url);
@@ -173,6 +219,8 @@ public static class AppServices
             request.UseBinary = true;
             request.UsePassive = true;
             request.KeepAlive = false;
+            request.Timeout = (int)TimeSpan.FromSeconds(6).TotalMilliseconds;
+            request.ReadWriteTimeout = (int)TimeSpan.FromSeconds(6).TotalMilliseconds;
 
             using var response = (FtpWebResponse)request.GetResponse();
             using var stream = response.GetResponseStream();
