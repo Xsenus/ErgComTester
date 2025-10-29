@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using ErgData;
 using MicroluxErgConnect.Models;
 
 namespace MicroluxErgConnect.Services;
@@ -65,6 +66,11 @@ public sealed class SettingsService
         }
 
         _settings.ReportHeader ??= string.Empty;
+        if (!Enum.IsDefined(typeof(ReportRenderingMode), _settings.ReportRenderingMode))
+        {
+            _settings.ReportRenderingMode = ReportRenderingMode.Automatic;
+            saveRequired = true;
+        }
 
         Directory.CreateDirectory(_settings.LogsDirectory);
         Directory.CreateDirectory(_settings.ReportsDirectory);

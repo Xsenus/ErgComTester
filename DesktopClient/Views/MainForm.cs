@@ -23,6 +23,7 @@ public partial class MainForm : Form
     private readonly EventHandler _checkUpdatesCanExecuteHandler;
     private readonly EventHandler _installUpdateCanExecuteHandler;
     private sealed record ReportTemplateOption(ReportTemplate Value, string Description);
+    private sealed record ReportRenderingModeOption(ReportRenderingMode Value, string Description);
 
     public MainForm()
     {
@@ -39,6 +40,14 @@ public partial class MainForm : Form
             new ReportTemplateOption(ReportTemplate.Classic, "Классический"),
             new ReportTemplateOption(ReportTemplate.Client, "Шаблон клиента")
         };
+        renderingModeComboBox.DisplayMember = nameof(ReportRenderingModeOption.Description);
+        renderingModeComboBox.ValueMember = nameof(ReportRenderingModeOption.Value);
+        renderingModeComboBox.DataSource = new[]
+        {
+            new ReportRenderingModeOption(ReportRenderingMode.Automatic, "Автоматически (по версии Windows)"),
+            new ReportRenderingModeOption(ReportRenderingMode.Modern, "Современный движок (QuestPDF)"),
+            new ReportRenderingModeOption(ReportRenderingMode.Legacy, "Совместимый режим (Windows 7)")
+        };
         logsBindingSource.DataSource = _logEntries;
         _viewModel.PropertyChanged += ViewModelOnPropertyChanged;
         _viewModel.Logs.CollectionChanged += LogsOnCollectionChanged;
@@ -47,6 +56,7 @@ public partial class MainForm : Form
         _viewModel.CheckUpdatesCommand.CanExecuteChanged += _checkUpdatesCanExecuteHandler;
         _viewModel.InstallUpdateCommand.CanExecuteChanged += _installUpdateCanExecuteHandler;
         reportTemplateComboBox.SelectedValueChanged += OnReportTemplateChanged;
+        renderingModeComboBox.SelectedValueChanged += OnReportRenderingModeChanged;
         UpdateAll();
         UpdateCommandState();
 
@@ -164,6 +174,7 @@ public partial class MainForm : Form
             case nameof(MainViewModel.UpdateCheckIntervalMinutes):
             case nameof(MainViewModel.UpdateManifestUrl):
             case nameof(MainViewModel.ReportTemplate):
+            case nameof(MainViewModel.ReportRenderingMode):
             case nameof(MainViewModel.ReportHeader):
                 ApplySettingsToInputs();
                 break;
@@ -350,6 +361,7 @@ public partial class MainForm : Form
         updateIntervalTextBox.Text = _viewModel.UpdateCheckIntervalMinutes.ToString();
         manifestUrlTextBox.Text = _viewModel.UpdateManifestUrl;
         reportTemplateComboBox.SelectedValue = _viewModel.ReportTemplate;
+        renderingModeComboBox.SelectedValue = _viewModel.ReportRenderingMode;
         reportHeaderTextBox.Text = _viewModel.ReportHeader;
     }
 
@@ -774,6 +786,15 @@ public partial class MainForm : Form
         }
     }
 
+    private void OnReportRenderingModeChanged(object? sender, EventArgs e)
+    {
+        if (renderingModeComboBox.SelectedValue is ReportRenderingMode mode && mode != _viewModel.ReportRenderingMode)
+        {
+            AppServices.Log.Info($"Пользователь выбрал режим генерации отчетов: {mode}.");
+            _viewModel.ReportRenderingMode = mode;
+        }
+    }
+
     private static bool TryParseTextBoxValue(TextBox textBox, out int value)
     {
         if (!int.TryParse(textBox.Text, out value))
@@ -797,6 +818,7 @@ public partial class MainForm : Form
         _viewModel.CheckUpdatesCommand.CanExecuteChanged -= _checkUpdatesCanExecuteHandler;
         _viewModel.InstallUpdateCommand.CanExecuteChanged -= _installUpdateCanExecuteHandler;
         reportTemplateComboBox.SelectedValueChanged -= OnReportTemplateChanged;
+        renderingModeComboBox.SelectedValueChanged -= OnReportRenderingModeChanged;
         trayIcon.Visible = false;
         base.OnFormClosed(e);
     }

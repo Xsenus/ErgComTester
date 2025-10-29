@@ -37,12 +37,22 @@ public sealed class ReportGenerationService : IDisposable
         _settings = settings;
         _log = log;
         _telegram = telegram;
+        ApplyRenderingMode(settings.Current.ReportRenderingMode);
+    }
+
+    public void ApplyRenderingMode(ReportRenderingMode mode)
+    {
+        RenderingSupport.Reload(mode);
         _pdfGenerationEnabled = RenderingSupport.PdfSupported;
         _pdfGenerationIssue = RenderingSupport.PdfIssue;
 
         if (!string.IsNullOrWhiteSpace(RenderingSupport.LegacyRenderingNotice))
         {
             _log.Info(RenderingSupport.LegacyRenderingNotice);
+        }
+        else
+        {
+            _log.Info("Используется современный режим генерации отчетов.");
         }
     }
 

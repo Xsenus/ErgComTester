@@ -293,6 +293,28 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public ReportRenderingMode ReportRenderingMode
+    {
+        get => _settings.Current.ReportRenderingMode;
+        set
+        {
+            if (!Enum.IsDefined(typeof(ReportRenderingMode), value))
+            {
+                _log.Warn($"Попытка установить неизвестный режим генерации отчетов: {value}.");
+                return;
+            }
+
+            if (value == _settings.Current.ReportRenderingMode)
+            {
+                _log.Debug($"Режим генерации отчетов не изменился: {value}.");
+                return;
+            }
+
+            _reports.ApplyRenderingMode(value);
+            _ = ApplySettingAsync(nameof(ReportRenderingMode), value, (s, v) => s.ReportRenderingMode = v);
+        }
+    }
+
     public string ReportHeader
     {
         get => _settings.Current.ReportHeader ?? string.Empty;
