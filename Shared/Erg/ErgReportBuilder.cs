@@ -38,6 +38,8 @@ namespace ErgData;
 public static class ErgReportBuilder
 {
     private const string DefaultClientDeviceName = "Электроретинограф  Ветеринарный  МЛ-210 VET \"Микролюкс\"";
+    private const double HeaderLineSpacingPoints = 2d;
+    private const double HeaderTitleSpacingPoints = 12d;
 
     static ErgReportBuilder()
     {
@@ -166,24 +168,28 @@ public static class ErgReportBuilder
                 page.PageColor(Colors.White);
                 page.DefaultTextStyle(t => t.FontFamily("Arial").FontSize(11));
 
-                var clinicHeaderLines = BuildClinicHeaderLines(clinicName);
-                if (clinicHeaderLines.All(string.IsNullOrWhiteSpace))
-                    clinicHeaderLines[0] = "Шапка [название организации]";
+                var clinicHeaderLines = PrepareClinicHeaderLines(BuildClinicHeaderLines(clinicName));
 
                 page.Header().Column(column =>
                 {
-                    column.Spacing(2);
+                    column.Spacing(0);
 
-                    foreach (var line in clinicHeaderLines)
+                    for (int i = 0; i < clinicHeaderLines.Length; i++)
                     {
-                        column.Item().MinHeight(12).AlignCenter().AlignMiddle().Text(text =>
+                        var line = clinicHeaderLines[i];
+                        var bottomPadding = i == clinicHeaderLines.Length - 1
+                            ? (float)HeaderTitleSpacingPoints
+                            : (float)HeaderLineSpacingPoints;
+
+                        column.Item().MinHeight(12).PaddingBottom(bottomPadding).AlignRight().AlignMiddle().Text(text =>
                         {
                             text.DefaultTextStyle(style => style.FontFamily("Arial").FontSize(10));
-                            text.Span(string.IsNullOrWhiteSpace(line) ? " " : line);
+                            text.AlignRight();
+                            text.Span(string.IsNullOrWhiteSpace(line) ? "\u00A0" : line);
                         });
                     }
 
-                    column.Item().PaddingTop(4).AlignCenter().Text(reportTitle).FontSize(14).SemiBold();
+                    column.Item().AlignCenter().Text(reportTitle).FontSize(14).SemiBold();
                 });
 
                 page.Content().Column(column =>
@@ -276,6 +282,7 @@ public static class ErgReportBuilder
         {
             var mainPart = document.AddMainDocumentPart();
             mainPart.Document = new WordDocument(new Body());
+            EnsureDefaultStyles(mainPart);
             var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
             body.Append(CreateParagraph(headerTitle, fontSizePt: 16, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(12)));
@@ -320,22 +327,37 @@ public static class ErgReportBuilder
         {
             var mainPart = document.AddMainDocumentPart();
             mainPart.Document = new WordDocument(new Body());
+            EnsureDefaultStyles(mainPart);
             var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
-            var clinicHeaderLines = BuildClinicHeaderLines(clinicName);
-            if (clinicHeaderLines.All(string.IsNullOrWhiteSpace))
-                clinicHeaderLines[0] = "Шапка [название организации]";
+            var clinicHeaderLines = PrepareClinicHeaderLines(BuildClinicHeaderLines(clinicName));
 
-            foreach (var line in clinicHeaderLines)
+            for (int i = 0; i < clinicHeaderLines.Length; i++)
             {
-                var text = string.IsNullOrWhiteSpace(line) ? string.Empty : line;
-                body.Append(CreateParagraph(text, fontSizePt: 10, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(2)));
+                var line = clinicHeaderLines[i];
+                var spacingAfter = i == clinicHeaderLines.Length - 1
+                    ? 0
+                    : TwipsFromPoints(HeaderLineSpacingPoints);
+                var text = string.IsNullOrWhiteSpace(line) ? "\u00A0" : line;
+                body.Append(CreateParagraph(
+                    text,
+                    fontSizePt: 10,
+                    bold: true,
+                    justification: JustificationValues.Right,
+                    spacingAfter: spacingAfter));
             }
 
             var reportTitle = !string.IsNullOrWhiteSpace(deviceInfo?.ReportName)
                 ? deviceInfo!.ReportName!
                 : "Отчет по результатам ЭРГ-исследования сетчатки";
-            body.Append(CreateParagraph(reportTitle, fontSizePt: 14, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(12)));
+            // Между шапкой и заголовком оставляем ровно одну пустую строку для совпадения с PDF.
+            body.Append(CreateParagraph(
+                reportTitle,
+                fontSizePt: 14,
+                bold: true,
+                justification: JustificationValues.Center,
+                spacingBefore: TwipsFromPoints(HeaderTitleSpacingPoints),
+                spacingAfter: TwipsFromPoints(8)));
             body.Append(CreateClientInfoTable(patient, deviceInfo));
 
             uint imageId = 1;
@@ -752,9 +774,7 @@ public static class ErgReportBuilder
             _pdfPath = pdfPath;
             _deviceInfo = deviceInfo;
 
-            _clinicHeaderLines = BuildClinicHeaderLines(clinicName);
-            if (_clinicHeaderLines.All(string.IsNullOrWhiteSpace))
-                _clinicHeaderLines[0] = "Шапка [название организации]";
+            _clinicHeaderLines = PrepareClinicHeaderLines(BuildClinicHeaderLines(clinicName));
             _reportTitle = !string.IsNullOrWhiteSpace(deviceInfo?.ReportName)
                 ? deviceInfo!.ReportName!
                 : "Отчет по результатам ЭРГ-исследования сетчатки";
@@ -855,6 +875,8 @@ public static class ErgReportBuilder
             return size.Height;
         }
 
+        private static float PointsToPixels(double points) => (float)(points / 72d * Dpi);
+
         private void DrawParagraph(string text, DrawingFont font, Brush brush, float spacingBefore, float spacingAfter, StringFormat? format = null)
         {
             if (_graphics == null)
@@ -877,13 +899,21 @@ public static class ErgReportBuilder
 
         private void DrawTitle()
         {
-            foreach (var line in _clinicHeaderLines)
+            var headerLineSpacing = PointsToPixels(HeaderLineSpacingPoints);
+            foreach (var (line, index) in _clinicHeaderLines.Select((value, idx) => (value, idx)))
             {
                 var text = string.IsNullOrWhiteSpace(line) ? "\u00A0" : line;
-                DrawParagraph(text, _clinicFont, Brushes.Black, 0, _summarySpacingSmall * 0.25f, _formatCenter);
+                var spacingAfter = index == _clinicHeaderLines.Length - 1 ? 0f : headerLineSpacing;
+                DrawParagraph(text, _clinicFont, Brushes.Black, 0, spacingAfter, _formatRight);
             }
 
-            DrawParagraph(_reportTitle, _reportTitleFont, Brushes.Black, _summarySpacingSmall * 0.5f, _spacingLarge, _formatCenter);
+            DrawParagraph(
+                _reportTitle,
+                _reportTitleFont,
+                Brushes.Black,
+                PointsToPixels(HeaderTitleSpacingPoints),
+                _spacingLarge,
+                _formatCenter);
         }
 
         private void DrawInfoBlock()
@@ -2114,6 +2144,25 @@ public static class ErgReportBuilder
         return lines;
     }
 
+    private static string[] PrepareClinicHeaderLines(string[] lines)
+    {
+        if (lines == null || lines.Length == 0)
+            return new[] { "Шапка [название организации]" };
+
+        var lastNonEmpty = Array.FindLastIndex(lines, line => !string.IsNullOrWhiteSpace(line));
+        if (lastNonEmpty < 0)
+            return new[] { "Шапка [название организации]" };
+
+        var result = new string[lastNonEmpty + 1];
+        Array.Copy(lines, result, lastNonEmpty + 1);
+        for (int i = 0; i < result.Length; i++)
+        {
+            result[i] ??= string.Empty;
+        }
+
+        return result;
+    }
+
     private static string FormatClientTestTitle(int index, ErgTest test)
     {
         var name = FormatClientTestName(test.TestName);
@@ -2261,6 +2310,7 @@ public static class ErgReportBuilder
             double xMax = context.XMax;
             double yMin = context.YMin;
             double yMax = context.YMax;
+            const double axisZeroEpsilon = 1e-6;
 
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
@@ -2284,6 +2334,8 @@ public static class ErgReportBuilder
                 {
                     var py = TransformY(tick);
                     if (py <= chartRect.Top + 1 || py >= chartRect.Bottom - 1)
+                        continue;
+                    if (Math.Abs(tick) < axisZeroEpsilon)
                         continue;
                     canvas.DrawLine(chartRect.Left, py, chartRect.Right, py, gridPaint);
                 }
@@ -2434,7 +2486,7 @@ public static class ErgReportBuilder
                 var style = graphIndex < graphStyles.Length ? graphStyles[graphIndex] : null;
                 var color = style != null ? new SKColor(style.Red, style.Green, style.Blue) : new SKColor(56, 109, 179);
 
-                using var linePaint = new SKPaint { Color = color, StrokeWidth = 3f, IsAntialias = true, Style = SKPaintStyle.Stroke };
+                using var linePaint = new SKPaint { Color = color, StrokeWidth = 4f, IsAntialias = true, Style = SKPaintStyle.Stroke };
                 if (style?.Dotted == true)
                 {
                     linePaint.PathEffect = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0);
@@ -2529,6 +2581,7 @@ public static class ErgReportBuilder
             double xMax = context.XMax;
             double yMin = context.YMin;
             double yMax = context.YMax;
+            const double axisZeroEpsilon = 1e-6;
 
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
@@ -2552,6 +2605,8 @@ public static class ErgReportBuilder
                 {
                     var py = TransformY(tick);
                     if (py <= chartRect.Top + 1 || py >= chartRect.Bottom - 1)
+                        continue;
+                    if (Math.Abs(tick) < axisZeroEpsilon)
                         continue;
                     graphics.DrawLine(gridPen, chartRect.Left, py, chartRect.Right, py);
                 }
@@ -2679,7 +2734,7 @@ public static class ErgReportBuilder
                 var style = graphIndex < graphStyles.Length ? graphStyles[graphIndex] : null;
                 var color = style != null ? System.Drawing.Color.FromArgb(style.Red, style.Green, style.Blue) : System.Drawing.Color.FromArgb(56, 109, 179);
 
-                using var pen = new Pen(color, 3f) { LineJoin = LineJoin.Round };
+                using var pen = new Pen(color, 4f) { LineJoin = LineJoin.Round };
                 if (style?.Dotted == true)
                 {
                     pen.DashPattern = new[] { 6f, 4f };
@@ -2741,13 +2796,47 @@ public static class ErgReportBuilder
         if (range <= 0)
             return 0;
 
-        if (valueStep > 0 && lineStep > 0)
-            return valueStep * lineStep;
+        double step = 0;
 
         if (valueStep > 0)
-            return valueStep;
+        {
+            step = valueStep;
+            if (lineStep > 0)
+                step *= lineStep;
+        }
 
-        var roughStep = range / 8.0;
+        if (step <= 0)
+        {
+            step = CalculateNiceStep(range / 12.0);
+        }
+        else
+        {
+            step = CalculateNiceStep(step);
+        }
+
+        if (step <= 0)
+            return 0;
+
+        const double minTickCount = 6.0;
+        const double maxTickCount = 16.0;
+
+        while (range / step < minTickCount)
+        {
+            step /= 2.0;
+            if (step <= 0)
+                break;
+        }
+
+        while (range / step > maxTickCount)
+        {
+            step *= 2.0;
+        }
+
+        return step;
+    }
+
+    private static double CalculateNiceStep(double roughStep)
+    {
         if (roughStep <= 0)
             return 0;
 
@@ -2755,9 +2844,9 @@ public static class ErgReportBuilder
         var normalized = roughStep / magnitude;
         double stepNormalized = normalized switch
         {
-            < 1.5 => 1,
-            < 3 => 2,
-            < 7 => 5,
+            <= 1 => 1,
+            <= 2 => 2,
+            <= 5 => 5,
             _ => 10
         };
 
@@ -2793,6 +2882,9 @@ public static class ErgReportBuilder
 
         values.Add(min);
         values.Add(max);
+
+        if (min < 0 && max > 0)
+            values.Add(0);
 
         return values
             .Where(v => !double.IsNaN(v) && !double.IsInfinity(v))
@@ -3095,6 +3187,7 @@ public static class ErgReportBuilder
 
     private static Table CreateClientWaveValuesTable(string label, WaveDisplay display)
     {
+        bool hasLabel = !string.IsNullOrWhiteSpace(label);
         var table = new Table(
             new TableProperties(
                 new TableWidth { Type = TableWidthUnitValues.Pct, Width = "4800" },
@@ -3107,20 +3200,37 @@ public static class ErgReportBuilder
                     new InsideVerticalBorder { Val = BorderValues.Nil }
                 )
             ),
-            new TableGrid(new GridColumn { Width = "1200" }, new GridColumn { Width = "1800" }, new GridColumn { Width = "1800" })
+            hasLabel
+                ? new TableGrid(new GridColumn { Width = "1200" }, new GridColumn { Width = "1800" }, new GridColumn { Width = "1800" })
+                : new TableGrid(new GridColumn { Width = "2400" }, new GridColumn { Width = "2400" })
         );
 
         var row = new TableRow();
-        row.Append(CreateClientWaveLabelCell(label));
-
-        if (display.IsFlat)
+        if (hasLabel)
         {
-            row.Append(CreateClientWaveFlatCell(gridSpan: 2));
+            row.Append(CreateClientWaveLabelCell(label));
+
+            if (display.IsFlat)
+            {
+                row.Append(CreateClientWaveFlatCell(gridSpan: 2));
+            }
+            else
+            {
+                row.Append(CreateClientWaveValueCell(display.MsValue, display.MsNorm));
+                row.Append(CreateClientWaveValueCell(display.MkVValue, display.MkVNorm));
+            }
         }
         else
         {
-            row.Append(CreateClientWaveValueCell(display.MsValue, display.MsNorm));
-            row.Append(CreateClientWaveValueCell(display.MkVValue, display.MkVNorm));
+            if (display.IsFlat)
+            {
+                row.Append(CreateClientWaveFlatCell(gridSpan: 2));
+            }
+            else
+            {
+                row.Append(CreateClientWaveValueCell(display.MsValue, display.MsNorm, expand: true));
+                row.Append(CreateClientWaveValueCell(display.MkVValue, display.MkVNorm, expand: true));
+            }
         }
 
         table.Append(row);
@@ -3164,7 +3274,7 @@ public static class ErgReportBuilder
         return cell;
     }
 
-    private static TableCell CreateClientWaveValueCell(string value, string norm)
+    private static TableCell CreateClientWaveValueCell(string value, string norm, bool expand = false)
     {
         var cellProps = new TableCellProperties(
             new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center }
@@ -3173,8 +3283,8 @@ public static class ErgReportBuilder
         {
             TopMargin = new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
             BottomMargin = new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            LeftMargin = new LeftMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
-            RightMargin = new RightMargin { Width = "60", Type = TableWidthUnitValues.Dxa }
+            LeftMargin = new LeftMargin { Width = expand ? "100" : "60", Type = TableWidthUnitValues.Dxa },
+            RightMargin = new RightMargin { Width = expand ? "100" : "60", Type = TableWidthUnitValues.Dxa }
         });
 
         var cell = new TableCell { TableCellProperties = cellProps };
@@ -3611,6 +3721,37 @@ public static class ErgReportBuilder
     private static long PixelsToEmus(int pixels) => (long)(pixels / 96.0 * 914400);
 
     private static long InchesToEmus(double inches) => (long)(inches * 914400);
+
+    private static void EnsureDefaultStyles(MainDocumentPart mainPart)
+    {
+        if (mainPart.StyleDefinitionsPart == null)
+        {
+            var stylesPart = mainPart.AddNewPart<StyleDefinitionsPart>();
+            var styles = new Styles(
+                new DocDefaults(
+                    new RunPropertiesDefault(
+                        new RunPropertiesBaseStyle(
+                            new RunFonts { Ascii = "Calibri", HighAnsi = "Calibri", EastAsia = "Calibri", ComplexScript = "Calibri" },
+                            new FontSize { Val = "22" })),
+                    new ParagraphPropertiesDefault(
+                        new ParagraphPropertiesBaseStyle(
+                            new SpacingBetweenLines
+                            {
+                                Before = "0",
+                                After = "0",
+                                LineRule = LineSpacingRuleValues.Auto,
+                                Line = "240"
+                            })))
+            );
+            stylesPart.Styles = styles;
+        }
+
+        if (mainPart.NumberingDefinitionsPart == null)
+        {
+            var numberingPart = mainPart.AddNewPart<NumberingDefinitionsPart>();
+            numberingPart.Numbering = new Numbering();
+        }
+    }
 
     private static void EnsureDocumentPropertiesParts(WordprocessingDocument document, string? title)
     {

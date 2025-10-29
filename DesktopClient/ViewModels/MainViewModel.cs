@@ -293,6 +293,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public string ReportHeader
+    {
+        get => _settings.Current.ReportHeader ?? string.Empty;
+        set => UpdateReportHeader(value);
+    }
+
     private void UpdateIntSetting(string propertyName, int value, int min, int max, Func<AppSettings, int> accessor, Action<AppSettings, int> setter)
     {
         var normalized = Math.Clamp(value, min, max);
@@ -333,6 +339,39 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         _ = ApplySettingAsync(nameof(UpdateManifestUrl), normalized, (s, v) => s.UpdateManifestUrl = v);
+    }
+
+    private void UpdateReportHeader(string? value)
+    {
+        var normalized = NormalizeReportHeader(value);
+        if (string.Equals(normalized, _settings.Current.ReportHeader, StringComparison.Ordinal))
+        {
+            _log.Debug("Шапка отчета не изменилась.");
+            return;
+        }
+
+        _ = ApplySettingAsync(nameof(ReportHeader), normalized, (s, v) => s.ReportHeader = v);
+    }
+
+    private static string NormalizeReportHeader(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var normalized = value.Replace("\r\n", "\n").Replace('\r', '\n');
+        var lines = normalized.Split('\n');
+        var builder = new List<string>(lines.Length);
+        foreach (var line in lines)
+        {
+            builder.Add(line.TrimEnd());
+        }
+
+        while (builder.Count > 0 && string.IsNullOrWhiteSpace(builder[^1]))
+        {
+            builder.RemoveAt(builder.Count - 1);
+        }
+
+        return string.Join("\n", builder);
     }
 
     private async Task ApplySettingAsync<T>(string propertyName, T value, Action<AppSettings, T> setter)

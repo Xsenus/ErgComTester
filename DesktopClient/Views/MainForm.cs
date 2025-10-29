@@ -164,6 +164,7 @@ public partial class MainForm : Form
             case nameof(MainViewModel.UpdateCheckIntervalMinutes):
             case nameof(MainViewModel.UpdateManifestUrl):
             case nameof(MainViewModel.ReportTemplate):
+            case nameof(MainViewModel.ReportHeader):
                 ApplySettingsToInputs();
                 break;
         }
@@ -349,6 +350,7 @@ public partial class MainForm : Form
         updateIntervalTextBox.Text = _viewModel.UpdateCheckIntervalMinutes.ToString();
         manifestUrlTextBox.Text = _viewModel.UpdateManifestUrl;
         reportTemplateComboBox.SelectedValue = _viewModel.ReportTemplate;
+        reportHeaderTextBox.Text = _viewModel.ReportHeader;
     }
 
     private void UpdateAll()
@@ -749,6 +751,18 @@ public partial class MainForm : Form
             _viewModel.UpdateManifestUrl = url;
         }
         manifestUrlTextBox.Text = _viewModel.UpdateManifestUrl;
+    }
+
+    private void OnReportHeaderValidated(object? sender, EventArgs e)
+    {
+        var header = reportHeaderTextBox.Text;
+        if (!string.Equals(header, _viewModel.ReportHeader, StringComparison.Ordinal))
+        {
+            AppServices.Log.Info("Пользователь изменил шапку отчета.");
+            _viewModel.ReportHeader = header;
+        }
+
+        reportHeaderTextBox.Text = _viewModel.ReportHeader;
     }
 
     private void OnReportTemplateChanged(object? sender, EventArgs e)

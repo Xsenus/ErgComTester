@@ -48,6 +48,8 @@ partial class MainForm
     private TextBox backgroundSyncTextBox;
     private Label reportTemplateLabel;
     private ComboBox reportTemplateComboBox;
+    private Label reportHeaderLabel;
+    private TextBox reportHeaderTextBox;
     private FlowLayoutPanel settingsButtonsPanel;
     private Button openReportsButton;
     private Button convertBinButton;
@@ -121,6 +123,8 @@ partial class MainForm
         backgroundSyncTextBox = new TextBox();
         reportTemplateLabel = new Label();
         reportTemplateComboBox = new ComboBox();
+        reportHeaderLabel = new Label();
+        reportHeaderTextBox = new TextBox();
         settingsButtonsPanel = new FlowLayoutPanel();
         openReportsButton = new Button();
         convertBinButton = new Button();
@@ -642,20 +646,23 @@ partial class MainForm
         settingsLayout.Controls.Add(backgroundSyncTextBox, 1, 2);
         settingsLayout.Controls.Add(reportTemplateLabel, 0, 3);
         settingsLayout.Controls.Add(reportTemplateComboBox, 1, 3);
-        settingsLayout.Controls.Add(settingsButtonsPanel, 0, 4);
+        settingsLayout.Controls.Add(reportHeaderLabel, 0, 4);
+        settingsLayout.Controls.Add(reportHeaderTextBox, 1, 4);
+        settingsLayout.Controls.Add(settingsButtonsPanel, 0, 5);
         settingsLayout.Dock = DockStyle.Fill;
         settingsLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
         settingsLayout.Location = new Point(16, 38);
         settingsLayout.Margin = new Padding(0);
         settingsLayout.Name = "settingsLayout";
         settingsLayout.Padding = new Padding(0, 4, 0, 8);
-        settingsLayout.RowCount = 5;
+        settingsLayout.RowCount = 6;
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
-        settingsLayout.Size = new Size(391, 216);
+        settingsLayout.RowStyles.Add(new RowStyle());
+        settingsLayout.Size = new Size(391, 290);
         settingsLayout.TabIndex = 0;
         // 
         // scanIntervalLabel
@@ -759,15 +766,42 @@ partial class MainForm
         reportTemplateComboBox.Name = "reportTemplateComboBox";
         reportTemplateComboBox.Size = new Size(160, 25);
         reportTemplateComboBox.TabIndex = 7;
-        // 
+        //
+        // reportHeaderLabel
+        //
+        reportHeaderLabel.AutoSize = true;
+        reportHeaderLabel.Font = new Font("Segoe UI", 9F);
+        reportHeaderLabel.ForeColor = Color.FromArgb(120, 128, 145);
+        reportHeaderLabel.Location = new Point(0, 130);
+        reportHeaderLabel.Margin = new Padding(0, 10, 16, 0);
+        reportHeaderLabel.Name = "reportHeaderLabel";
+        reportHeaderLabel.Size = new Size(88, 15);
+        reportHeaderLabel.TabIndex = 8;
+        reportHeaderLabel.Text = "Шапка отчета:";
+        //
+        // reportHeaderTextBox
+        //
+        reportHeaderTextBox.AcceptsReturn = true;
+        reportHeaderTextBox.Dock = DockStyle.Fill;
+        reportHeaderTextBox.BorderStyle = BorderStyle.FixedSingle;
+        reportHeaderTextBox.Location = new Point(191, 124);
+        reportHeaderTextBox.Margin = new Padding(0, 4, 0, 0);
+        reportHeaderTextBox.MinimumSize = new Size(160, 60);
+        reportHeaderTextBox.Multiline = true;
+        reportHeaderTextBox.Name = "reportHeaderTextBox";
+        reportHeaderTextBox.ScrollBars = ScrollBars.Vertical;
+        reportHeaderTextBox.Size = new Size(200, 80);
+        reportHeaderTextBox.TabIndex = 9;
+        reportHeaderTextBox.Validated += OnReportHeaderValidated;
+        //
         // settingsButtonsPanel
-        // 
+        //
         settingsButtonsPanel.AutoSize = true;
         settingsButtonsPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         settingsLayout.SetColumnSpan(settingsButtonsPanel, 2);
         settingsButtonsPanel.Controls.Add(openReportsButton);
         settingsButtonsPanel.Controls.Add(convertBinButton);
-        settingsButtonsPanel.Location = new Point(0, 134);
+        settingsButtonsPanel.Location = new Point(0, 208);
         settingsButtonsPanel.Margin = new Padding(0, 16, 0, 0);
         settingsButtonsPanel.Name = "settingsButtonsPanel";
         settingsButtonsPanel.Size = new Size(387, 37);
