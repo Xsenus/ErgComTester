@@ -58,6 +58,12 @@ public sealed class SettingsService
             saveRequired = true;
         }
 
+        if (_settings.ClinicHeader == null)
+        {
+            _settings.ClinicHeader = string.Empty;
+            saveRequired = true;
+        }
+
         if (string.Equals(_settings.UpdateManifestUrl, AppSettings.LegacyManifestUrl, StringComparison.OrdinalIgnoreCase))
         {
             _settings.UpdateManifestUrl = AppSettings.DefaultManifestUrl;

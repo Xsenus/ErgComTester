@@ -293,6 +293,22 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public string ClinicHeader
+    {
+        get => _settings.Current.ClinicHeader ?? string.Empty;
+        set
+        {
+            var normalized = NormalizeClinicHeader(value);
+            if (string.Equals(normalized, _settings.Current.ClinicHeader ?? string.Empty, StringComparison.Ordinal))
+            {
+                _log.Debug("Шапка отчета не изменилась.");
+                return;
+            }
+
+            _ = ApplySettingAsync(nameof(ClinicHeader), normalized, (s, v) => s.ClinicHeader = v);
+        }
+    }
+
     private void UpdateIntSetting(string propertyName, int value, int min, int max, Func<AppSettings, int> accessor, Action<AppSettings, int> setter)
     {
         var normalized = Math.Clamp(value, min, max);
@@ -348,6 +364,31 @@ public sealed class MainViewModel : INotifyPropertyChanged
             _log.Error($"Ошибка при обновлении параметра {propertyName}: {ex}");
             AddLog(new LogEntry(DateTime.Now, "ERROR", $"Не удалось обновить параметр {propertyName}: {ex.Message}"));
         }
+    }
+
+    private static string NormalizeClinicHeader(string? value)
+    {
+        var text = (value ?? string.Empty).ReplaceLineEndings("\n");
+        var lines = text.Split('\n');
+        var trimmed = lines.Select(line => line.TrimEnd()).ToArray();
+
+        if (trimmed.Length > 4)
+        {
+            trimmed = trimmed.Take(4).ToArray();
+        }
+
+        int last = trimmed.Length - 1;
+        while (last >= 0 && string.IsNullOrWhiteSpace(trimmed[last]))
+        {
+            last--;
+        }
+
+        if (last < 0)
+        {
+            return string.Empty;
+        }
+
+        return string.Join("\n", trimmed.Take(last + 1));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

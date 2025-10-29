@@ -114,6 +114,7 @@ dotnet run -c Release
 ## Документация
 - Подробное описание протокола обмена и бизнес-процессов приведено в файле [`docs/ProtocolGuide.ru.md`](docs/ProtocolGuide.ru.md).
 - Пошаговое руководство по работе консольной утилиты доступно в [`docs/ConsoleGuide.ru.md`](docs/ConsoleGuide.ru.md).
+- Инфраструктура генерации PDF и DOCX-отчетов, а также режимы совместимости описаны в [`docs/ReportRendering.ru.md`](docs/ReportRendering.ru.md).
 
 ## Лицензии
 - QuestPDF распространяется по лицензии Community и используется для генерации отчетов.

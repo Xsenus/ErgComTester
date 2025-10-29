@@ -172,7 +172,7 @@ public static class ErgReportBuilder
 
                 page.Header().Column(column =>
                 {
-                    column.Spacing(2);
+                    column.Spacing(1);
 
                     foreach (var line in clinicHeaderLines)
                     {
@@ -183,7 +183,8 @@ public static class ErgReportBuilder
                         });
                     }
 
-                    column.Item().PaddingTop(4).AlignCenter().Text(reportTitle).FontSize(14).SemiBold();
+                    // Отступ между шапкой и заголовком отчета оставлен минимальным, чтобы блоки располагались плотнее.
+                    column.Item().PaddingTop(2).AlignCenter().Text(reportTitle).FontSize(14).SemiBold();
                 });
 
                 page.Content().Column(column =>
@@ -276,6 +277,7 @@ public static class ErgReportBuilder
         {
             var mainPart = document.AddMainDocumentPart();
             mainPart.Document = new WordDocument(new Body());
+            EnsureWordDocumentInfrastructure(mainPart);
             var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
             body.Append(CreateParagraph(headerTitle, fontSizePt: 16, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(12)));
@@ -320,22 +322,24 @@ public static class ErgReportBuilder
         {
             var mainPart = document.AddMainDocumentPart();
             mainPart.Document = new WordDocument(new Body());
+            EnsureWordDocumentInfrastructure(mainPart);
             var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
             var clinicHeaderLines = BuildClinicHeaderLines(clinicName);
             if (clinicHeaderLines.All(string.IsNullOrWhiteSpace))
                 clinicHeaderLines[0] = "Шапка [название организации]";
 
-            foreach (var line in clinicHeaderLines)
-            {
-                var text = string.IsNullOrWhiteSpace(line) ? string.Empty : line;
-                body.Append(CreateParagraph(text, fontSizePt: 10, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(2)));
-            }
+        foreach (var line in clinicHeaderLines)
+        {
+            var text = string.IsNullOrWhiteSpace(line) ? string.Empty : line;
+            body.Append(CreateParagraph(text, fontSizePt: 10, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(1), tightenLineSpacing: true));
+        }
 
-            var reportTitle = !string.IsNullOrWhiteSpace(deviceInfo?.ReportName)
-                ? deviceInfo!.ReportName!
-                : "Отчет по результатам ЭРГ-исследования сетчатки";
-            body.Append(CreateParagraph(reportTitle, fontSizePt: 14, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(12)));
+        var reportTitle = !string.IsNullOrWhiteSpace(deviceInfo?.ReportName)
+            ? deviceInfo!.ReportName!
+            : "Отчет по результатам ЭРГ-исследования сетчатки";
+        // Отдельно фиксируем минимальный отступ, чтобы заголовок отчета визуально примыкал к шапке.
+        body.Append(CreateParagraph(reportTitle, fontSizePt: 14, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(4)));
             body.Append(CreateClientInfoTable(patient, deviceInfo));
 
             uint imageId = 1;
@@ -1586,13 +1590,21 @@ public static class ErgReportBuilder
                 {
                     row.Spacing(12);
 
-                    row.AutoItem().MinWidth(68).AlignMiddle().Text(text =>
+                    var hasLabel = !string.IsNullOrWhiteSpace(_label);
+                    if (hasLabel)
                     {
-                        text.DefaultTextStyle(style => style.FontSize(11).SemiBold());
-                        text.Span(string.IsNullOrWhiteSpace(_label) ? " " : _label);
-                    });
+                        row.AutoItem().MinWidth(68).AlignMiddle().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(11).SemiBold());
+                            text.Span(_label);
+                        });
+                    }
 
-                    row.RelativeItem().Column(valuesColumn =>
+                    var valuesContainer = hasLabel
+                        ? row.RelativeItem()
+                        : row.RelativeItem().AlignCenter();
+
+                    valuesContainer.Column(valuesColumn =>
                     {
                         valuesColumn.Spacing(4);
 
@@ -1843,6 +1855,20 @@ public static class ErgReportBuilder
         double YMin,
         double YMax,
         GraphMarker[] Markers);
+
+    private readonly struct AxisTick
+    {
+        public AxisTick(double value, bool isMajor)
+        {
+            Value = value;
+            IsMajor = isMajor;
+        }
+
+        public double Value { get; }
+        public bool IsMajor { get; }
+    }
+
+    private sealed record AxisScale(double MajorStep, int MinorSubdivisions);
 
     private enum GraphMarkerKind
     {
@@ -2252,9 +2278,6 @@ public static class ErgReportBuilder
             const float marginRight = 30f;
             const float marginTop = 24f;
             const float marginBottom = 80f;
-            const float tickInside = 4f;
-            const float tickOutside = 6f;
-
             var chartRect = new SKRect(marginLeft, marginTop, width - marginRight, height - marginBottom);
 
             double xMin = context.XMin;
@@ -2265,28 +2288,35 @@ public static class ErgReportBuilder
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
 
-            var xStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
-            var yStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
-            var xTicks = BuildAxisTicks(xMin, xMax, xStep);
-            var yTicks = BuildAxisTicks(yMin, yMax, yStep);
+            var xScale = DetermineAxisScale(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
+            var yScale = DetermineAxisScale(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
+            var xTicks = BuildAxisTicks(xMin, xMax, xScale);
+            var yTicks = BuildAxisTicks(yMin, yMax, yScale);
 
-            using (var gridPaint = new SKPaint { Color = new SKColor(220, 220, 220), StrokeWidth = 1f, IsAntialias = true })
+            using var majorGridPaint = new SKPaint { Color = new SKColor(210, 210, 210), StrokeWidth = 1.2f, IsAntialias = true };
+            using var minorGridPaint = new SKPaint { Color = new SKColor(235, 235, 235), StrokeWidth = 0.8f, IsAntialias = true };
+
+            foreach (var tick in xTicks)
             {
-                foreach (var tick in xTicks)
-                {
-                    var px = TransformX(tick);
-                    if (px <= chartRect.Left + 1 || px >= chartRect.Right - 1)
-                        continue;
-                    canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, gridPaint);
-                }
+                var px = TransformX(tick.Value);
+                if (px <= chartRect.Left + 1 || px >= chartRect.Right - 1)
+                    continue;
 
-                foreach (var tick in yTicks)
-                {
-                    var py = TransformY(tick);
-                    if (py <= chartRect.Top + 1 || py >= chartRect.Bottom - 1)
-                        continue;
-                    canvas.DrawLine(chartRect.Left, py, chartRect.Right, py, gridPaint);
-                }
+                var paint = tick.IsMajor ? majorGridPaint : minorGridPaint;
+                canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, paint);
+            }
+
+            foreach (var tick in yTicks)
+            {
+                if (IsApproximatelyZero(tick.Value))
+                    continue;
+
+                var py = TransformY(tick.Value);
+                if (py <= chartRect.Top + 1 || py >= chartRect.Bottom - 1)
+                    continue;
+
+                var paint = tick.IsMajor ? majorGridPaint : minorGridPaint;
+                canvas.DrawLine(chartRect.Left, py, chartRect.Right, py, paint);
             }
 
             using (var axisPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.8f, IsAntialias = true })
@@ -2295,23 +2325,36 @@ public static class ErgReportBuilder
                 canvas.DrawLine(chartRect.Left, chartRect.Top, chartRect.Left, chartRect.Bottom, axisPaint);
             }
 
-            using (var tickPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.2f, IsAntialias = true })
-            {
-                foreach (var tick in xTicks)
-                {
-                    var px = TransformX(tick);
-                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
-                        continue;
-                    canvas.DrawLine(px, chartRect.Bottom - tickInside, px, chartRect.Bottom + tickOutside, tickPaint);
-                }
+            const float majorTickInside = 6f;
+            const float majorTickOutside = 8f;
+            const float minorTickInside = 3f;
+            const float minorTickOutside = 5f;
 
-                foreach (var tick in yTicks)
-                {
-                    var py = TransformY(tick);
-                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
-                        continue;
-                    canvas.DrawLine(chartRect.Left - tickOutside, py, chartRect.Left + tickInside, py, tickPaint);
-                }
+            using var majorTickPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.3f, IsAntialias = true };
+            using var minorTickPaint = new SKPaint { Color = new SKColor(70, 70, 70), StrokeWidth = 1f, IsAntialias = true };
+
+            foreach (var tick in xTicks)
+            {
+                var px = TransformX(tick.Value);
+                if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                    continue;
+
+                var inside = tick.IsMajor ? majorTickInside : minorTickInside;
+                var outside = tick.IsMajor ? majorTickOutside : minorTickOutside;
+                var paint = tick.IsMajor ? majorTickPaint : minorTickPaint;
+                canvas.DrawLine(px, chartRect.Bottom - inside, px, chartRect.Bottom + outside, paint);
+            }
+
+            foreach (var tick in yTicks)
+            {
+                var py = TransformY(tick.Value);
+                if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                    continue;
+
+                var inside = tick.IsMajor ? majorTickInside : minorTickInside;
+                var outside = tick.IsMajor ? majorTickOutside : minorTickOutside;
+                var paint = tick.IsMajor ? majorTickPaint : minorTickPaint;
+                canvas.DrawLine(chartRect.Left - outside, py, chartRect.Left + inside, py, paint);
             }
 
             using (var zeroPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.2f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 4f, 4f }, 0) })
@@ -2434,7 +2477,7 @@ public static class ErgReportBuilder
                 var style = graphIndex < graphStyles.Length ? graphStyles[graphIndex] : null;
                 var color = style != null ? new SKColor(style.Red, style.Green, style.Blue) : new SKColor(56, 109, 179);
 
-                using var linePaint = new SKPaint { Color = color, StrokeWidth = 3f, IsAntialias = true, Style = SKPaintStyle.Stroke };
+                using var linePaint = new SKPaint { Color = color, StrokeWidth = 5f, IsAntialias = true, Style = SKPaintStyle.Stroke };
                 if (style?.Dotted == true)
                 {
                     linePaint.PathEffect = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0);
@@ -2452,20 +2495,26 @@ public static class ErgReportBuilder
 
                 foreach (var tick in xTicks)
                 {
-                    var px = TransformX(tick);
+                    if (!tick.IsMajor)
+                        continue;
+
+                    var px = TransformX(tick.Value);
                     if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
                         continue;
-                    var text = FormatAxisValue(tick);
+                    var text = FormatAxisValue(tick.Value);
                     var textWidth = labelPaint.MeasureText(text);
                     canvas.DrawText(text, px - textWidth / 2f, chartRect.Bottom + textHeight, labelPaint);
                 }
 
                 foreach (var tick in yTicks)
                 {
-                    var py = TransformY(tick);
+                    if (!tick.IsMajor)
+                        continue;
+
+                    var py = TransformY(tick.Value);
                     if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
                         continue;
-                    var text = FormatAxisValue(tick);
+                    var text = FormatAxisValue(tick.Value);
                     var textWidth = labelPaint.MeasureText(text);
                     canvas.DrawText(text, chartRect.Left - 10f - textWidth, py + textHeight / 3f, labelPaint);
                 }
@@ -2520,9 +2569,6 @@ public static class ErgReportBuilder
             const float marginRight = 30f;
             const float marginTop = 24f;
             const float marginBottom = 80f;
-            const float tickInside = 4f;
-            const float tickOutside = 6f;
-
             var chartRect = new RectangleF(marginLeft, marginTop, width - marginLeft - marginRight, height - marginTop - marginBottom);
 
             double xMin = context.XMin;
@@ -2533,28 +2579,40 @@ public static class ErgReportBuilder
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
 
-            var xStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
-            var yStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
-            var xTicks = BuildAxisTicks(xMin, xMax, xStep);
-            var yTicks = BuildAxisTicks(yMin, yMax, yStep);
+            const float majorTickInside = 6f;
+            const float majorTickOutside = 8f;
+            const float minorTickInside = 3f;
+            const float minorTickOutside = 5f;
 
-            using (var gridPen = new Pen(System.Drawing.Color.FromArgb(220, 220, 220), 1f))
+            var xScale = DetermineAxisScale(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
+            var yScale = DetermineAxisScale(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
+            var xTicks = BuildAxisTicks(xMin, xMax, xScale);
+            var yTicks = BuildAxisTicks(yMin, yMax, yScale);
+
+            using var majorGridPen = new Pen(System.Drawing.Color.FromArgb(210, 210, 210), 1.2f);
+            using var minorGridPen = new Pen(System.Drawing.Color.FromArgb(235, 235, 235), 0.8f);
+
+            foreach (var tick in xTicks)
             {
-                foreach (var tick in xTicks)
-                {
-                    var px = TransformX(tick);
-                    if (px <= chartRect.Left + 1 || px >= chartRect.Right - 1)
-                        continue;
-                    graphics.DrawLine(gridPen, px, chartRect.Top, px, chartRect.Bottom);
-                }
+                var px = TransformX(tick.Value);
+                if (px <= chartRect.Left + 1 || px >= chartRect.Right - 1)
+                    continue;
 
-                foreach (var tick in yTicks)
-                {
-                    var py = TransformY(tick);
-                    if (py <= chartRect.Top + 1 || py >= chartRect.Bottom - 1)
-                        continue;
-                    graphics.DrawLine(gridPen, chartRect.Left, py, chartRect.Right, py);
-                }
+                var pen = tick.IsMajor ? majorGridPen : minorGridPen;
+                graphics.DrawLine(pen, px, chartRect.Top, px, chartRect.Bottom);
+            }
+
+            foreach (var tick in yTicks)
+            {
+                if (IsApproximatelyZero(tick.Value))
+                    continue;
+
+                var py = TransformY(tick.Value);
+                if (py <= chartRect.Top + 1 || py >= chartRect.Bottom - 1)
+                    continue;
+
+                var pen = tick.IsMajor ? majorGridPen : minorGridPen;
+                graphics.DrawLine(pen, chartRect.Left, py, chartRect.Right, py);
             }
 
             using (var axisPen = new Pen(System.Drawing.Color.Black, 1.8f))
@@ -2563,23 +2621,31 @@ public static class ErgReportBuilder
                 graphics.DrawLine(axisPen, chartRect.Left, chartRect.Top, chartRect.Left, chartRect.Bottom);
             }
 
-            using (var tickPen = new Pen(System.Drawing.Color.Black, 1.2f))
-            {
-                foreach (var tick in xTicks)
-                {
-                    var px = TransformX(tick);
-                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
-                        continue;
-                    graphics.DrawLine(tickPen, px, chartRect.Bottom - tickInside, px, chartRect.Bottom + tickOutside);
-                }
+            using var majorTickPen = new Pen(System.Drawing.Color.Black, 1.3f);
+            using var minorTickPen = new Pen(System.Drawing.Color.FromArgb(70, 70, 70), 1f);
 
-                foreach (var tick in yTicks)
-                {
-                    var py = TransformY(tick);
-                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
-                        continue;
-                    graphics.DrawLine(tickPen, chartRect.Left - tickOutside, py, chartRect.Left + tickInside, py);
-                }
+            foreach (var tick in xTicks)
+            {
+                var px = TransformX(tick.Value);
+                if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
+                    continue;
+
+                var inside = tick.IsMajor ? majorTickInside : minorTickInside;
+                var outside = tick.IsMajor ? majorTickOutside : minorTickOutside;
+                var pen = tick.IsMajor ? majorTickPen : minorTickPen;
+                graphics.DrawLine(pen, px, chartRect.Bottom - inside, px, chartRect.Bottom + outside);
+            }
+
+            foreach (var tick in yTicks)
+            {
+                var py = TransformY(tick.Value);
+                if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
+                    continue;
+
+                var inside = tick.IsMajor ? majorTickInside : minorTickInside;
+                var outside = tick.IsMajor ? majorTickOutside : minorTickOutside;
+                var pen = tick.IsMajor ? majorTickPen : minorTickPen;
+                graphics.DrawLine(pen, chartRect.Left - outside, py, chartRect.Left + inside, py);
             }
 
             using (var dashedPen = new Pen(System.Drawing.Color.Black, 1.2f) { DashPattern = new[] { 4f, 4f } })
@@ -2679,7 +2745,7 @@ public static class ErgReportBuilder
                 var style = graphIndex < graphStyles.Length ? graphStyles[graphIndex] : null;
                 var color = style != null ? System.Drawing.Color.FromArgb(style.Red, style.Green, style.Blue) : System.Drawing.Color.FromArgb(56, 109, 179);
 
-                using var pen = new Pen(color, 3f) { LineJoin = LineJoin.Round };
+                using var pen = new Pen(color, 5f) { LineJoin = LineJoin.Round };
                 if (style?.Dotted == true)
                 {
                     pen.DashPattern = new[] { 6f, 4f };
@@ -2694,10 +2760,13 @@ public static class ErgReportBuilder
 
             foreach (var tick in xTicks)
             {
-                var px = TransformX(tick);
+                if (!tick.IsMajor)
+                    continue;
+
+                var px = TransformX(tick.Value);
                 if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
                     continue;
-                var text = FormatAxisValue(tick);
+                var text = FormatAxisValue(tick.Value);
                 var size = graphics.MeasureString(text, tickFont);
                 graphics.DrawString(text, tickFont, Brushes.Black, px - size.Width / 2f, chartRect.Bottom + size.Height);
             }
@@ -2706,11 +2775,14 @@ public static class ErgReportBuilder
 
             foreach (var tick in yTicks)
             {
-                var py = TransformY(tick);
+                if (!tick.IsMajor)
+                    continue;
+
+                var py = TransformY(tick.Value);
                 if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
                     continue;
                 var rect = new RectangleF(chartRect.Left - 16f, py - tickFont.GetHeight(graphics) / 2f, 40f, tickFont.GetHeight(graphics));
-                graphics.DrawString(FormatAxisValue(tick), tickFont, Brushes.Black, rect, tickFormatLeft);
+                graphics.DrawString(FormatAxisValue(tick.Value), tickFont, Brushes.Black, rect, tickFormatLeft);
             }
 
             using var axisTitleFont = new System.Drawing.Font("Arial", 11f, FontStyle.Regular, GraphicsUnit.Point);
@@ -2734,8 +2806,7 @@ public static class ErgReportBuilder
         }
     }
 
-    private static double DetermineAxisStep
-(double min, double max, int valueStep, int lineStep)
+    private static double DetermineAxisStep(double min, double max, int valueStep, int lineStep)
     {
         var range = max - min;
         if (range <= 0)
@@ -2747,7 +2818,7 @@ public static class ErgReportBuilder
         if (valueStep > 0)
             return valueStep;
 
-        var roughStep = range / 8.0;
+        var roughStep = range / 10.0;
         if (roughStep <= 0)
             return 0;
 
@@ -2764,44 +2835,142 @@ public static class ErgReportBuilder
         return stepNormalized * magnitude;
     }
 
-    private static double[] BuildAxisTicks(double min, double max, double step)
+    private static AxisScale DetermineAxisScale(double min, double max, int valueStep, int lineStep)
+    {
+        var majorStep = DetermineAxisStep(min, max, valueStep, lineStep);
+        if (majorStep <= 0)
+            return new AxisScale(0, 0);
+
+        var subdivisions = DetermineMinorSubdivisions(majorStep, valueStep, lineStep);
+        var range = max - min;
+        if (range > 0)
+        {
+            const double minMajorTicks = 4.0;
+            const double maxMajorTicks = 12.0;
+
+            var majorCount = range / majorStep;
+            if (majorCount < minMajorTicks)
+            {
+                var adjustedStep = majorStep / 2.0;
+                if (adjustedStep > 1e-6)
+                {
+                    majorStep = adjustedStep;
+                    majorCount = range / majorStep;
+                    subdivisions = Math.Max(DetermineMinorSubdivisions(majorStep, valueStep, lineStep), subdivisions > 0 ? subdivisions : 1);
+                }
+            }
+
+            while (majorCount > maxMajorTicks && majorStep > 0)
+            {
+                majorStep *= 2;
+                majorCount = range / majorStep;
+                subdivisions = DetermineMinorSubdivisions(majorStep, valueStep, lineStep);
+            }
+        }
+
+        return new AxisScale(majorStep, subdivisions);
+    }
+
+    private static int DetermineMinorSubdivisions(double majorStep, int valueStep, int lineStep)
+    {
+        if (majorStep <= 0)
+            return 0;
+
+        if (valueStep > 0 && lineStep > 0)
+            return Math.Clamp(lineStep - 1, 0, 8);
+
+        if (valueStep > 0 && majorStep > valueStep)
+        {
+            var subdivisions = (int)Math.Round(majorStep / valueStep) - 1;
+            return Math.Clamp(subdivisions, 0, 8);
+        }
+
+        if (valueStep > 0 && Math.Abs(majorStep - valueStep) < 1e-6)
+            return 0;
+
+        return 3;
+    }
+
+    private static AxisTick[] BuildAxisTicks(double min, double max, AxisScale scale)
     {
         if (max <= min)
-            return Array.Empty<double>();
+            return Array.Empty<AxisTick>();
 
-        var values = new List<double>();
+        var ticks = new List<AxisTick>();
+        var majorValues = new List<double>();
+        var majorStep = scale.MajorStep;
 
-        if (step > 0)
+        if (majorStep > 0)
         {
-            double start = Math.Ceiling(min / step) * step;
-            int guard = 0;
-            for (double value = start; value <= max + 1e-6 && guard < 512; value += step, guard++)
+            var start = Math.Floor(min / majorStep) * majorStep;
+            var end = Math.Ceiling(max / majorStep) * majorStep;
+            for (double value = start; value <= end + 1e-6; value += majorStep)
             {
-                values.Add(value);
+                if (value < min - 1e-6 || value > max + 1e-6)
+                    continue;
+
+                majorValues.Add(NormalizeTickValue(value));
+            }
+
+            majorValues.Add(NormalizeTickValue(min));
+            majorValues.Add(NormalizeTickValue(max));
+
+            majorValues = majorValues
+                .Where(v => !double.IsNaN(v) && !double.IsInfinity(v) && v >= min - 1e-6 && v <= max + 1e-6)
+                .Distinct()
+                .OrderBy(v => v)
+                .ToList();
+
+            if (majorValues.Count == 0)
+            {
+                majorValues.Add(NormalizeTickValue(min));
+                majorValues.Add(NormalizeTickValue(max));
+            }
+
+            for (int i = 0; i < majorValues.Count; i++)
+            {
+                var current = majorValues[i];
+                ticks.Add(new AxisTick(current, true));
+
+                if (i >= majorValues.Count - 1 || scale.MinorSubdivisions <= 0)
+                    continue;
+
+                var next = majorValues[i + 1];
+                var interval = next - current;
+                if (interval <= 1e-9)
+                    continue;
+
+                var minorStep = interval / (scale.MinorSubdivisions + 1);
+                for (int j = 1; j <= scale.MinorSubdivisions; j++)
+                {
+                    var minorValue = current + minorStep * j;
+                    if (minorValue <= min + 1e-6 || minorValue >= max - 1e-6)
+                        continue;
+
+                    ticks.Add(new AxisTick(NormalizeTickValue(minorValue), false));
+                }
             }
         }
         else
         {
-            const int fallbackSegments = 5;
-            double range = max - min;
+            const int fallbackSegments = 8;
             for (int i = 0; i <= fallbackSegments; i++)
             {
-                double value = min + range * i / fallbackSegments;
-                values.Add(value);
+                var value = min + (max - min) * i / fallbackSegments;
+                ticks.Add(new AxisTick(NormalizeTickValue(value), true));
             }
         }
 
-        values.Add(min);
-        values.Add(max);
-
-        return values
-            .Where(v => !double.IsNaN(v) && !double.IsInfinity(v))
-            .Select(v => Math.Round(v, 6))
-            .Distinct()
-            .Where(v => v >= min - 1e-6 && v <= max + 1e-6)
-            .OrderBy(v => v)
+        return ticks
+            .GroupBy(t => t.Value)
+            .Select(group => new AxisTick(group.Key, group.Any(t => t.IsMajor)))
+            .OrderBy(t => t.Value)
             .ToArray();
     }
+
+    private static double NormalizeTickValue(double value) => Math.Round(value, 6);
+
+    private static bool IsApproximatelyZero(double value) => Math.Abs(value) < 1e-6;
 
     private static string FormatAxisValue(double value)
     {
@@ -3095,9 +3264,11 @@ public static class ErgReportBuilder
 
     private static Table CreateClientWaveValuesTable(string label, WaveDisplay display)
     {
+        bool hasLabel = !string.IsNullOrWhiteSpace(label);
         var table = new Table(
             new TableProperties(
                 new TableWidth { Type = TableWidthUnitValues.Pct, Width = "4800" },
+                new TableJustification { Val = TableRowAlignmentValues.Center },
                 new TableBorders(
                     new TopBorder { Val = BorderValues.Nil },
                     new LeftBorder { Val = BorderValues.Nil },
@@ -3107,20 +3278,25 @@ public static class ErgReportBuilder
                     new InsideVerticalBorder { Val = BorderValues.Nil }
                 )
             ),
-            new TableGrid(new GridColumn { Width = "1200" }, new GridColumn { Width = "1800" }, new GridColumn { Width = "1800" })
+            hasLabel
+                ? new TableGrid(new GridColumn { Width = "1200" }, new GridColumn { Width = "1800" }, new GridColumn { Width = "1800" })
+                : new TableGrid(new GridColumn { Width = "2400" }, new GridColumn { Width = "2400" })
         );
 
         var row = new TableRow();
-        row.Append(CreateClientWaveLabelCell(label));
+        if (hasLabel)
+        {
+            row.Append(CreateClientWaveLabelCell(label));
+        }
 
         if (display.IsFlat)
         {
-            row.Append(CreateClientWaveFlatCell(gridSpan: 2));
+            row.Append(CreateClientWaveFlatCell(gridSpan: 2, fullWidth: !hasLabel));
         }
         else
         {
-            row.Append(CreateClientWaveValueCell(display.MsValue, display.MsNorm));
-            row.Append(CreateClientWaveValueCell(display.MkVValue, display.MkVNorm));
+            row.Append(CreateClientWaveValueCell(display.MsValue, display.MsNorm, fullWidth: !hasLabel));
+            row.Append(CreateClientWaveValueCell(display.MkVValue, display.MkVNorm, fullWidth: !hasLabel));
         }
 
         table.Append(row);
@@ -3145,7 +3321,7 @@ public static class ErgReportBuilder
         return cell;
     }
 
-    private static TableCell CreateClientWaveFlatCell(int gridSpan)
+    private static TableCell CreateClientWaveFlatCell(int gridSpan, bool fullWidth)
     {
         var props = new TableCellProperties(
             new GridSpan { Val = gridSpan },
@@ -3155,8 +3331,8 @@ public static class ErgReportBuilder
         {
             TopMargin = new TopMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
             BottomMargin = new BottomMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
-            LeftMargin = new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
-            RightMargin = new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa }
+            LeftMargin = new LeftMargin { Width = fullWidth ? "60" : "80", Type = TableWidthUnitValues.Dxa },
+            RightMargin = new RightMargin { Width = fullWidth ? "60" : "80", Type = TableWidthUnitValues.Dxa }
         });
 
         var cell = new TableCell(props);
@@ -3164,7 +3340,7 @@ public static class ErgReportBuilder
         return cell;
     }
 
-    private static TableCell CreateClientWaveValueCell(string value, string norm)
+    private static TableCell CreateClientWaveValueCell(string value, string norm, bool fullWidth)
     {
         var cellProps = new TableCellProperties(
             new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center }
@@ -3173,8 +3349,8 @@ public static class ErgReportBuilder
         {
             TopMargin = new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
             BottomMargin = new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            LeftMargin = new LeftMargin { Width = "60", Type = TableWidthUnitValues.Dxa },
-            RightMargin = new RightMargin { Width = "60", Type = TableWidthUnitValues.Dxa }
+            LeftMargin = new LeftMargin { Width = fullWidth ? "40" : "60", Type = TableWidthUnitValues.Dxa },
+            RightMargin = new RightMargin { Width = fullWidth ? "40" : "60", Type = TableWidthUnitValues.Dxa }
         });
 
         var cell = new TableCell { TableCellProperties = cellProps };
@@ -3622,6 +3798,196 @@ public static class ErgReportBuilder
 
         var appPart = document.ExtendedFilePropertiesPart ?? document.AddExtendedFilePropertiesPart();
         WriteExtendedProperties(appPart);
+    }
+
+    private static void EnsureWordDocumentInfrastructure(MainDocumentPart mainPart)
+    {
+        if (mainPart == null)
+            return;
+
+        EnsureDefaultStyles(mainPart);
+        EnsureFontTable(mainPart);
+        EnsureDocumentSettings(mainPart);
+    }
+
+    private static void EnsureDefaultStyles(MainDocumentPart mainPart)
+    {
+        if (mainPart == null)
+            return;
+
+        var stylesPart = mainPart.StyleDefinitionsPart ?? mainPart.AddNewPart<StyleDefinitionsPart>();
+        var styles = stylesPart.Styles ?? new Styles();
+        stylesPart.Styles = styles;
+
+        bool changed = false;
+
+        if (styles.DocDefaults == null)
+        {
+            styles.DocDefaults = new DocDefaults(
+                new RunPropertiesDefault(new RunProperties(
+                    new RunFonts { Ascii = "Calibri", HighAnsi = "Calibri", EastAsia = "Calibri", ComplexScript = "Calibri" },
+                    new FontSize { Val = "22" }
+                )),
+                new ParagraphPropertiesDefault(new ParagraphProperties())
+            );
+            changed = true;
+        }
+
+        if (!styles.Elements<Style>().Any(s => string.Equals(s.StyleId, "Normal", StringComparison.Ordinal)))
+        {
+            var normalStyle = new Style
+            {
+                Type = StyleValues.Paragraph,
+                StyleId = "Normal",
+                Default = true
+            };
+            normalStyle.Append(new StyleName { Val = "Normal" });
+            normalStyle.Append(new UIPriority { Val = 0 });
+            normalStyle.Append(new PrimaryStyle());
+            normalStyle.Append(new StyleRunProperties(
+                new RunFonts { Ascii = "Calibri", HighAnsi = "Calibri", EastAsia = "Calibri", ComplexScript = "Calibri" },
+                new FontSize { Val = "22" }
+            ));
+            styles.Append(normalStyle);
+            changed = true;
+        }
+
+        if (!styles.Elements<Style>().Any(s => string.Equals(s.StyleId, "TableNormal", StringComparison.Ordinal)))
+        {
+            var tableNormal = new Style
+            {
+                Type = StyleValues.Table,
+                StyleId = "TableNormal",
+                Default = true
+            };
+            tableNormal.Append(new StyleName { Val = "Normal Table" });
+            tableNormal.Append(new UIPriority { Val = 1 });
+            tableNormal.Append(new PrimaryStyle());
+            tableNormal.Append(new StyleTableProperties(
+                new TableBorders(
+                    new TopBorder { Val = BorderValues.Nil },
+                    new LeftBorder { Val = BorderValues.Nil },
+                    new BottomBorder { Val = BorderValues.Nil },
+                    new RightBorder { Val = BorderValues.Nil },
+                    new InsideHorizontalBorder { Val = BorderValues.Nil },
+                    new InsideVerticalBorder { Val = BorderValues.Nil }
+                )));
+            styles.Append(tableNormal);
+            changed = true;
+        }
+
+        if (!styles.Elements<Style>().Any(s => string.Equals(s.StyleId, "TableGrid", StringComparison.Ordinal)))
+        {
+            var tableGrid = new Style
+            {
+                Type = StyleValues.Table,
+                StyleId = "TableGrid"
+            };
+            tableGrid.Append(new StyleName { Val = "Table Grid" });
+            tableGrid.Append(new BasedOn { Val = "TableNormal" });
+            tableGrid.Append(new UIPriority { Val = 59 });
+            tableGrid.Append(new PrimaryStyle());
+            tableGrid.Append(new StyleTableProperties(
+                new TableBorders(
+                    new TopBorder { Val = BorderValues.Single, Size = 4 },
+                    new LeftBorder { Val = BorderValues.Single, Size = 4 },
+                    new BottomBorder { Val = BorderValues.Single, Size = 4 },
+                    new RightBorder { Val = BorderValues.Single, Size = 4 },
+                    new InsideHorizontalBorder { Val = BorderValues.Single, Size = 4 },
+                    new InsideVerticalBorder { Val = BorderValues.Single, Size = 4 }
+                )));
+            styles.Append(tableGrid);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            styles.Save(stylesPart);
+        }
+    }
+
+    private static void EnsureFontTable(MainDocumentPart mainPart)
+    {
+        if (mainPart == null)
+            return;
+
+        var fontPart = mainPart.FontTablePart ?? mainPart.AddNewPart<FontTablePart>();
+        var fonts = fontPart.FontTable ?? new Fonts();
+        bool changed = false;
+
+        bool EnsureFont(string name)
+        {
+            if (fonts.Elements<Font>().Any(f => string.Equals(f.Name?.Value, name, StringComparison.OrdinalIgnoreCase)))
+                return false;
+
+            var font = new Font { Name = name };
+            font.Append(new FontFamilyNumbering { Val = FontFamilyNumberingValues.Swiss });
+            font.Append(new Pitch { Val = FontPitchValues.Variable });
+            font.Append(new FontCharSet { Val = "00" });
+            fonts.Append(font);
+            return true;
+        }
+
+        if (EnsureFont("Calibri"))
+            changed = true;
+        if (EnsureFont("Arial"))
+            changed = true;
+
+        if (changed)
+            fontPart.FontTable = fonts;
+    }
+
+    private static void EnsureDocumentSettings(MainDocumentPart mainPart)
+    {
+        if (mainPart == null)
+            return;
+
+        var settingsPart = mainPart.DocumentSettingsPart ?? mainPart.AddNewPart<DocumentSettingsPart>();
+        var settings = settingsPart.Settings ?? new Settings();
+        bool changed = false;
+
+        if (!settings.Elements<Zoom>().Any())
+        {
+            settings.PrependChild(new Zoom { Percent = 100 });
+            changed = true;
+        }
+
+        if (!settings.Elements<DefaultTabStop>().Any())
+        {
+            settings.Append(new DefaultTabStop { Val = 720 });
+            changed = true;
+        }
+
+        CompatibilitySetting CreateCompatibilitySetting()
+            => new()
+            {
+                Name = new EnumValue<CompatSettingNameValues>(CompatSettingNameValues.CompatSettingNameWord2010),
+                Val = "14",
+                Uri = "http://schemas.microsoft.com/office/word"
+            };
+
+        var compatibility = settings.Elements<Compatibility>().FirstOrDefault();
+        if (compatibility == null)
+        {
+            compatibility = new Compatibility();
+            compatibility.Append(CreateCompatibilitySetting());
+            settings.Append(compatibility);
+            changed = true;
+        }
+        else if (!compatibility.Elements<CompatibilitySetting>().Any(s => s.Name?.Value == CompatSettingNameValues.CompatSettingNameWord2010))
+        {
+            compatibility.Append(CreateCompatibilitySetting());
+            changed = true;
+        }
+
+        if (!settings.Elements<UpdateFieldsOnOpen>().Any())
+        {
+            settings.Append(new UpdateFieldsOnOpen { Val = true });
+            changed = true;
+        }
+
+        if (changed)
+            settingsPart.Settings = settings;
     }
 
     private static void WriteCoreProperties(CoreFilePropertiesPart part, string? title)

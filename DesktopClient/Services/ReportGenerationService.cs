@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Globalization;
 using System.IO;
 using System.IO.Ports;
+using System.Linq;
 using System.Threading.Tasks;
 using ErgData;
 using MicroluxErgConnect.Models;
@@ -119,6 +120,7 @@ public sealed class ReportGenerationService : IDisposable
         bool sessionAnnounced = false;
         int processedPatients = 0;
         var template = _settings.Current.ReportTemplate;
+        var clinicHeader = PrepareClinicHeader(_settings.Current.ClinicHeader);
 
         for (int index = 1; index <= maxPatients; index++)
         {
@@ -214,7 +216,7 @@ public sealed class ReportGenerationService : IDisposable
                         var candidatePdfPath = Path.Combine(sessionDir, $"patient_{index:000}.pdf");
                         try
                         {
-                            ErgReportBuilder.BuildPatientReport(patient, candidatePdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath, template: template);
+                            ErgReportBuilder.BuildPatientReport(patient, candidatePdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: finalRawPath, template: template);
                             _log.Info($"PDF-отчет для пациента #{index} создан: {candidatePdfPath}");
                             pdfPath = candidatePdfPath;
                             ReportGenerated?.Invoke(this, pdfPath);
@@ -239,7 +241,7 @@ public sealed class ReportGenerationService : IDisposable
                     var candidateDocx = Path.Combine(sessionDir, $"patient_{index:000}.docx");
                     try
                     {
-                        ErgReportBuilder.BuildPatientWordReport(patient, candidateDocx, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: finalRawPath, template: template);
+                        ErgReportBuilder.BuildPatientWordReport(patient, candidateDocx, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: finalRawPath, template: template);
                         _log.Info($"Word-отчет для пациента #{index} создан: {candidateDocx}");
                         docxPath = candidateDocx;
                         ReportGenerated?.Invoke(this, docxPath);
@@ -485,6 +487,23 @@ public sealed class ReportGenerationService : IDisposable
         }
     }
 
+    private static string? PrepareClinicHeader(string? header)
+    {
+        if (string.IsNullOrWhiteSpace(header))
+        {
+            return null;
+        }
+
+        var normalized = header.ReplaceLineEndings("\n").TrimEnd();
+        var lines = normalized.Split('\n');
+        if (lines.Length > 4)
+        {
+            normalized = string.Join("\n", lines.Take(4));
+        }
+
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
     private static string DescribeAnimal(AnimalKind animal)
         => animal switch
         {
@@ -583,6 +602,7 @@ public sealed class ReportGenerationService : IDisposable
         var docxPath = Path.Combine(directory, $"{baseName}.docx");
 
         var template = _settings.Current.ReportTemplate;
+        var clinicHeader = PrepareClinicHeader(_settings.Current.ClinicHeader);
 
         try
         {
@@ -599,7 +619,7 @@ public sealed class ReportGenerationService : IDisposable
 
         try
         {
-            ErgReportBuilder.BuildPatientReport(patient, pdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: filePath, template: template);
+            ErgReportBuilder.BuildPatientReport(patient, pdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: filePath, template: template);
             _log.Info($"PDF-отчет сохранен: {pdfPath}");
         }
         catch (Exception ex)
@@ -612,7 +632,7 @@ public sealed class ReportGenerationService : IDisposable
 
         try
         {
-            ErgReportBuilder.BuildPatientWordReport(patient, docxPath, _lastDeviceInfo?.DeviceInfo, clinicName: null, rawFilePath: filePath, template: template);
+            ErgReportBuilder.BuildPatientWordReport(patient, docxPath, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: filePath, template: template);
             _log.Info($"Word-отчет сохранен: {docxPath}");
         }
         catch (Exception ex)

@@ -48,6 +48,8 @@ partial class MainForm
     private TextBox backgroundSyncTextBox;
     private Label reportTemplateLabel;
     private ComboBox reportTemplateComboBox;
+    private Label clinicHeaderLabel;
+    private TextBox clinicHeaderTextBox;
     private FlowLayoutPanel settingsButtonsPanel;
     private Button openReportsButton;
     private Button convertBinButton;
@@ -121,6 +123,8 @@ partial class MainForm
         backgroundSyncTextBox = new TextBox();
         reportTemplateLabel = new Label();
         reportTemplateComboBox = new ComboBox();
+        clinicHeaderLabel = new Label();
+        clinicHeaderTextBox = new TextBox();
         settingsButtonsPanel = new FlowLayoutPanel();
         openReportsButton = new Button();
         convertBinButton = new Button();
@@ -621,7 +625,7 @@ partial class MainForm
         settingsGroup.Margin = new Padding(0, 0, 0, 16);
         settingsGroup.Name = "settingsGroup";
         settingsGroup.Padding = new Padding(16, 20, 16, 16);
-        settingsGroup.Size = new Size(423, 270);
+        settingsGroup.Size = new Size(423, 352);
         settingsGroup.TabIndex = 1;
         settingsGroup.TabStop = false;
         settingsGroup.Text = "Настройки опроса";
@@ -642,20 +646,23 @@ partial class MainForm
         settingsLayout.Controls.Add(backgroundSyncTextBox, 1, 2);
         settingsLayout.Controls.Add(reportTemplateLabel, 0, 3);
         settingsLayout.Controls.Add(reportTemplateComboBox, 1, 3);
-        settingsLayout.Controls.Add(settingsButtonsPanel, 0, 4);
+        settingsLayout.Controls.Add(clinicHeaderLabel, 0, 4);
+        settingsLayout.Controls.Add(clinicHeaderTextBox, 1, 4);
+        settingsLayout.Controls.Add(settingsButtonsPanel, 0, 5);
         settingsLayout.Dock = DockStyle.Fill;
         settingsLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
         settingsLayout.Location = new Point(16, 38);
         settingsLayout.Margin = new Padding(0);
         settingsLayout.Name = "settingsLayout";
         settingsLayout.Padding = new Padding(0, 4, 0, 8);
-        settingsLayout.RowCount = 5;
+        settingsLayout.RowCount = 6;
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
-        settingsLayout.Size = new Size(391, 216);
+        settingsLayout.RowStyles.Add(new RowStyle());
+        settingsLayout.Size = new Size(391, 296);
         settingsLayout.TabIndex = 0;
         // 
         // scanIntervalLabel
@@ -760,18 +767,47 @@ partial class MainForm
         reportTemplateComboBox.Size = new Size(160, 25);
         reportTemplateComboBox.TabIndex = 7;
         // 
-        // settingsButtonsPanel
+        // clinicHeaderLabel
+        //
+        clinicHeaderLabel.AutoSize = true;
+        clinicHeaderLabel.Font = new Font("Segoe UI", 9F);
+        clinicHeaderLabel.ForeColor = Color.FromArgb(120, 128, 145);
+        clinicHeaderLabel.Location = new Point(0, 130);
+        clinicHeaderLabel.Margin = new Padding(0, 10, 16, 0);
+        clinicHeaderLabel.Name = "clinicHeaderLabel";
+        clinicHeaderLabel.Size = new Size(167, 15);
+        clinicHeaderLabel.TabIndex = 8;
+        clinicHeaderLabel.Text = "Шапка отчета (до 4 строк):";
         // 
+        // clinicHeaderTextBox
+        //
+        clinicHeaderTextBox.AcceptsReturn = true;
+        clinicHeaderTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        clinicHeaderTextBox.BorderStyle = BorderStyle.FixedSingle;
+        clinicHeaderTextBox.Dock = DockStyle.Fill;
+        clinicHeaderTextBox.Location = new Point(191, 124);
+        clinicHeaderTextBox.Margin = new Padding(0, 4, 0, 0);
+        clinicHeaderTextBox.MaxLength = 256;
+        clinicHeaderTextBox.MinimumSize = new Size(160, 60);
+        clinicHeaderTextBox.Multiline = true;
+        clinicHeaderTextBox.Name = "clinicHeaderTextBox";
+        clinicHeaderTextBox.ScrollBars = ScrollBars.Vertical;
+        clinicHeaderTextBox.Size = new Size(200, 76);
+        clinicHeaderTextBox.TabIndex = 8;
+        clinicHeaderTextBox.Validated += OnClinicHeaderValidated;
+        // 
+        // settingsButtonsPanel
+        //
         settingsButtonsPanel.AutoSize = true;
         settingsButtonsPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         settingsLayout.SetColumnSpan(settingsButtonsPanel, 2);
         settingsButtonsPanel.Controls.Add(openReportsButton);
         settingsButtonsPanel.Controls.Add(convertBinButton);
-        settingsButtonsPanel.Location = new Point(0, 134);
+        settingsButtonsPanel.Location = new Point(0, 214);
         settingsButtonsPanel.Margin = new Padding(0, 16, 0, 0);
         settingsButtonsPanel.Name = "settingsButtonsPanel";
         settingsButtonsPanel.Size = new Size(387, 37);
-        settingsButtonsPanel.TabIndex = 8;
+        settingsButtonsPanel.TabIndex = 9;
         // 
         // openReportsButton
         // 

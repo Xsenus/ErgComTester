@@ -164,6 +164,7 @@ public partial class MainForm : Form
             case nameof(MainViewModel.UpdateCheckIntervalMinutes):
             case nameof(MainViewModel.UpdateManifestUrl):
             case nameof(MainViewModel.ReportTemplate):
+            case nameof(MainViewModel.ClinicHeader):
                 ApplySettingsToInputs();
                 break;
         }
@@ -349,6 +350,7 @@ public partial class MainForm : Form
         updateIntervalTextBox.Text = _viewModel.UpdateCheckIntervalMinutes.ToString();
         manifestUrlTextBox.Text = _viewModel.UpdateManifestUrl;
         reportTemplateComboBox.SelectedValue = _viewModel.ReportTemplate;
+        clinicHeaderTextBox.Text = _viewModel.ClinicHeader.ReplaceLineEndings(Environment.NewLine);
     }
 
     private void UpdateAll()
@@ -758,6 +760,18 @@ public partial class MainForm : Form
             AppServices.Log.Info($"Пользователь выбрал шаблон отчетов: {template}.");
             _viewModel.ReportTemplate = template;
         }
+    }
+
+    private void OnClinicHeaderValidated(object? sender, EventArgs e)
+    {
+        var text = (clinicHeaderTextBox.Text ?? string.Empty).ReplaceLineEndings("\n");
+        if (!string.Equals(text, _viewModel.ClinicHeader, StringComparison.Ordinal))
+        {
+            AppServices.Log.Info("Пользователь изменил шапку отчета.");
+            _viewModel.ClinicHeader = text;
+        }
+
+        clinicHeaderTextBox.Text = _viewModel.ClinicHeader.ReplaceLineEndings(Environment.NewLine);
     }
 
     private static bool TryParseTextBoxValue(TextBox textBox, out int value)
