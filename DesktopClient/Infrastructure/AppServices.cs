@@ -119,7 +119,7 @@ public static class AppServices
         _initialized = false;
     }
 
-    internal static Task<AutoUpdaterRunInfo> RunAutoUpdaterAsync()
+    public static Task<AutoUpdaterRunInfo> RunAutoUpdaterAsync()
     {
         var url = Settings.Current.UpdateManifestUrl;
         if (string.IsNullOrWhiteSpace(url))
@@ -360,9 +360,9 @@ public static class AppServices
         RequestApplicationExit("AutoUpdater.NET запросил закрытие приложения для установки обновления.");
     }
 
-    internal sealed record AutoUpdaterRunInfo(bool Enabled, AutoUpdaterManifestInfo? Manifest, string? Error, bool ExitRequested);
+    public sealed record AutoUpdaterRunInfo(bool Enabled, AutoUpdaterManifestInfo? Manifest, string? Error, bool ExitRequested);
 
-    private sealed record AutoUpdaterManifestInfo(Version Version, string? PackageUrl, bool Mandatory, string? MandatoryMode, string? Description);
+    public sealed record AutoUpdaterManifestInfo(Version Version, string? PackageUrl, bool Mandatory, string? MandatoryMode, string? Description);
 
     private static void DumpSettings()
     {

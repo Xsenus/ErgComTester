@@ -1017,6 +1017,7 @@ partial class MainForm
         installUpdateButton.TabIndex = 1;
         installUpdateButton.Text = "Установить";
         installUpdateButton.UseVisualStyleBackColor = false;
+        installUpdateButton.Visible = false;
         installUpdateButton.Click += OnInstallUpdateClicked;
         // 
         // updateIntervalLabel
