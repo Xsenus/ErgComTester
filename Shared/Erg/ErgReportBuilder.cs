@@ -38,6 +38,8 @@ namespace ErgData;
 public static class ErgReportBuilder
 {
     private const string DefaultClientDeviceName = "Электроретинограф  Ветеринарный  МЛ-210 VET \"Микролюкс\"";
+    private const double HeaderLineSpacingPoints = 2d;
+    private const double HeaderTitleSpacingPoints = 12d;
 
     static ErgReportBuilder()
     {
@@ -166,24 +168,28 @@ public static class ErgReportBuilder
                 page.PageColor(Colors.White);
                 page.DefaultTextStyle(t => t.FontFamily("Arial").FontSize(11));
 
-                var clinicHeaderLines = BuildClinicHeaderLines(clinicName);
-                if (clinicHeaderLines.All(string.IsNullOrWhiteSpace))
-                    clinicHeaderLines[0] = "Шапка [название организации]";
+                var clinicHeaderLines = PrepareClinicHeaderLines(BuildClinicHeaderLines(clinicName));
 
                 page.Header().Column(column =>
                 {
-                    column.Spacing(2);
+                    column.Spacing(0);
 
-                    foreach (var line in clinicHeaderLines)
+                    for (int i = 0; i < clinicHeaderLines.Length; i++)
                     {
-                        column.Item().MinHeight(12).AlignCenter().AlignMiddle().Text(text =>
+                        var line = clinicHeaderLines[i];
+                        var bottomPadding = i == clinicHeaderLines.Length - 1
+                            ? (float)HeaderTitleSpacingPoints
+                            : (float)HeaderLineSpacingPoints;
+
+                        column.Item().MinHeight(12).PaddingBottom(bottomPadding).AlignRight().AlignMiddle().Text(text =>
                         {
                             text.DefaultTextStyle(style => style.FontFamily("Arial").FontSize(10));
-                            text.Span(string.IsNullOrWhiteSpace(line) ? " " : line);
+                            text.AlignRight();
+                            text.Span(string.IsNullOrWhiteSpace(line) ? "\u00A0" : line);
                         });
                     }
 
-                    column.Item().PaddingTop(4).AlignCenter().Text(reportTitle).FontSize(14).SemiBold();
+                    column.Item().AlignCenter().Text(reportTitle).FontSize(14).SemiBold();
                 });
 
                 page.Content().Column(column =>
@@ -324,21 +330,34 @@ public static class ErgReportBuilder
             EnsureDefaultStyles(mainPart);
             var body = mainPart.Document.Body ?? throw new InvalidOperationException("Не удалось создать тело документа Word.");
 
-            var clinicHeaderLines = BuildClinicHeaderLines(clinicName);
-            if (clinicHeaderLines.All(string.IsNullOrWhiteSpace))
-                clinicHeaderLines[0] = "Шапка [название организации]";
+            var clinicHeaderLines = PrepareClinicHeaderLines(BuildClinicHeaderLines(clinicName));
 
-            foreach (var line in clinicHeaderLines)
+            for (int i = 0; i < clinicHeaderLines.Length; i++)
             {
-                var text = string.IsNullOrWhiteSpace(line) ? string.Empty : line;
-                body.Append(CreateParagraph(text, fontSizePt: 10, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(1)));
+                var line = clinicHeaderLines[i];
+                var spacingAfter = i == clinicHeaderLines.Length - 1
+                    ? 0
+                    : TwipsFromPoints(HeaderLineSpacingPoints);
+                var text = string.IsNullOrWhiteSpace(line) ? "\u00A0" : line;
+                body.Append(CreateParagraph(
+                    text,
+                    fontSizePt: 10,
+                    bold: true,
+                    justification: JustificationValues.Right,
+                    spacingAfter: spacingAfter));
             }
 
             var reportTitle = !string.IsNullOrWhiteSpace(deviceInfo?.ReportName)
                 ? deviceInfo!.ReportName!
                 : "Отчет по результатам ЭРГ-исследования сетчатки";
-            // Расстояние между шапкой и заголовком отчета сокращено для визуального объединения блока.
-            body.Append(CreateParagraph(reportTitle, fontSizePt: 14, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(8)));
+            // Между шапкой и заголовком оставляем ровно одну пустую строку для совпадения с PDF.
+            body.Append(CreateParagraph(
+                reportTitle,
+                fontSizePt: 14,
+                bold: true,
+                justification: JustificationValues.Center,
+                spacingBefore: TwipsFromPoints(HeaderTitleSpacingPoints),
+                spacingAfter: TwipsFromPoints(8)));
             body.Append(CreateClientInfoTable(patient, deviceInfo));
 
             uint imageId = 1;
@@ -755,9 +774,7 @@ public static class ErgReportBuilder
             _pdfPath = pdfPath;
             _deviceInfo = deviceInfo;
 
-            _clinicHeaderLines = BuildClinicHeaderLines(clinicName);
-            if (_clinicHeaderLines.All(string.IsNullOrWhiteSpace))
-                _clinicHeaderLines[0] = "Шапка [название организации]";
+            _clinicHeaderLines = PrepareClinicHeaderLines(BuildClinicHeaderLines(clinicName));
             _reportTitle = !string.IsNullOrWhiteSpace(deviceInfo?.ReportName)
                 ? deviceInfo!.ReportName!
                 : "Отчет по результатам ЭРГ-исследования сетчатки";
@@ -858,6 +875,8 @@ public static class ErgReportBuilder
             return size.Height;
         }
 
+        private static float PointsToPixels(double points) => (float)(points / 72d * Dpi);
+
         private void DrawParagraph(string text, DrawingFont font, Brush brush, float spacingBefore, float spacingAfter, StringFormat? format = null)
         {
             if (_graphics == null)
@@ -880,13 +899,21 @@ public static class ErgReportBuilder
 
         private void DrawTitle()
         {
-            foreach (var line in _clinicHeaderLines)
+            var headerLineSpacing = PointsToPixels(HeaderLineSpacingPoints);
+            foreach (var (line, index) in _clinicHeaderLines.Select((value, idx) => (value, idx)))
             {
                 var text = string.IsNullOrWhiteSpace(line) ? "\u00A0" : line;
-                DrawParagraph(text, _clinicFont, Brushes.Black, 0, _summarySpacingSmall * 0.25f, _formatCenter);
+                var spacingAfter = index == _clinicHeaderLines.Length - 1 ? 0f : headerLineSpacing;
+                DrawParagraph(text, _clinicFont, Brushes.Black, 0, spacingAfter, _formatRight);
             }
 
-            DrawParagraph(_reportTitle, _reportTitleFont, Brushes.Black, _summarySpacingSmall * 0.5f, _spacingLarge, _formatCenter);
+            DrawParagraph(
+                _reportTitle,
+                _reportTitleFont,
+                Brushes.Black,
+                PointsToPixels(HeaderTitleSpacingPoints),
+                _spacingLarge,
+                _formatCenter);
         }
 
         private void DrawInfoBlock()
@@ -2115,6 +2142,25 @@ public static class ErgReportBuilder
         }
 
         return lines;
+    }
+
+    private static string[] PrepareClinicHeaderLines(string[] lines)
+    {
+        if (lines == null || lines.Length == 0)
+            return new[] { "Шапка [название организации]" };
+
+        var lastNonEmpty = Array.FindLastIndex(lines, line => !string.IsNullOrWhiteSpace(line));
+        if (lastNonEmpty < 0)
+            return new[] { "Шапка [название организации]" };
+
+        var result = new string[lastNonEmpty + 1];
+        Array.Copy(lines, result, lastNonEmpty + 1);
+        for (int i = 0; i < result.Length; i++)
+        {
+            result[i] ??= string.Empty;
+        }
+
+        return result;
     }
 
     private static string FormatClientTestTitle(int index, ErgTest test)
