@@ -198,6 +198,16 @@ public sealed class TelegramNotificationService : IDisposable
         }
     }
 
+    public void NotifyPatientTransferTimeout(int patientIndex, int attempts)
+    {
+        var message = new StringBuilder()
+            .AppendLine($"⚠️ Пациент #{patientIndex:000} не получен")
+            .AppendLine($"Попыток без ответа: {attempts}")
+            .AppendLine("Устройство не передало данные в отведённое время.")
+            .ToString();
+        EnqueueMessage(message);
+    }
+
     public void NotifyPatientProcessed(int patientIndex, ErgPatient patient, string rawPath, string jsonPath, string pdfPath, string docxPath)
     {
         var summary = new StringBuilder()
