@@ -25,6 +25,8 @@ public class AppSettings
     public TelegramSettings Telegram { get; set; } = TelegramSettings.CreateDefault();
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public ReportTemplate ReportTemplate { get; set; } = ReportTemplate.Client;
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public ReportRenderingMode ReportRenderingMode { get; set; } = ReportRenderingMode.Automatic;
     public string ReportHeader { get; set; } = string.Empty;
 
     public TimeSpan DeviceScanInterval => TimeSpan.FromSeconds(Math.Clamp(DeviceScanIntervalSeconds, 2, 60));

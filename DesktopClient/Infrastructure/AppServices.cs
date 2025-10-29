@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using AutoUpdaterDotNET;
+using ErgData;
 using MicroluxErgConnect.Models;
 using MicroluxErgConnect.Services;
 using MicroluxErgConnect.ViewModels;
@@ -32,6 +33,7 @@ public static class AppServices
 
         Settings = new SettingsService();
         Settings.LoadAsync().GetAwaiter().GetResult();
+        RenderingSupport.Reload(Settings.Current.ReportRenderingMode);
 
         Log = new LogService(Settings);
         Log.Section("Microlux ERG-Connect Desktop");
@@ -287,6 +289,7 @@ public static class AppServices
         Log.Info($"COM-параметры: DTR={(serial.DtrEnable ? "on" : "off")}, RTS={(serial.RtsEnable ? "on" : "off")}, toggle={(serial.ToggleLinesOnOpen ? "on" : "off")}, retries={serial.RetryCount}, minCI={serial.MinCommonInfoSize}, minPatient={serial.MinPatientBlockSize}");
         Log.Info($"COM-тайминги: probeTimeout={serial.ProbeTimeoutMs}мс, passiveDelay={serial.PassiveProbeDelayMs}мс, warmupAfterToggle={serial.WarmupAfterToggleMs}мс");
         Log.Info($"Дополнительно: RTC sync={(serial.EnableRtcSynchronization ? "вкл" : "выкл")}, получать пациентов={(serial.RequestPatientData ? "да" : "нет")}, ZIP={(serial.EnableZipPackaging ? "вкл" : "выкл")}");
+        Log.Info($"Отчеты: шаблон={s.ReportTemplate}, режим={s.ReportRenderingMode}, legacy={(RenderingSupport.UseLegacyPdfGeneration ? "да" : "нет")}");
         Log.Info($"Telegram: {s.Telegram?.DescribeSafety() ?? "<не настроен>"}");
     }
 }
