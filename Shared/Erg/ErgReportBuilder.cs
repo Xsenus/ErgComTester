@@ -396,6 +396,7 @@ public static class ErgReportBuilder
         try
         {
             using var archive = ZipFile.Open(docxPath, ZipArchiveMode.Update);
+            EnsureDocumentPropertiesEntries(archive);
             var manifestEntry = archive.GetEntry("[Content_Types].xml");
             if (manifestEntry == null)
                 return;
@@ -418,6 +419,29 @@ public static class ErgReportBuilder
         {
             throw new InvalidOperationException($"Не удалось обновить типы содержимого DOCX-файла '{docxPath}'.", ex);
         }
+    }
+
+    private static void EnsureDocumentPropertiesEntries(ZipArchive archive)
+    {
+        if (archive == null)
+            return;
+
+        EnsureZipEntry(archive, "docProps/core.xml", () => BuildCorePropertiesDocument(null));
+        EnsureZipEntry(archive, "docProps/app.xml", BuildExtendedPropertiesDocument);
+    }
+
+    private static void EnsureZipEntry(ZipArchive archive, string entryName, Func<XDocument> documentFactory)
+    {
+        if (archive == null || string.IsNullOrWhiteSpace(entryName) || documentFactory == null)
+            return;
+
+        if (archive.GetEntry(entryName) != null)
+            return;
+
+        var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+        using var stream = entry.Open();
+        using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        documentFactory().Save(writer);
     }
 
     private static XDocument BuildContentTypesManifest(IReadOnlyCollection<ZipArchiveEntry> entries)
