@@ -2,7 +2,7 @@ name: Build MicroluxErgConnect.Desktop - ZIP - FTP
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
   workflow_dispatch:
 
 jobs:
@@ -28,18 +28,15 @@ jobs:
       - name: Locate project MicroluxErgConnect.Desktop.csproj
         shell: bash
         run: |
-          set -euo pipefail
+          set -e
           MATCH=$(find . -type f -name "MicroluxErgConnect.Desktop.csproj" | head -n1)
           if [ -z "$MATCH" ]; then
             echo "MicroluxErgConnect.Desktop.csproj not found anywhere in repo"
             echo "Repository tree (top level):"; ls -la
             exit 1
           fi
-          echo "Found project at: $MATCH"
           echo "PROJECT_PATH=$MATCH" >> "$GITHUB_ENV"
-
-      - name: Verify found project path
-        run: echo "Using project path: $PROJECT_PATH"
+          echo "Using project path: $MATCH"
 
       - name: Read Version from csproj
         id: ver
@@ -47,13 +44,13 @@ jobs:
         run: |
           $proj = "${{ env.PROJECT_PATH }}"
           if (!(Test-Path $proj)) { throw "Project file not found: $proj" }
-          [xml]$doc = Get-Content $proj
+          [xml]$doc = Get-Content -Path $proj
 
           $asmNode  = $doc.SelectSingleNode("//AssemblyVersion")
           $fileNode = $doc.SelectSingleNode("//FileVersion")
-          $asmVer  = if ($asmNode  -ne $null) { $asmNode.InnerText }  else { "" }
-          $fileVer = if ($fileNode -ne $null) { $fileNode.InnerText } else { "" }
-          $version = if ([string]::IsNullOrWhiteSpace($asmVer)) { $fileVer } else { $asmVer }
+          $asmVer   = if ($asmNode  -ne $null) { $asmNode.InnerText }  else { "" }
+          $fileVer  = if ($fileNode -ne $null) { $fileNode.InnerText } else { "" }
+          $version  = if ([string]::IsNullOrWhiteSpace($asmVer)) { $fileVer } else { $asmVer }
           if ([string]::IsNullOrWhiteSpace($version)) { throw "No AssemblyVersion/FileVersion found in $proj" }
 
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -74,8 +71,8 @@ jobs:
           $version = "${{ env.VERSION }}"
           $url = "ftp://90.189.149.59/other/ErgComTester/ErgComTester.Update.zip"
 
-          $doc   = New-Object System.Xml.XmlDocument
-          $decl  = $doc.CreateXmlDeclaration("1.0","UTF-8",$null)
+          $doc  = New-Object System.Xml.XmlDocument
+          $decl = $doc.CreateXmlDeclaration("1.0","UTF-8",$null)
           [void]$doc.AppendChild($decl)
 
           $item = $doc.CreateElement("item")
@@ -117,7 +114,7 @@ jobs:
           FTP_PASS: ${{ secrets.FTP_PASS }}
           FTP_DIR:  ${{ secrets.FTP_DIR }}
         run: |
-          set -euo pipefail
+          set -e
           TARGET_DIR=${FTP_DIR:-/other/ErgComTester/}
           echo "Uploading to ftp://${FTP_HOST}${TARGET_DIR}"
 
