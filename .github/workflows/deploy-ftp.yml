@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest   # <-- важно: Windows runner для WinForms/WPF
     env:
       OUT_DIR: publish
       ZIP_NAME: ErgComTester.Update.zip
@@ -25,46 +25,49 @@ jobs:
             8.0.x
             6.0.x
 
+      # Поиск файла MicroluxErgConnect.Desktop.csproj в репозитории
       - name: Locate project MicroluxErgConnect.Desktop.csproj
-        shell: bash
+        shell: pwsh
         run: |
-          set -e
-          MATCH=$(find . -type f -name "MicroluxErgConnect.Desktop.csproj" | head -n1)
-          if [ -z "$MATCH" ]; then
-            echo "MicroluxErgConnect.Desktop.csproj not found anywhere in repo"
-            echo "Repository tree (top level):"; ls -la
+          $match = Get-ChildItem -Recurse -Filter "MicroluxErgConnect.Desktop.csproj" | Select-Object -First 1
+          if (-not $match) {
+            Write-Error "MicroluxErgConnect.Desktop.csproj not found anywhere in repo"
+            Get-ChildItem -Recurse -Filter *.csproj | ForEach-Object { Write-Host "Found csproj: $($_.FullName)" }
             exit 1
-          fi
-          echo "PROJECT_PATH=$MATCH" >> "$GITHUB_ENV"
-          echo "Using project path: $MATCH"
+          }
+          $path = $match.FullName -replace '\\','/'   # нормализуем слэши
+          "PROJECT_PATH=$path" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Using project path: $path"
 
-      - name: Read Version from csproj
-        id: ver
+      # Читаем версию из csproj: сначала AssemblyVersion, иначе FileVersion
+      - name: Read version from csproj
         shell: pwsh
         run: |
           $proj = "${{ env.PROJECT_PATH }}"
           if (!(Test-Path $proj)) { throw "Project file not found: $proj" }
           [xml]$doc = Get-Content -Path $proj
-
-          $asmNode  = $doc.SelectSingleNode("//AssemblyVersion")
-          $fileNode = $doc.SelectSingleNode("//FileVersion")
-          $asmVer   = if ($asmNode  -ne $null) { $asmNode.InnerText }  else { "" }
-          $fileVer  = if ($fileNode -ne $null) { $fileNode.InnerText } else { "" }
-          $version  = if ([string]::IsNullOrWhiteSpace($asmVer)) { $fileVer } else { $asmVer }
-          if ([string]::IsNullOrWhiteSpace($version)) { throw "No AssemblyVersion/FileVersion found in $proj" }
-
-          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
-          Write-Host "Detected version: $version"
+          $asm   = $doc.SelectSingleNode("//AssemblyVersion")
+          $file  = $doc.SelectSingleNode("//FileVersion")
+          $asmV  = if ($asm ) { $asm.InnerText }  else { "" }
+          $fileV = if ($file) { $file.InnerText } else { "" }
+          $ver   = if ([string]::IsNullOrWhiteSpace($asmV)) { $fileV } else { $asmV }
+          if ([string]::IsNullOrWhiteSpace($ver)) { throw "No AssemblyVersion/FileVersion found in $proj" }
+          "VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Detected version: $ver"
 
       - name: Restore
+        shell: pwsh
         run: dotnet restore "${{ env.PROJECT_PATH }}"
 
       - name: Build (Release)
+        shell: pwsh
         run: dotnet build "${{ env.PROJECT_PATH }}" -c Release --no-restore
 
       - name: Publish (Release)
+        shell: pwsh
         run: dotnet publish "${{ env.PROJECT_PATH }}" -c Release -o "${{ env.OUT_DIR }}" --no-build
 
+      # Генерируем ErgComTester.Update.xml программно (без here-строк)
       - name: Create ErgComTester.Update.xml
         shell: pwsh
         run: |
@@ -75,55 +78,48 @@ jobs:
           $decl = $doc.CreateXmlDeclaration("1.0","UTF-8",$null)
           [void]$doc.AppendChild($decl)
 
-          $item = $doc.CreateElement("item")
-          [void]$doc.AppendChild($item)
+          $item = $doc.CreateElement("item"); [void]$doc.AppendChild($item)
 
-          $ver = $doc.CreateElement("version")
-          $ver.InnerText = $version
-          [void]$item.AppendChild($ver)
-
-          $u = $doc.CreateElement("url")
-          $u.InnerText = $url
-          [void]$item.AppendChild($u)
-
-          $cl = $doc.CreateElement("changelog")
-          $cl.InnerText = ""
-          [void]$item.AppendChild($cl)
+          $ver = $doc.CreateElement("version"); $ver.InnerText = $version; [void]$item.AppendChild($ver)
+          $u   = $doc.CreateElement("url");     $u.InnerText   = $url;     [void]$item.AppendChild($u)
+          $cl  = $doc.CreateElement("changelog"); $cl.InnerText = "";      [void]$item.AppendChild($cl)
 
           $mand = $doc.CreateElement("mandatory")
-          $attr = $doc.CreateAttribute("mode")
-          $attr.Value = "1"
-          [void]$mand.Attributes.Append($attr)
-          $mand.InnerText = "true"
-          [void]$item.AppendChild($mand)
+          $attr = $doc.CreateAttribute("mode"); $attr.Value = "1"; [void]$mand.Attributes.Append($attr)
+          $mand.InnerText = "true"; [void]$item.AppendChild($mand)
 
           $doc.Save("${{ env.XML_NAME }}")
           Write-Host "Created $($env:XML_NAME) with version $version"
 
+      # Упаковка publish в ZIP на Windows
       - name: Make ZIP from publish output
+        shell: pwsh
         run: |
-          rm -f "${{ env.ZIP_NAME }}"
-          cd "${{ env.OUT_DIR }}"
-          zip -r "../${{ env.ZIP_NAME }}" ./*
-          cd -
+          if (Test-Path "${{ env.ZIP_NAME }}") { Remove-Item "${{ env.ZIP_NAME }}" -Force }
+          if (!(Test-Path "${{ env.OUT_DIR }}")) { throw "Publish output not found: $env:OUT_DIR" }
+          Compress-Archive -Path (Join-Path $env:OUT_DIR '*') -DestinationPath "${{ env.ZIP_NAME }}" -Force
+          Write-Host "ZIP created: $env:ZIP_NAME"
 
+      # Загрузка на FTP
       - name: Upload ZIP and XML to FTP
+        shell: pwsh
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASS: ${{ secrets.FTP_PASS }}
           FTP_DIR:  ${{ secrets.FTP_DIR }}
         run: |
-          set -e
-          TARGET_DIR=${FTP_DIR:-/other/ErgComTester/}
-          echo "Uploading to ftp://${FTP_HOST}${TARGET_DIR}"
+          $targetDir = if ("${{ env.FTP_DIR }}") { "${{ env.FTP_DIR }}" } else { "/other/ErgComTester/" }
+          $targetDir = $targetDir.TrimEnd('/')
 
-          curl --fail --show-error --ftp-create-dirs \
-               -T "${{ env.ZIP_NAME }}" \
-               --user "$FTP_USER:$FTP_PASS" \
-               "ftp://${FTP_HOST}${TARGET_DIR%/}/${{ env.ZIP_NAME }}"
+          Write-Host "Uploading to ftp://$env:FTP_HOST$targetDir"
 
-          curl --fail --show-error --ftp-create-dirs \
-               -T "${{ env.XML_NAME }}" \
-               --user "$FTP_USER:$FTP_PASS" \
-               "ftp://${FTP_HOST}${TARGET_DIR%/}/${{ env.XML_NAME }}"
+          & curl.exe --fail --show-error --ftp-create-dirs `
+            -T "${{ env.ZIP_NAME }}" `
+            --user "$env:FTP_USER`:$env:FTP_PASS" `
+            "ftp://$env:FTP_HOST$targetDir/${{ env.ZIP_NAME }}"
+
+          & curl.exe --fail --show-error --ftp-create-dirs `
+            -T "${{ env.XML_NAME }}" `
+            --user "$env:FTP_USER`:$env:FTP_PASS" `
+            "ftp://$env:FTP_HOST$targetDir/${{ env.XML_NAME }}"
