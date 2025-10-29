@@ -28,14 +28,14 @@ jobs:
       - name: Locate project MicroluxErgConnect.Desktop.csproj
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           MATCH=$(find . -type f -name "MicroluxErgConnect.Desktop.csproj" | head -n1)
           if [ -z "$MATCH" ]; then
-            echo "❌ MicroluxErgConnect.Desktop.csproj not found anywhere in repo"
+            echo "MicroluxErgConnect.Desktop.csproj not found anywhere in repo"
             echo "Repository tree (top level):"; ls -la
             exit 1
           fi
-          echo "✅ Found project at: $MATCH"
+          echo "Found project at: $MATCH"
           echo "PROJECT_PATH=$MATCH" >> "$GITHUB_ENV"
 
       - name: Verify found project path
@@ -49,8 +49,10 @@ jobs:
           if (!(Test-Path $proj)) { throw "Project file not found: $proj" }
           [xml]$doc = Get-Content $proj
 
-          $asmVer = $doc.SelectSingleNode("//AssemblyVersion")?.InnerText
-          $fileVer = $doc.SelectSingleNode("//FileVersion")?.InnerText
+          $asmNode  = $doc.SelectSingleNode("//AssemblyVersion")
+          $fileNode = $doc.SelectSingleNode("//FileVersion")
+          $asmVer  = if ($asmNode  -ne $null) { $asmNode.InnerText }  else { "" }
+          $fileVer = if ($fileNode -ne $null) { $fileNode.InnerText } else { "" }
           $version = if ([string]::IsNullOrWhiteSpace($asmVer)) { $fileVer } else { $asmVer }
           if ([string]::IsNullOrWhiteSpace($version)) { throw "No AssemblyVersion/FileVersion found in $proj" }
 
@@ -74,29 +76,29 @@ jobs:
 
           $doc   = New-Object System.Xml.XmlDocument
           $decl  = $doc.CreateXmlDeclaration("1.0","UTF-8",$null)
-          $doc.AppendChild($decl) | Out-Null
+          [void]$doc.AppendChild($decl)
 
           $item = $doc.CreateElement("item")
-          $doc.AppendChild($item) | Out-Null
+          [void]$doc.AppendChild($item)
 
           $ver = $doc.CreateElement("version")
           $ver.InnerText = $version
-          $item.AppendChild($ver) | Out-Null
+          [void]$item.AppendChild($ver)
 
           $u = $doc.CreateElement("url")
           $u.InnerText = $url
-          $item.AppendChild($u) | Out-Null
+          [void]$item.AppendChild($u)
 
           $cl = $doc.CreateElement("changelog")
           $cl.InnerText = ""
-          $item.AppendChild($cl) | Out-Null
+          [void]$item.AppendChild($cl)
 
           $mand = $doc.CreateElement("mandatory")
           $attr = $doc.CreateAttribute("mode")
           $attr.Value = "1"
-          $mand.Attributes.Append($attr) | Out-Null
+          [void]$mand.Attributes.Append($attr)
           $mand.InnerText = "true"
-          $item.AppendChild($mand) | Out-Null
+          [void]$item.AppendChild($mand)
 
           $doc.Save("${{ env.XML_NAME }}")
           Write-Host "Created $($env:XML_NAME) with version $version"
@@ -115,6 +117,7 @@ jobs:
           FTP_PASS: ${{ secrets.FTP_PASS }}
           FTP_DIR:  ${{ secrets.FTP_DIR }}
         run: |
+          set -euo pipefail
           TARGET_DIR=${FTP_DIR:-/other/ErgComTester/}
           echo "Uploading to ftp://${FTP_HOST}${TARGET_DIR}"
 
