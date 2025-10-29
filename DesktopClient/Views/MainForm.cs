@@ -55,6 +55,7 @@ public partial class MainForm : Form
         _installUpdateCanExecuteHandler = (_, _) => UpdateCommandState();
         _viewModel.CheckUpdatesCommand.CanExecuteChanged += _checkUpdatesCanExecuteHandler;
         _viewModel.InstallUpdateCommand.CanExecuteChanged += _installUpdateCanExecuteHandler;
+        AppServices.ExitRequested += OnExitRequested;
         reportTemplateComboBox.SelectedValueChanged += OnReportTemplateChanged;
         renderingModeComboBox.SelectedValueChanged += OnReportRenderingModeChanged;
         UpdateAll();
@@ -118,6 +119,25 @@ public partial class MainForm : Form
     {
         _isExitRequested = true;
         AppServices.Log.Info("Пользователь запросил завершение приложения из трея.");
+        trayIcon.Visible = false;
+        Close();
+    }
+
+    private void OnExitRequested(object? sender, AppServices.ExitRequestedEventArgs e)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(() => OnExitRequested(sender, e)));
+            return;
+        }
+
+        if (_isExitRequested)
+        {
+            return;
+        }
+
+        _isExitRequested = true;
+        AppServices.Log.Info($"Приложение будет закрыто автоматически: {e.Reason}");
         trayIcon.Visible = false;
         Close();
     }
@@ -819,6 +839,7 @@ public partial class MainForm : Form
         _viewModel.InstallUpdateCommand.CanExecuteChanged -= _installUpdateCanExecuteHandler;
         reportTemplateComboBox.SelectedValueChanged -= OnReportTemplateChanged;
         renderingModeComboBox.SelectedValueChanged -= OnReportRenderingModeChanged;
+        AppServices.ExitRequested -= OnExitRequested;
         trayIcon.Visible = false;
         base.OnFormClosed(e);
     }
