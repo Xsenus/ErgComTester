@@ -413,6 +413,7 @@ public static class ErgReportBuilder
 
             EnsurePackageRelationships(archive);
             EnsureDocumentRelationships(archive);
+            EnsureAllRelationshipTargetsExist(archive);
         }
         catch (Exception ex)
         {
@@ -659,6 +660,75 @@ public static class ErgReportBuilder
         document.Save(writer);
     }
 
+    private static void EnsureAllRelationshipTargetsExist(ZipArchive archive)
+    {
+        var relationshipEntries = archive.Entries
+            .Where(entry => entry.FullName.EndsWith(".rels", StringComparison.OrdinalIgnoreCase))
+            .Select(entry => entry.FullName)
+            .ToList();
+
+        if (relationshipEntries.Count == 0)
+            return;
+
+        var ns = XNamespace.Get("http://schemas.openxmlformats.org/package/2006/relationships");
+        var packageEntries = new HashSet<string>(archive.Entries.Select(e => e.FullName), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entryName in relationshipEntries)
+        {
+            var relEntry = archive.GetEntry(entryName);
+            if (relEntry == null)
+                continue;
+
+            XDocument document;
+            using (var stream = relEntry.Open())
+            using (var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 4096, leaveOpen: false))
+            {
+                document = XDocument.Load(reader);
+            }
+
+            var root = document.Root ?? new XElement(ns + "Relationships");
+            if (document.Root == null)
+                document.Add(root);
+
+            bool changed = false;
+            var basePart = GetRelationshipBasePart(entryName);
+
+            foreach (var relationship in root.Elements(ns + "Relationship").ToList())
+            {
+                var targetMode = (string?)relationship.Attribute("TargetMode");
+                if (!string.IsNullOrWhiteSpace(targetMode) && targetMode.Equals("External", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var target = (string?)relationship.Attribute("Target");
+                if (string.IsNullOrWhiteSpace(target))
+                    continue;
+
+                var normalizedTarget = target.Replace('\\', '/').Trim();
+                if (normalizedTarget.StartsWith("#", StringComparison.Ordinal))
+                    continue;
+
+                if (Uri.TryCreate(normalizedTarget, UriKind.Absolute, out _))
+                    continue;
+
+                var resolved = ResolveRelationshipTarget(basePart, normalizedTarget);
+                if (string.IsNullOrEmpty(resolved) || !packageEntries.Contains(resolved))
+                {
+                    relationship.Remove();
+                    changed = true;
+                }
+            }
+
+            if (!changed)
+                continue;
+
+            relEntry.Delete();
+            var newEntry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+            using var newStream = newEntry.Open();
+            using var writer = new StreamWriter(newStream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            document.Save(writer);
+        }
+    }
+
     private static string NormalizeRelationshipTarget(string? target)
     {
         if (string.IsNullOrWhiteSpace(target))
@@ -687,6 +757,58 @@ public static class ErgReportBuilder
         }
 
         return "word/" + normalized.TrimStart('/');
+    }
+
+    private static string GetRelationshipBasePart(string entryName)
+    {
+        if (string.IsNullOrWhiteSpace(entryName))
+            return string.Empty;
+
+        var normalized = entryName.Replace('\\', '/');
+        if (normalized.Equals("_rels/.rels", StringComparison.OrdinalIgnoreCase))
+            return string.Empty;
+
+        if (!normalized.EndsWith(".rels", StringComparison.OrdinalIgnoreCase))
+            return string.Empty;
+
+        var lastSeparator = normalized.LastIndexOf('/');
+        if (lastSeparator < 0)
+            return string.Empty;
+
+        var folder = normalized.Substring(0, lastSeparator);
+        var fileName = normalized.Substring(lastSeparator + 1);
+        if (!folder.EndsWith("_rels", StringComparison.OrdinalIgnoreCase))
+            return string.Empty;
+
+        var baseFolder = folder.Substring(0, folder.Length - "_rels".Length);
+        if (baseFolder.Length > 0 && !baseFolder.EndsWith("/", StringComparison.Ordinal))
+            baseFolder += "/";
+
+        var targetName = fileName.Substring(0, fileName.Length - ".rels".Length);
+        return (baseFolder + targetName).Trim('/');
+    }
+
+    private static string ResolveRelationshipTarget(string basePart, string target)
+    {
+        if (string.IsNullOrWhiteSpace(target))
+            return string.Empty;
+
+        var normalizedTarget = target.Replace('\\', '/').Trim();
+        if (normalizedTarget.StartsWith("/", StringComparison.Ordinal))
+            return normalizedTarget.TrimStart('/');
+
+        var baseDirectory = string.Empty;
+        if (!string.IsNullOrEmpty(basePart))
+        {
+            var normalizedBase = basePart.Replace('\\', '/');
+            var separatorIndex = normalizedBase.LastIndexOf('/');
+            baseDirectory = separatorIndex >= 0 ? normalizedBase.Substring(0, separatorIndex + 1) : string.Empty;
+        }
+
+        var baseUri = new Uri("http://tempuri.org/" + baseDirectory, UriKind.Absolute);
+        var combined = new Uri(baseUri, normalizedTarget);
+        var path = combined.AbsolutePath.TrimStart('/');
+        return Uri.UnescapeDataString(path);
     }
 
     private sealed class LegacyPdfRenderer : IDisposable
