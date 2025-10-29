@@ -226,39 +226,54 @@ public static class AppServices
         }
 
         var changelogUrl = args.ChangelogURL;
-        if (!string.IsNullOrWhiteSpace(changelogUrl) && Uri.TryCreate(changelogUrl, UriKind.Absolute, out _))
+        if (string.IsNullOrWhiteSpace(changelogUrl) || !Uri.TryCreate(changelogUrl, UriKind.Absolute, out _))
         {
-            // URL уже валиден – ничего делать не нужно.
-            return;
-        }
-
-        var description = _lastAutoUpdaterManifest?.Description;
-        if (string.IsNullOrWhiteSpace(description))
-        {
-            if (!string.IsNullOrWhiteSpace(changelogUrl))
+            var description = _lastAutoUpdaterManifest?.Description;
+            if (string.IsNullOrWhiteSpace(description))
             {
-                Log.Warn($"AutoUpdater.NET: некорректный URL описания '{changelogUrl}', описание будет скрыто.");
-            }
+                if (!string.IsNullOrWhiteSpace(changelogUrl))
+                {
+                    Log.Warn($"AutoUpdater.NET: некорректный URL описания '{changelogUrl}', описание будет скрыто.");
+                }
 
-            args.ChangelogURL = null;
+                args.ChangelogURL = null;
+            }
+            else
+            {
+                try
+                {
+                    var downloadDirectory = Path.Combine(Settings.BaseDirectory, "AutoUpdater");
+                    Directory.CreateDirectory(downloadDirectory);
+                    var fileName = $"changelog_{DateTime.UtcNow:yyyyMMddHHmmssfff}.html";
+                    var filePath = Path.Combine(downloadDirectory, fileName);
+                    File.WriteAllText(filePath, BuildChangelogHtml(description), Encoding.UTF8);
+                    args.ChangelogURL = new Uri(filePath).AbsoluteUri;
+                    Log.Info($"AutoUpdater.NET: описание обновления сохранено в {filePath}.");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn($"AutoUpdater.NET: не удалось подготовить описание обновления: {ex.Message}");
+                    args.ChangelogURL = null;
+                }
+            }
+        }
+
+        if (args.Error != null)
+        {
+            Log.Warn($"AutoUpdater.NET: проверка обновлений завершилась ошибкой: {args.Error.Message}");
             return;
         }
 
-        try
+        if (!args.IsUpdateAvailable)
         {
-            var downloadDirectory = Path.Combine(Settings.BaseDirectory, "AutoUpdater");
-            Directory.CreateDirectory(downloadDirectory);
-            var fileName = $"changelog_{DateTime.UtcNow:yyyyMMddHHmmssfff}.html";
-            var filePath = Path.Combine(downloadDirectory, fileName);
-            File.WriteAllText(filePath, BuildChangelogHtml(description), Encoding.UTF8);
-            args.ChangelogURL = new Uri(filePath).AbsoluteUri;
-            Log.Info($"AutoUpdater.NET: описание обновления сохранено в {filePath}.");
+            Log.Info("AutoUpdater.NET: обновления не найдены.");
+            return;
         }
-        catch (Exception ex)
-        {
-            Log.Warn($"AutoUpdater.NET: не удалось подготовить описание обновления: {ex.Message}");
-            args.ChangelogURL = null;
-        }
+
+        var currentVersion = args.CurrentVersion?.ToString() ?? "<неизвестно>";
+        var installedVersion = args.InstalledVersion?.ToString() ?? "<неизвестно>";
+        Log.Info($"AutoUpdater.NET: доступна версия {currentVersion}; установленная версия {installedVersion}.");
+        AutoUpdater.ShowUpdateForm(args);
     }
 
     private static string BuildChangelogHtml(string description)
