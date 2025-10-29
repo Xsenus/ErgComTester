@@ -26,7 +26,7 @@ public class RenderingSupportTests
         finally
         {
             Environment.SetEnvironmentVariable("ERG_FORCE_LEGACY_RENDERING", original);
-            RenderingSupport.Reload();
+            RenderingSupport.Reload(ReportRenderingMode.Automatic);
         }
     }
 
@@ -127,7 +127,7 @@ public class RenderingSupportTests
             }
 
             Environment.SetEnvironmentVariable("ERG_FORCE_LEGACY_RENDERING", original);
-            RenderingSupport.Reload();
+            RenderingSupport.Reload(ReportRenderingMode.Automatic);
         }
     }
 
@@ -194,9 +194,34 @@ public class RenderingSupportTests
                             GraphsNormalized = new[]
                             {
                                 Enumerable.Range(0, 10).Select(i => Math.Cos(i / 2.0)).ToArray()
-                            }
-                        }
-                    }
+        }
+    }
+
+    [Fact]
+    public void ManualRenderingModeOverridesDetection()
+    {
+        var original = Environment.GetEnvironmentVariable("ERG_FORCE_LEGACY_RENDERING");
+        try
+        {
+            Environment.SetEnvironmentVariable("ERG_FORCE_LEGACY_RENDERING", "0");
+            RenderingSupport.Reload(ReportRenderingMode.Legacy);
+            Assert.Equal(ReportRenderingMode.Legacy, RenderingSupport.Mode);
+            Assert.True(RenderingSupport.UseLegacyPdfGeneration);
+            Assert.True(RenderingSupport.UseLegacyGraphRendering);
+            Assert.False(string.IsNullOrWhiteSpace(RenderingSupport.LegacyRenderingNotice));
+
+            RenderingSupport.Reload(ReportRenderingMode.Modern);
+            Assert.Equal(ReportRenderingMode.Modern, RenderingSupport.Mode);
+            Assert.False(RenderingSupport.UseLegacyPdfGeneration);
+            Assert.False(RenderingSupport.UseLegacyGraphRendering);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ERG_FORCE_LEGACY_RENDERING", original);
+            RenderingSupport.Reload(ReportRenderingMode.Automatic);
+        }
+    }
+}
                 }
             };
 

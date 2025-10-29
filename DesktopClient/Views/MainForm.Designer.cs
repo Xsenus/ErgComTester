@@ -48,6 +48,8 @@ partial class MainForm
     private TextBox backgroundSyncTextBox;
     private Label reportTemplateLabel;
     private ComboBox reportTemplateComboBox;
+    private Label renderingModeLabel;
+    private ComboBox renderingModeComboBox;
     private Label reportHeaderLabel;
     private TextBox reportHeaderTextBox;
     private FlowLayoutPanel settingsButtonsPanel;
@@ -123,6 +125,8 @@ partial class MainForm
         backgroundSyncTextBox = new TextBox();
         reportTemplateLabel = new Label();
         reportTemplateComboBox = new ComboBox();
+        renderingModeLabel = new Label();
+        renderingModeComboBox = new ComboBox();
         reportHeaderLabel = new Label();
         reportHeaderTextBox = new TextBox();
         settingsButtonsPanel = new FlowLayoutPanel();
@@ -625,7 +629,7 @@ partial class MainForm
         settingsGroup.Margin = new Padding(0, 0, 0, 16);
         settingsGroup.Name = "settingsGroup";
         settingsGroup.Padding = new Padding(16, 20, 16, 16);
-        settingsGroup.Size = new Size(423, 270);
+        settingsGroup.Size = new Size(423, 320);
         settingsGroup.TabIndex = 1;
         settingsGroup.TabStop = false;
         settingsGroup.Text = "Настройки опроса";
@@ -646,23 +650,26 @@ partial class MainForm
         settingsLayout.Controls.Add(backgroundSyncTextBox, 1, 2);
         settingsLayout.Controls.Add(reportTemplateLabel, 0, 3);
         settingsLayout.Controls.Add(reportTemplateComboBox, 1, 3);
-        settingsLayout.Controls.Add(reportHeaderLabel, 0, 4);
-        settingsLayout.Controls.Add(reportHeaderTextBox, 1, 4);
-        settingsLayout.Controls.Add(settingsButtonsPanel, 0, 5);
+        settingsLayout.Controls.Add(renderingModeLabel, 0, 4);
+        settingsLayout.Controls.Add(renderingModeComboBox, 1, 4);
+        settingsLayout.Controls.Add(reportHeaderLabel, 0, 5);
+        settingsLayout.Controls.Add(reportHeaderTextBox, 1, 5);
+        settingsLayout.Controls.Add(settingsButtonsPanel, 0, 6);
         settingsLayout.Dock = DockStyle.Fill;
         settingsLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
         settingsLayout.Location = new Point(16, 38);
         settingsLayout.Margin = new Padding(0);
         settingsLayout.Name = "settingsLayout";
         settingsLayout.Padding = new Padding(0, 4, 0, 8);
-        settingsLayout.RowCount = 6;
+        settingsLayout.RowCount = 7;
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle());
-        settingsLayout.Size = new Size(391, 290);
+        settingsLayout.RowStyles.Add(new RowStyle());
+        settingsLayout.Size = new Size(391, 319);
         settingsLayout.TabIndex = 0;
         // 
         // scanIntervalLabel
@@ -767,16 +774,40 @@ partial class MainForm
         reportTemplateComboBox.Size = new Size(160, 25);
         reportTemplateComboBox.TabIndex = 7;
         //
+        // renderingModeLabel
+        //
+        renderingModeLabel.AutoSize = true;
+        renderingModeLabel.Font = new Font("Segoe UI", 9F);
+        renderingModeLabel.ForeColor = Color.FromArgb(120, 128, 145);
+        renderingModeLabel.Location = new Point(0, 130);
+        renderingModeLabel.Margin = new Padding(0, 10, 16, 0);
+        renderingModeLabel.Name = "renderingModeLabel";
+        renderingModeLabel.Size = new Size(141, 15);
+        renderingModeLabel.TabIndex = 8;
+        renderingModeLabel.Text = "Режим генерации PDF:";
+        //
+        // renderingModeComboBox
+        //
+        renderingModeComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+        renderingModeComboBox.FormattingEnabled = true;
+        renderingModeComboBox.Location = new Point(191, 124);
+        renderingModeComboBox.Margin = new Padding(0, 4, 0, 0);
+        renderingModeComboBox.MaximumSize = new Size(200, 0);
+        renderingModeComboBox.MinimumSize = new Size(120, 0);
+        renderingModeComboBox.Name = "renderingModeComboBox";
+        renderingModeComboBox.Size = new Size(160, 25);
+        renderingModeComboBox.TabIndex = 9;
+        //
         // reportHeaderLabel
         //
         reportHeaderLabel.AutoSize = true;
         reportHeaderLabel.Font = new Font("Segoe UI", 9F);
         reportHeaderLabel.ForeColor = Color.FromArgb(120, 128, 145);
-        reportHeaderLabel.Location = new Point(0, 130);
+        reportHeaderLabel.Location = new Point(0, 159);
         reportHeaderLabel.Margin = new Padding(0, 10, 16, 0);
         reportHeaderLabel.Name = "reportHeaderLabel";
         reportHeaderLabel.Size = new Size(88, 15);
-        reportHeaderLabel.TabIndex = 8;
+        reportHeaderLabel.TabIndex = 10;
         reportHeaderLabel.Text = "Шапка отчета:";
         //
         // reportHeaderTextBox
@@ -784,14 +815,14 @@ partial class MainForm
         reportHeaderTextBox.AcceptsReturn = true;
         reportHeaderTextBox.Dock = DockStyle.Fill;
         reportHeaderTextBox.BorderStyle = BorderStyle.FixedSingle;
-        reportHeaderTextBox.Location = new Point(191, 124);
+        reportHeaderTextBox.Location = new Point(191, 153);
         reportHeaderTextBox.Margin = new Padding(0, 4, 0, 0);
         reportHeaderTextBox.MinimumSize = new Size(160, 60);
         reportHeaderTextBox.Multiline = true;
         reportHeaderTextBox.Name = "reportHeaderTextBox";
         reportHeaderTextBox.ScrollBars = ScrollBars.Vertical;
         reportHeaderTextBox.Size = new Size(200, 80);
-        reportHeaderTextBox.TabIndex = 9;
+        reportHeaderTextBox.TabIndex = 11;
         reportHeaderTextBox.Validated += OnReportHeaderValidated;
         //
         // settingsButtonsPanel
@@ -801,11 +832,11 @@ partial class MainForm
         settingsLayout.SetColumnSpan(settingsButtonsPanel, 2);
         settingsButtonsPanel.Controls.Add(openReportsButton);
         settingsButtonsPanel.Controls.Add(convertBinButton);
-        settingsButtonsPanel.Location = new Point(0, 208);
+        settingsButtonsPanel.Location = new Point(0, 237);
         settingsButtonsPanel.Margin = new Padding(0, 16, 0, 0);
         settingsButtonsPanel.Name = "settingsButtonsPanel";
         settingsButtonsPanel.Size = new Size(387, 37);
-        settingsButtonsPanel.TabIndex = 8;
+        settingsButtonsPanel.TabIndex = 12;
         // 
         // openReportsButton
         // 

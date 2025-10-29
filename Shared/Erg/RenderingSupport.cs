@@ -20,7 +20,9 @@ public static class RenderingSupport
 
     public static string? LegacyRenderingNotice { get; private set; }
 
-    public static void Reload()
+    public static ReportRenderingMode Mode { get; private set; } = ReportRenderingMode.Automatic;
+
+    public static void Reload(ReportRenderingMode? preferredMode = null)
     {
         PdfSupported = true;
         PdfIssue = null;
@@ -33,19 +35,44 @@ public static class RenderingSupport
         var legacyOverride = Environment.GetEnvironmentVariable("ERG_FORCE_LEGACY_RENDERING");
         if (!string.IsNullOrWhiteSpace(legacyOverride) && !legacyOverride.Equals("0", StringComparison.OrdinalIgnoreCase))
         {
+            Mode = ReportRenderingMode.Legacy;
             UseLegacyPdfGeneration = true;
             UseLegacyGraphRendering = true;
             LegacyRenderingNotice =
-                "Принудительно включен совместимый режим построения графиков и генерации PDF.";
+                "Принудительно включен совместимый режим построения графиков и генерации PDF (ENV).";
             return;
         }
 
-        if (OperatingSystem.IsWindows() && !OperatingSystem.IsWindowsVersionAtLeast(6, 2))
+        var normalizedMode = preferredMode;
+        if (normalizedMode.HasValue && !Enum.IsDefined(typeof(ReportRenderingMode), normalizedMode.Value))
         {
-            UseLegacyPdfGeneration = true;
-            UseLegacyGraphRendering = true;
-            LegacyRenderingNotice =
-                "Обнаружена Windows 7. Включен совместимый режим построения графиков и генерации PDF-отчетов.";
+            normalizedMode = ReportRenderingMode.Automatic;
+        }
+
+        Mode = normalizedMode ?? ReportRenderingMode.Automatic;
+
+        switch (Mode)
+        {
+            case ReportRenderingMode.Modern:
+                LegacyRenderingNotice =
+                    "Принудительно используется современный движок формирования отчетов.";
+                break;
+            case ReportRenderingMode.Legacy:
+                UseLegacyPdfGeneration = true;
+                UseLegacyGraphRendering = true;
+                LegacyRenderingNotice =
+                    "Принудительно используется совместимый режим генерации PDF и построения графиков.";
+                break;
+            default:
+                Mode = ReportRenderingMode.Automatic;
+                if (OperatingSystem.IsWindows() && !OperatingSystem.IsWindowsVersionAtLeast(6, 2))
+                {
+                    UseLegacyPdfGeneration = true;
+                    UseLegacyGraphRendering = true;
+                    LegacyRenderingNotice =
+                        "Обнаружена Windows 7. Включен совместимый режим построения графиков и генерации PDF-отчетов.";
+                }
+                break;
         }
     }
 

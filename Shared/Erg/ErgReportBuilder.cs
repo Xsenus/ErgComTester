@@ -236,8 +236,7 @@ public static class ErgReportBuilder
 
     private static void BuildPatientReportLegacyPdf(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath, ReportTemplate template)
     {
-        _ = template;
-        using var renderer = new LegacyPdfRenderer(patient, pdfPath, deviceInfo, clinicName, rawFilePath);
+        using var renderer = new LegacyPdfRenderer(patient, pdfPath, deviceInfo, clinicName, rawFilePath, template);
         renderer.Build();
     }
 
@@ -703,16 +702,19 @@ public static class ErgReportBuilder
         private readonly string[] _clinicHeaderLines;
         private readonly string _reportTitle;
         private readonly string? _reportVersion;
+        private readonly ReportTemplate _template;
+        private readonly string _descriptionTitleText;
+        private readonly bool _useDescriptionBackground;
 
         private readonly List<byte[]> _pages = new();
         private Bitmap? _bitmap;
         private Graphics? _graphics;
         private float _y;
 
-        private readonly float _marginLeft = 0.8f * Dpi;
-        private readonly float _marginRight = 0.8f * Dpi;
-        private readonly float _marginTop = 0.8f * Dpi;
-        private readonly float _marginBottom = 0.9f * Dpi;
+        private readonly float _marginLeft;
+        private readonly float _marginRight;
+        private readonly float _marginTop;
+        private readonly float _marginBottom;
         private readonly float _spacingSmall = 0.07f * Dpi;
         private readonly float _spacingMedium = 0.11f * Dpi;
         private readonly float _spacingLarge = 0.18f * Dpi;
@@ -768,11 +770,12 @@ public static class ErgReportBuilder
         private readonly SolidBrush _descriptionBackgroundBrush = new(DrawingColor.FromArgb(245, 245, 245));
         private readonly SolidBrush _testHeaderBackgroundBrush = new(DrawingColor.FromArgb(0xEE, 0xEE, 0xEE));
 
-        public LegacyPdfRenderer(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath)
+        public LegacyPdfRenderer(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath, ReportTemplate template)
         {
             _patient = patient;
             _pdfPath = pdfPath;
             _deviceInfo = deviceInfo;
+            _template = template;
 
             _clinicHeaderLines = PrepareClinicHeaderLines(BuildClinicHeaderLines(clinicName));
             _reportTitle = !string.IsNullOrWhiteSpace(deviceInfo?.ReportName)
@@ -781,6 +784,18 @@ public static class ErgReportBuilder
 
             var version = GetApplicationVersion();
             _reportVersion = string.IsNullOrWhiteSpace(version) || version == "—" ? null : version;
+
+            var marginPoints = template == ReportTemplate.Client ? 36d : 25d;
+            var margin = PointsToPixels(marginPoints);
+            _marginLeft = margin;
+            _marginRight = margin;
+            _marginTop = margin;
+            _marginBottom = margin;
+
+            _descriptionTitleText = template == ReportTemplate.Client
+                ? "Заключение:"
+                : "Автоматическое заключение";
+            _useDescriptionBackground = template != ReportTemplate.Client;
         }
 
         public void Build()
@@ -878,6 +893,14 @@ public static class ErgReportBuilder
 
         private static float PointsToPixels(double points) => (float)(points / 72d * Dpi);
 
+        private static string NormalizeDescription(string description)
+        {
+            return description
+                .Replace("\r\n", "\n")
+                .Replace('\r', '\n')
+                .TrimEnd();
+        }
+
         private void DrawParagraph(string text, DrawingFont font, Brush brush, float spacingBefore, float spacingAfter, StringFormat? format = null)
         {
             if (_graphics == null)
@@ -964,31 +987,58 @@ public static class ErgReportBuilder
             if (_graphics == null || string.IsNullOrWhiteSpace(_patient.Description))
                 return;
 
+            var descriptionText = NormalizeDescription(_patient.Description);
+
+            if (_template == ReportTemplate.Client)
+            {
+                var titleHeight = MeasureText(_descriptionTitleText, _descriptionTitleFont, ContentWidth, _formatLeft);
+                var textHeight = MeasureText(descriptionText, _descriptionFont, ContentWidth, _formatLeft);
+                var blockHeight = titleHeight + textHeight + _summarySpacingSmall * 2f;
+
+                EnsureSpace(blockHeight + _spacingMedium);
+
+                var titleRect = new RectangleF(_marginLeft, _y, ContentWidth, titleHeight);
+                _graphics.DrawString(_descriptionTitleText, _descriptionTitleFont, Brushes.Black, titleRect, _formatLeft);
+
+                var textRect = new RectangleF(
+                    _marginLeft,
+                    titleRect.Bottom + _summarySpacingSmall,
+                    ContentWidth,
+                    textHeight);
+                _graphics.DrawString(descriptionText, _descriptionFont, Brushes.Black, textRect, _formatLeft);
+
+                _y += blockHeight + _spacingMedium;
+                return;
+            }
+
             var innerWidth = ContentWidth - _summarySpacingSmall * 2f;
-            var titleHeight = MeasureText("Автоматическое заключение", _descriptionTitleFont, innerWidth, _formatLeft);
-            var textHeight = MeasureText(_patient.Description, _descriptionFont, innerWidth, _formatLeft);
-            var blockHeight = titleHeight + textHeight + _summarySpacingSmall * 3f;
+            var titleHeightLegacy = MeasureText(_descriptionTitleText, _descriptionTitleFont, innerWidth, _formatLeft);
+            var textHeightLegacy = MeasureText(descriptionText, _descriptionFont, innerWidth, _formatLeft);
+            var blockHeightLegacy = titleHeightLegacy + textHeightLegacy + _summarySpacingSmall * 3f;
 
-            EnsureSpace(blockHeight + _spacingMedium);
+            EnsureSpace(blockHeightLegacy + _spacingMedium);
 
-            var outerRect = new RectangleF(_marginLeft, _y, ContentWidth, blockHeight);
-            _graphics!.FillRectangle(_descriptionBackgroundBrush, outerRect);
+            var outerRect = new RectangleF(_marginLeft, _y, ContentWidth, blockHeightLegacy);
+            if (_useDescriptionBackground)
+            {
+                _graphics!.FillRectangle(_descriptionBackgroundBrush, outerRect);
+            }
 
-            var titleRect = new RectangleF(
+            var titleRectLegacy = new RectangleF(
                 _marginLeft + _summarySpacingSmall,
                 _y + _summarySpacingSmall,
                 innerWidth,
-                titleHeight);
-            _graphics.DrawString("Автоматическое заключение", _descriptionTitleFont, Brushes.Black, titleRect, _formatLeft);
+                titleHeightLegacy);
+            _graphics!.DrawString(_descriptionTitleText, _descriptionTitleFont, Brushes.Black, titleRectLegacy, _formatLeft);
 
-            var textRect = new RectangleF(
+            var textRectLegacy = new RectangleF(
                 _marginLeft + _summarySpacingSmall,
-                titleRect.Bottom + _summarySpacingSmall * 0.5f,
+                titleRectLegacy.Bottom + _summarySpacingSmall * 0.5f,
                 innerWidth,
-                textHeight);
-            _graphics.DrawString(_patient.Description, _descriptionFont, Brushes.Black, textRect, _formatLeft);
+                textHeightLegacy);
+            _graphics.DrawString(descriptionText, _descriptionFont, Brushes.Black, textRectLegacy, _formatLeft);
 
-            _y += blockHeight + _spacingMedium;
+            _y += blockHeightLegacy + _spacingMedium;
         }
 
         private void DrawTestSection(int index, ErgTest test)
@@ -1081,7 +1131,7 @@ public static class ErgReportBuilder
             }
 
             bool hasContent = false;
-            float labelColumnWidth = Math.Min(100f, width * 0.35f);
+            float labelColumnWidth = GetEyeLabelColumnWidth(width);
             float valuesWidth = Math.Max(0f, width - labelColumnWidth);
             if (valuesWidth <= 0f)
             {
@@ -1141,6 +1191,16 @@ public static class ErgReportBuilder
             return height;
         }
 
+        private float GetEyeLabelColumnWidth(float totalWidth)
+        {
+            var ratio = _template == ReportTemplate.Client ? 0.4f : 0.35f;
+            var maxWidth = _template == ReportTemplate.Client ? 140f : 120f;
+            var width = Math.Min(maxWidth, totalWidth * ratio);
+            if (width < 1f)
+                return 0f;
+            return width;
+        }
+
         private void DrawEyeSummary(RectangleF rect, string label, ErgTest test, EyeData eye)
         {
             if (_graphics == null)
@@ -1168,7 +1228,7 @@ public static class ErgReportBuilder
             }
 
             bool hasContent = false;
-            float labelColumnWidth = Math.Min(100f, rect.Width * 0.35f);
+            float labelColumnWidth = GetEyeLabelColumnWidth(rect.Width);
             float valuesWidth = Math.Max(0f, rect.Width - labelColumnWidth);
             if (valuesWidth <= 0f)
             {
