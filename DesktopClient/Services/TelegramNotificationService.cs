@@ -101,7 +101,7 @@ public sealed class TelegramNotificationService : IDisposable
 
         if (!string.IsNullOrWhiteSpace(description))
         {
-            summary.AppendLine("Описание:");
+            summary.AppendLine("Заключение:");
             foreach (var line in NormalizeMultiline(description, 800))
             {
                 summary.AppendLine(line);
