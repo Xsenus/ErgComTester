@@ -3883,12 +3883,15 @@ public static class ErgReportBuilder
                             })))
             );
             stylesPart.Styles = styles;
+            stylesPart.Styles!.Save();
         }
 
         if (mainPart.NumberingDefinitionsPart == null)
         {
             var numberingPart = mainPart.AddNewPart<NumberingDefinitionsPart>();
-            numberingPart.Numbering = new Numbering();
+            var numbering = new Numbering();
+            numberingPart.Numbering = numbering;
+            numberingPart.Numbering!.Save();
         }
     }
 
