@@ -125,6 +125,12 @@ public static class ErgReportBuilder
                 {
                     column.Spacing(18);
 
+                    for (int i = 0; i < patient.Tests.Count; i++)
+                    {
+                        var test = patient.Tests[i];
+                        column.Item().Component(new TestComponent(i + 1, test));
+                    }
+
                     if (!string.IsNullOrWhiteSpace(patient.Description))
                     {
                         column.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(10).Column(desc =>
@@ -132,12 +138,6 @@ public static class ErgReportBuilder
                             desc.Item().Text("Автоматическое заключение").SemiBold();
                             desc.Item().Text(patient.Description).FontSize(10).WrapAnywhere();
                         });
-                    }
-
-                    for (int i = 0; i < patient.Tests.Count; i++)
-                    {
-                        var test = patient.Tests[i];
-                        column.Item().Component(new TestComponent(i + 1, test));
                     }
                 });
 
@@ -288,11 +288,6 @@ public static class ErgReportBuilder
             body.Append(CreateParagraph(headerTitle, fontSizePt: 16, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(12)));
             body.Append(CreateHeaderTable(patient, deviceInfo));
 
-            if (!string.IsNullOrWhiteSpace(patient.Description))
-            {
-                body.Append(CreateDescriptionTable(patient.Description));
-            }
-
             uint imageId = 1;
 
             for (int i = 0; i < patient.Tests.Count; i++)
@@ -309,6 +304,11 @@ public static class ErgReportBuilder
 
                 body.Append(CreateMeasurementTable(test));
                 AppendGraphSection(body, mainPart, test, ref imageId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(patient.Description))
+            {
+                body.Append(CreateDescriptionTable(patient.Description));
             }
 
             ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
@@ -788,11 +788,12 @@ public static class ErgReportBuilder
             StartNewPage();
             DrawTitle();
             DrawInfoBlock();
-            DrawDescription();
             for (int i = 0; i < _patient.Tests.Count; i++)
             {
                 DrawTestSection(i, _patient.Tests[i]);
             }
+
+            DrawDescription();
 
             FinalizeCurrentPage();
             SavePdf();
@@ -1730,7 +1731,7 @@ public static class ErgReportBuilder
             container.Column(column =>
             {
                 column.Spacing(4);
-                column.Item().Text("Описание:").FontSize(12).SemiBold();
+                column.Item().Text("Заключение:").FontSize(12).SemiBold();
                 column.Item().Text(_description).FontSize(11);
             });
         }
@@ -1872,6 +1873,8 @@ public static class ErgReportBuilder
         double XMax,
         double YMin,
         double YMax,
+        double SampleMin,
+        double SampleMax,
         GraphMarker[] Markers);
 
     private enum GraphMarkerKind
@@ -2226,17 +2229,35 @@ public static class ErgReportBuilder
             return false;
 
         bool hasSamples = false;
+        bool hasValues = false;
+        double sampleMin = double.PositiveInfinity;
+        double sampleMax = double.NegativeInfinity;
         for (int i = 0; i < curves; i++)
         {
             var samples = graphs[i];
             if (samples is { Length: > 1 })
             {
                 hasSamples = true;
-                break;
+            }
+
+            if (samples == null || samples.Length == 0)
+                continue;
+
+            for (int j = 0; j < samples.Length; j++)
+            {
+                var value = samples[j];
+                if (double.IsNaN(value) || double.IsInfinity(value))
+                    continue;
+
+                hasValues = true;
+                if (value < sampleMin)
+                    sampleMin = value;
+                if (value > sampleMax)
+                    sampleMax = value;
             }
         }
 
-        if (!hasSamples)
+        if (!hasSamples || !hasValues)
             return false;
 
         double xMin = test.GraphXScaleMin;
@@ -2251,7 +2272,7 @@ public static class ErgReportBuilder
 
         var markers = BuildMarkers(eye, xMin, xMax);
 
-        context = new GraphRenderContext(graphs, curves, test.GraphNumPoints, xMin, xMax, yMin, yMax, markers);
+        context = new GraphRenderContext(graphs, curves, test.GraphNumPoints, xMin, xMax, yMin, yMax, sampleMin, sampleMax, markers);
         return true;
     }
 
@@ -2315,27 +2336,29 @@ public static class ErgReportBuilder
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
 
-            var xStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
-            var yStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
-            var xTicks = BuildAxisTicks(xMin, xMax, xStep);
-            var yTicks = BuildAxisTicks(yMin, yMax, yStep);
+            var xTickStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
+            var yTickStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
+            var xTicks = BuildAxisTicks(xMin, xMax, xTickStep);
+            var yTicks = BuildAxisTicks(yMin, yMax, yTickStep);
+            var xGridLines = BuildGridLines(xMin, xMax, xTickStep);
+            var yGridLines = BuildGridLines(yMin, yMax, yTickStep);
 
-            using (var gridPaint = new SKPaint { Color = new SKColor(220, 220, 220), StrokeWidth = 1f, IsAntialias = true })
+            using (var gridPaint = new SKPaint { Color = new SKColor(230, 230, 230), StrokeWidth = 1f, IsAntialias = true })
             {
-                foreach (var tick in xTicks)
+                foreach (var line in xGridLines)
                 {
-                    var px = TransformX(tick);
+                    var px = TransformX(line);
                     if (px <= chartRect.Left + 1 || px >= chartRect.Right - 1)
                         continue;
                     canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, gridPaint);
                 }
 
-                foreach (var tick in yTicks)
+                foreach (var line in yGridLines)
                 {
-                    var py = TransformY(tick);
-                    if (py <= chartRect.Top + 1 || py >= chartRect.Bottom - 1)
+                    if (Math.Abs(line) < axisZeroEpsilon)
                         continue;
-                    if (Math.Abs(tick) < axisZeroEpsilon)
+                    var py = TransformY(line);
+                    if (py <= chartRect.Top + 1 || py >= chartRect.Bottom - 1)
                         continue;
                     canvas.DrawLine(chartRect.Left, py, chartRect.Right, py, gridPaint);
                 }
@@ -2380,6 +2403,23 @@ public static class ErgReportBuilder
                 using var flashPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.5f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0) };
                 var flashX = TransformX(test.GraphFlashPosition);
                 canvas.DrawLine(flashX, chartRect.Top, flashX, chartRect.Bottom, flashPaint);
+            }
+
+            using (var extremumPaint = new SKPaint { Color = new SKColor(160, 160, 160), StrokeWidth = 1.1f, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 6f }, 0) })
+            {
+                if (IsWithinAxis(context.SampleMin, yMin, yMax))
+                {
+                    var pyMin = TransformY(context.SampleMin);
+                    if (pyMin > chartRect.Top + 1 && pyMin < chartRect.Bottom - 1)
+                        canvas.DrawLine(chartRect.Left, pyMin, chartRect.Right, pyMin, extremumPaint);
+                }
+
+                if (IsWithinAxis(context.SampleMax, yMin, yMax) && Math.Abs(context.SampleMax - context.SampleMin) > axisZeroEpsilon)
+                {
+                    var pyMax = TransformY(context.SampleMax);
+                    if (pyMax > chartRect.Top + 1 && pyMax < chartRect.Bottom - 1)
+                        canvas.DrawLine(chartRect.Left, pyMax, chartRect.Right, pyMax, extremumPaint);
+                }
             }
 
             var graphStyles = test.GraphStyles ?? Array.Empty<GraphStyle>();
@@ -2586,27 +2626,29 @@ public static class ErgReportBuilder
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
 
-            var xStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
-            var yStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
-            var xTicks = BuildAxisTicks(xMin, xMax, xStep);
-            var yTicks = BuildAxisTicks(yMin, yMax, yStep);
+            var xTickStep = DetermineAxisStep(xMin, xMax, test.GraphXValueStep, test.GraphXLineStep);
+            var yTickStep = DetermineAxisStep(yMin, yMax, test.GraphYValueStep, test.GraphYLineStep);
+            var xTicks = BuildAxisTicks(xMin, xMax, xTickStep);
+            var yTicks = BuildAxisTicks(yMin, yMax, yTickStep);
+            var xGridLines = BuildGridLines(xMin, xMax, xTickStep);
+            var yGridLines = BuildGridLines(yMin, yMax, yTickStep);
 
-            using (var gridPen = new Pen(System.Drawing.Color.FromArgb(220, 220, 220), 1f))
+            using (var gridPen = new Pen(System.Drawing.Color.FromArgb(230, 230, 230), 1f))
             {
-                foreach (var tick in xTicks)
+                foreach (var line in xGridLines)
                 {
-                    var px = TransformX(tick);
+                    var px = TransformX(line);
                     if (px <= chartRect.Left + 1 || px >= chartRect.Right - 1)
                         continue;
                     graphics.DrawLine(gridPen, px, chartRect.Top, px, chartRect.Bottom);
                 }
 
-                foreach (var tick in yTicks)
+                foreach (var line in yGridLines)
                 {
-                    var py = TransformY(tick);
-                    if (py <= chartRect.Top + 1 || py >= chartRect.Bottom - 1)
+                    if (Math.Abs(line) < axisZeroEpsilon)
                         continue;
-                    if (Math.Abs(tick) < axisZeroEpsilon)
+                    var py = TransformY(line);
+                    if (py <= chartRect.Top + 1 || py >= chartRect.Bottom - 1)
                         continue;
                     graphics.DrawLine(gridPen, chartRect.Left, py, chartRect.Right, py);
                 }
@@ -2651,6 +2693,23 @@ public static class ErgReportBuilder
                 using var flashPen = new Pen(System.Drawing.Color.Black, 1.5f) { DashPattern = new[] { 6f, 4f } };
                 var flashX = TransformX(test.GraphFlashPosition);
                 graphics.DrawLine(flashPen, flashX, chartRect.Top, flashX, chartRect.Bottom);
+            }
+
+            using (var extremumPen = new Pen(System.Drawing.Color.FromArgb(160, 160, 160), 1.1f) { DashPattern = new[] { 6f, 6f } })
+            {
+                if (IsWithinAxis(context.SampleMin, yMin, yMax))
+                {
+                    var pyMin = TransformY(context.SampleMin);
+                    if (pyMin > chartRect.Top + 1 && pyMin < chartRect.Bottom - 1)
+                        graphics.DrawLine(extremumPen, chartRect.Left, pyMin, chartRect.Right, pyMin);
+                }
+
+                if (IsWithinAxis(context.SampleMax, yMin, yMax) && Math.Abs(context.SampleMax - context.SampleMin) > axisZeroEpsilon)
+                {
+                    var pyMax = TransformY(context.SampleMax);
+                    if (pyMax > chartRect.Top + 1 && pyMax < chartRect.Bottom - 1)
+                        graphics.DrawLine(extremumPen, chartRect.Left, pyMax, chartRect.Right, pyMax);
+                }
             }
 
             var graphStyles = test.GraphStyles ?? Array.Empty<GraphStyle>();
@@ -2895,6 +2954,26 @@ public static class ErgReportBuilder
             .ToArray();
     }
 
+    private static double[] BuildGridLines(double min, double max, double baseStep)
+    {
+        if (max <= min || baseStep <= 0)
+            return Array.Empty<double>();
+
+        var range = max - min;
+        double step = baseStep;
+        const double maxLines = 6.0;
+
+        while (range / step > maxLines)
+        {
+            step *= 2.0;
+        }
+
+        return BuildAxisTicks(min, max, step);
+    }
+
+    private static bool IsWithinAxis(double value, double min, double max)
+        => !double.IsNaN(value) && !double.IsInfinity(value) && value >= min - 1e-6 && value <= max + 1e-6;
+
     private static string FormatAxisValue(double value)
     {
         if (Math.Abs(value) >= 1000)
@@ -2969,8 +3048,8 @@ public static class ErgReportBuilder
                     new LeftBorder { Val = BorderValues.Single, Color = "CCCCCC", Size = 8 },
                     new BottomBorder { Val = BorderValues.Single, Color = "CCCCCC", Size = 8 },
                     new RightBorder { Val = BorderValues.Single, Color = "CCCCCC", Size = 8 },
-                    new InsideHorizontalBorder { Val = BorderValues.Single, Color = "CCCCCC", Size = 0 },
-                    new InsideVerticalBorder { Val = BorderValues.Single, Color = "CCCCCC", Size = 0 }
+                    new InsideHorizontalBorder { Val = BorderValues.Nil },
+                    new InsideVerticalBorder { Val = BorderValues.Nil }
                 ),
                 new TableCellMarginDefault(
                     new TopMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
@@ -3023,7 +3102,7 @@ public static class ErgReportBuilder
 
     private static void AppendClientDescription(Body body, string description)
     {
-        body.Append(CreateParagraph("Описание:", fontSizePt: 12, bold: true, spacingBefore: TwipsFromPoints(18), spacingAfter: TwipsFromPoints(4)));
+        body.Append(CreateParagraph("Заключение:", fontSizePt: 12, bold: true, spacingBefore: TwipsFromPoints(18), spacingAfter: TwipsFromPoints(4)));
         body.Append(CreateParagraph(description, fontSizePt: 11));
     }
 
