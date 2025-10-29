@@ -64,6 +64,8 @@ public sealed class SettingsService
             saveRequired = true;
         }
 
+        _settings.ReportHeader ??= string.Empty;
+
         Directory.CreateDirectory(_settings.LogsDirectory);
         Directory.CreateDirectory(_settings.ReportsDirectory);
 
