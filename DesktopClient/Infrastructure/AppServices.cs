@@ -3,6 +3,7 @@ using System.IO;
 using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -18,6 +19,7 @@ public static class AppServices
 {
     private static bool _initialized;
     private static bool _autoUpdaterRequestedExit;
+    private static AutoUpdaterManifestInfo? _lastAutoUpdaterManifest;
 
     public static SettingsService Settings { get; private set; } = null!;
     public static LogService Log { get; private set; } = null!;
@@ -183,6 +185,7 @@ public static class AppServices
         {
             ConfigureAutoUpdater();
             AutoUpdater.ApplicationExitEvent += OnAutoUpdaterExitRequested;
+            _lastAutoUpdaterManifest = manifest;
             AutoUpdater.Start(url);
             Log.Info("AutoUpdater.NET: проверка завершена.");
             return new AutoUpdaterRunInfo(true, manifest, null, _autoUpdaterRequestedExit);
@@ -195,6 +198,8 @@ public static class AppServices
         finally
         {
             AutoUpdater.ApplicationExitEvent -= OnAutoUpdaterExitRequested;
+            AutoUpdater.CheckForUpdateEvent -= OnAutoUpdaterCheckForUpdate;
+            _lastAutoUpdaterManifest = null;
         }
     }
 
@@ -209,6 +214,85 @@ public static class AppServices
         AutoUpdater.ShowSkipButton = false;
         AutoUpdater.ShowRemindLaterButton = false;
         AutoUpdater.DownloadPath = downloadDirectory;
+        AutoUpdater.CheckForUpdateEvent -= OnAutoUpdaterCheckForUpdate;
+        AutoUpdater.CheckForUpdateEvent += OnAutoUpdaterCheckForUpdate;
+    }
+
+    private static void OnAutoUpdaterCheckForUpdate(UpdateInfoEventArgs args)
+    {
+        if (args == null)
+        {
+            return;
+        }
+
+        var changelogUrl = args.ChangelogURL;
+        if (string.IsNullOrWhiteSpace(changelogUrl) || !Uri.TryCreate(changelogUrl, UriKind.Absolute, out _))
+        {
+            var description = _lastAutoUpdaterManifest?.Description;
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                if (!string.IsNullOrWhiteSpace(changelogUrl))
+                {
+                    Log.Warn($"AutoUpdater.NET: некорректный URL описания '{changelogUrl}', описание будет скрыто.");
+                }
+
+                args.ChangelogURL = null;
+            }
+            else
+            {
+                try
+                {
+                    var downloadDirectory = Path.Combine(Settings.BaseDirectory, "AutoUpdater");
+                    Directory.CreateDirectory(downloadDirectory);
+                    var fileName = $"changelog_{DateTime.UtcNow:yyyyMMddHHmmssfff}.html";
+                    var filePath = Path.Combine(downloadDirectory, fileName);
+                    File.WriteAllText(filePath, BuildChangelogHtml(description), Encoding.UTF8);
+                    args.ChangelogURL = new Uri(filePath).AbsoluteUri;
+                    Log.Info($"AutoUpdater.NET: описание обновления сохранено в {filePath}.");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn($"AutoUpdater.NET: не удалось подготовить описание обновления: {ex.Message}");
+                    args.ChangelogURL = null;
+                }
+            }
+        }
+
+        if (args.Error != null)
+        {
+            Log.Warn($"AutoUpdater.NET: проверка обновлений завершилась ошибкой: {args.Error.Message}");
+            return;
+        }
+
+        if (!args.IsUpdateAvailable)
+        {
+            Log.Info("AutoUpdater.NET: обновления не найдены.");
+            return;
+        }
+
+        var currentVersion = args.CurrentVersion?.ToString() ?? "<неизвестно>";
+        var installedVersion = args.InstalledVersion?.ToString() ?? "<неизвестно>";
+        Log.Info($"AutoUpdater.NET: доступна версия {currentVersion}; установленная версия {installedVersion}.");
+        AutoUpdater.ShowUpdateForm(args);
+    }
+
+    private static string BuildChangelogHtml(string description)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("<!DOCTYPE html>");
+        builder.AppendLine("<html lang=\"ru\">");
+        builder.AppendLine("<head>");
+        builder.AppendLine("<meta charset=\"utf-8\" />");
+        builder.AppendLine("<title>Описание обновления</title>");
+        builder.AppendLine("<style>body{font-family:Segoe UI,Arial,sans-serif;font-size:14px;margin:1.5em;line-height:1.4;}pre{white-space:pre-wrap;}</style>");
+        builder.AppendLine("</head>");
+        builder.AppendLine("<body>");
+        builder.AppendLine("<pre>");
+        builder.AppendLine(WebUtility.HtmlEncode(description));
+        builder.AppendLine("</pre>");
+        builder.AppendLine("</body>");
+        builder.AppendLine("</html>");
+        return builder.ToString();
     }
 
     private static AutoUpdaterManifestInfo? TryReadAutoUpdaterManifest(string url)
