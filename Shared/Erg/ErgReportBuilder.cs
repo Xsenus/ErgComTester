@@ -2388,8 +2388,9 @@ public static class ErgReportBuilder
             const float marginBottom = 80f;
             const float axisGapHorizontal = 28f;
             const float axisGapVertical = 32f;
-            const float majorTickLength = 12f;
-            const float minorTickLength = 6f;
+            const float majorTickLength = 30f;
+            const float minorTickLength = 15f;
+            const float tickLabelPadding = 8f;
 
             var chartRect = new SKRect(marginLeft, marginTop, width - marginRight, height - marginBottom);
 
@@ -2431,13 +2432,13 @@ public static class ErgReportBuilder
                 }
             }
 
-            using (var axisPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.8f, IsAntialias = true })
+            using (var axisPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 3.6f, IsAntialias = true })
             {
                 canvas.DrawLine(chartRect.Left, xAxisY, chartRect.Right, xAxisY, axisPaint);
                 canvas.DrawLine(yAxisX, chartRect.Top, yAxisX, chartRect.Bottom, axisPaint);
             }
 
-            using (var tickPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 1.2f, IsAntialias = true })
+            using (var tickPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = 2.4f, IsAntialias = true })
             {
                 foreach (var tick in xAxisTicks.Ticks)
                 {
@@ -2445,7 +2446,7 @@ public static class ErgReportBuilder
                     if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
                         continue;
                     var length = tick.IsMajor ? majorTickLength : minorTickLength;
-                    canvas.DrawLine(px, xAxisY, px, xAxisY - length, tickPaint);
+                    canvas.DrawLine(px, xAxisY, px, xAxisY + length, tickPaint);
                 }
 
                 foreach (var tick in yAxisTicks.Ticks)
@@ -2454,7 +2455,7 @@ public static class ErgReportBuilder
                     if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
                         continue;
                     var length = tick.IsMajor ? majorTickLength : minorTickLength;
-                    canvas.DrawLine(yAxisX, py, yAxisX + length, py, tickPaint);
+                    canvas.DrawLine(yAxisX, py, yAxisX - length, py, tickPaint);
                 }
             }
 
@@ -2547,7 +2548,7 @@ public static class ErgReportBuilder
                     double xValue;
                     if (hasGraphDt)
                     {
-                        xValue = point * graphDt;
+                        xValue = context.XMin + point * graphDt;
                         if (xValue < xMin)
                             continue;
                         if (xValue > xMax)
@@ -2586,7 +2587,7 @@ public static class ErgReportBuilder
                 var style = graphIndex < graphStyles.Length ? graphStyles[graphIndex] : null;
                 var color = style != null ? new SKColor(style.Red, style.Green, style.Blue) : new SKColor(56, 109, 179);
 
-                using var linePaint = new SKPaint { Color = color, StrokeWidth = 4f, IsAntialias = true, Style = SKPaintStyle.Stroke };
+                using var linePaint = new SKPaint { Color = color, StrokeWidth = 6f, IsAntialias = true, Style = SKPaintStyle.Stroke };
                 if (style?.Dotted == true)
                 {
                     linePaint.PathEffect = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0);
@@ -2597,11 +2598,14 @@ public static class ErgReportBuilder
 
             canvas.Restore();
 
-            using (var labelPaint = new SKPaint { Color = SKColors.Black, TextSize = 14f, IsAntialias = true })
+            using (var labelPaint = new SKPaint { Color = SKColors.Black, TextSize = PointsToPixels(13f), IsAntialias = true })
             {
                 var metrics = labelPaint.FontMetrics;
                 float textHeight = metrics.Descent - metrics.Ascent;
-                float xLabelBaseline = xAxisY + textHeight + 4f;
+                float xLabelTop = xAxisY + majorTickLength + tickLabelPadding;
+                float xLabelBaseline = xLabelTop - metrics.Ascent;
+                float yLabelBaselineOffset = (metrics.Ascent + metrics.Descent) / 2f;
+                float maxYAxisLabelWidth = 0f;
 
                 foreach (var tick in xAxisTicks.MajorTicks)
                 {
@@ -2620,25 +2624,32 @@ public static class ErgReportBuilder
                         continue;
                     var text = FormatAxisValue(tick.DisplayValue);
                     var textWidth = labelPaint.MeasureText(text);
-                    canvas.DrawText(text, yAxisX - 8f - textWidth, py + textHeight / 3f, labelPaint);
+                    maxYAxisLabelWidth = Math.Max(maxYAxisLabelWidth, textWidth);
+                    float textX = yAxisX - majorTickLength - tickLabelPadding - textWidth;
+                    float baseline = (float)(py - yLabelBaselineOffset);
+                    canvas.DrawText(text, textX, baseline, labelPaint);
                 }
-            }
 
-            using (var titlePaint = new SKPaint { Color = SKColors.Black, TextSize = 16f, IsAntialias = true })
-            {
-                var metrics = titlePaint.FontMetrics;
-                var xLabel = "ms";
-                var xWidth = titlePaint.MeasureText(xLabel);
-                var midX = (chartRect.Left + chartRect.Right) / 2f;
-                canvas.DrawText(xLabel, midX - xWidth / 2f, xAxisY + (metrics.Descent - metrics.Ascent) + 12f, titlePaint);
+                using (var titlePaint = new SKPaint { Color = SKColors.Black, TextSize = PointsToPixels(13f), IsAntialias = true })
+                {
+                    var titleMetrics = titlePaint.FontMetrics;
+                    float xTitleTop = xAxisY + majorTickLength + tickLabelPadding + textHeight + tickLabelPadding;
+                    float xTitleBaseline = xTitleTop - titleMetrics.Ascent;
+                    var xLabel = "ms";
+                    var xWidth = titlePaint.MeasureText(xLabel);
+                    var midX = (chartRect.Left + chartRect.Right) / 2f;
+                    canvas.DrawText(xLabel, midX - xWidth / 2f, xTitleBaseline, titlePaint);
 
-                var yLabel = "µV";
-                canvas.Save();
-                canvas.Translate(yAxisX - 40f, (chartRect.Top + chartRect.Bottom) / 2f);
-                canvas.RotateDegrees(-90);
-                var yWidth = titlePaint.MeasureText(yLabel);
-                canvas.DrawText(yLabel, -yWidth / 2f, 0, titlePaint);
-                canvas.Restore();
+                    var yLabel = "µV";
+                    float yAxisLabelX = yAxisX - majorTickLength - tickLabelPadding - maxYAxisLabelWidth - tickLabelPadding;
+                    canvas.Save();
+                    canvas.Translate(yAxisLabelX, (chartRect.Top + chartRect.Bottom) / 2f);
+                    canvas.RotateDegrees(-90);
+                    var yWidth = titlePaint.MeasureText(yLabel);
+                    float yBaseline = (float)(- (titleMetrics.Ascent + titleMetrics.Descent) / 2f);
+                    canvas.DrawText(yLabel, -yWidth / 2f, yBaseline, titlePaint);
+                    canvas.Restore();
+                }
             }
 
             using var snapshot = surface.Snapshot();
@@ -2676,8 +2687,9 @@ public static class ErgReportBuilder
             const float marginBottom = 80f;
             const float axisGapHorizontal = 28f;
             const float axisGapVertical = 32f;
-            const float majorTickLength = 12f;
-            const float minorTickLength = 6f;
+            const float majorTickLength = 30f;
+            const float minorTickLength = 15f;
+            const float tickLabelPadding = 8f;
 
             var chartRect = new RectangleF(marginLeft, marginTop, width - marginLeft - marginRight, height - marginTop - marginBottom);
 
@@ -2719,13 +2731,13 @@ public static class ErgReportBuilder
                 }
             }
 
-            using (var axisPen = new Pen(System.Drawing.Color.Black, 1.8f))
+            using (var axisPen = new Pen(System.Drawing.Color.Black, 3.6f))
             {
                 graphics.DrawLine(axisPen, chartRect.Left, xAxisY, chartRect.Right, xAxisY);
                 graphics.DrawLine(axisPen, yAxisX, chartRect.Top, yAxisX, chartRect.Bottom);
             }
 
-            using (var tickPen = new Pen(System.Drawing.Color.Black, 1.2f))
+            using (var tickPen = new Pen(System.Drawing.Color.Black, 2.4f))
             {
                 foreach (var tick in xAxisTicks.Ticks)
                 {
@@ -2733,7 +2745,7 @@ public static class ErgReportBuilder
                     if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
                         continue;
                     var length = tick.IsMajor ? majorTickLength : minorTickLength;
-                    graphics.DrawLine(tickPen, px, xAxisY, px, xAxisY - length);
+                    graphics.DrawLine(tickPen, px, xAxisY, px, xAxisY + length);
                 }
 
                 foreach (var tick in yAxisTicks.Ticks)
@@ -2742,7 +2754,7 @@ public static class ErgReportBuilder
                     if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
                         continue;
                     var length = tick.IsMajor ? majorTickLength : minorTickLength;
-                    graphics.DrawLine(tickPen, yAxisX, py, yAxisX + length, py);
+                    graphics.DrawLine(tickPen, yAxisX, py, yAxisX - length, py);
                 }
             }
 
@@ -2820,7 +2832,7 @@ public static class ErgReportBuilder
                     double xValue;
                     if (hasGraphDt)
                     {
-                        xValue = point * graphDt;
+                        xValue = context.XMin + point * graphDt;
                         if (xValue < xMin)
                             continue;
                         if (xValue > xMax)
@@ -2851,7 +2863,7 @@ public static class ErgReportBuilder
                 var style = graphIndex < graphStyles.Length ? graphStyles[graphIndex] : null;
                 var color = style != null ? System.Drawing.Color.FromArgb(style.Red, style.Green, style.Blue) : System.Drawing.Color.FromArgb(56, 109, 179);
 
-                using var pen = new Pen(color, 4f) { LineJoin = LineJoin.Round };
+                using var pen = new Pen(color, 6f) { LineJoin = LineJoin.Round };
                 if (style?.Dotted == true)
                 {
                     pen.DashPattern = new[] { 6f, 4f };
@@ -2862,7 +2874,17 @@ public static class ErgReportBuilder
 
             graphics.Restore(state);
 
-            using var tickFont = new System.Drawing.Font("Arial", 9.5f, FontStyle.Regular, GraphicsUnit.Point);
+            using var tickFont = new System.Drawing.Font("Arial", 13f, FontStyle.Regular, GraphicsUnit.Point);
+            using var tickFormatLeft = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
+
+            float maxYAxisLabelWidth = 0f;
+            foreach (var tick in yAxisTicks.MajorTicks)
+            {
+                var text = FormatAxisValue(tick.DisplayValue);
+                var size = graphics.MeasureString(text, tickFont);
+                if (size.Width > maxYAxisLabelWidth)
+                    maxYAxisLabelWidth = size.Width;
+            }
 
             foreach (var tick in xAxisTicks.MajorTicks)
             {
@@ -2871,25 +2893,29 @@ public static class ErgReportBuilder
                     continue;
                 var text = FormatAxisValue(tick.DisplayValue);
                 var size = graphics.MeasureString(text, tickFont);
-                graphics.DrawString(text, tickFont, Brushes.Black, px - size.Width / 2f, xAxisY + size.Height + 2f);
+                graphics.DrawString(text, tickFont, Brushes.Black, px - size.Width / 2f, xAxisY + majorTickLength + size.Height + tickLabelPadding);
             }
-
-            using var tickFormatLeft = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
 
             foreach (var tick in yAxisTicks.MajorTicks)
             {
                 var py = TransformY(tick.Position);
                 if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
                     continue;
-                var rect = new RectangleF(yAxisX - 50f, py - tickFont.GetHeight(graphics) / 2f, 46f, tickFont.GetHeight(graphics));
+                var labelHeight = tickFont.GetHeight(graphics);
+                var rect = new RectangleF(
+                    yAxisX - majorTickLength - tickLabelPadding - maxYAxisLabelWidth,
+                    py - labelHeight / 2f,
+                    maxYAxisLabelWidth,
+                    labelHeight);
                 graphics.DrawString(FormatAxisValue(tick.DisplayValue), tickFont, Brushes.Black, rect, tickFormatLeft);
             }
 
-            using var axisTitleFont = new System.Drawing.Font("Arial", 11f, FontStyle.Regular, GraphicsUnit.Point);
+            using var axisTitleFont = new System.Drawing.Font("Arial", 13f, FontStyle.Regular, GraphicsUnit.Point);
             var xLabelSize = graphics.MeasureString("ms", axisTitleFont);
-            graphics.DrawString("ms", axisTitleFont, Brushes.Black, chartRect.Left + (chartRect.Width - xLabelSize.Width) / 2f, xAxisY + xLabelSize.Height + 10f);
+            graphics.DrawString("ms", axisTitleFont, Brushes.Black, chartRect.Left + (chartRect.Width - xLabelSize.Width) / 2f, xAxisY + majorTickLength + xLabelSize.Height + tickLabelPadding * 2f);
 
-            graphics.TranslateTransform(yAxisX - 40f, chartRect.Top + chartRect.Height / 2f);
+            float yAxisLabelX = yAxisX - majorTickLength - tickLabelPadding - maxYAxisLabelWidth - tickLabelPadding;
+            graphics.TranslateTransform(yAxisLabelX, chartRect.Top + chartRect.Height / 2f);
             graphics.RotateTransform(-90f);
             var yLabelSize = graphics.MeasureString("µV", axisTitleFont);
             graphics.DrawString("µV", axisTitleFont, Brushes.Black, -yLabelSize.Width / 2f, -yLabelSize.Height / 2f);
