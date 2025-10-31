@@ -2307,6 +2307,7 @@ public static class ErgReportBuilder
 
         bool hasSamples = false;
         bool hasValues = false;
+        int maxSampleCount = 0;
         double sampleMin = double.PositiveInfinity;
         double sampleMax = double.NegativeInfinity;
         for (int i = 0; i < curves; i++)
@@ -2315,6 +2316,8 @@ public static class ErgReportBuilder
             if (samples is { Length: > 1 })
             {
                 hasSamples = true;
+                if (samples.Length > maxSampleCount)
+                    maxSampleCount = samples.Length;
             }
 
             if (samples == null || samples.Length == 0)
@@ -2348,6 +2351,22 @@ public static class ErgReportBuilder
             yMax = yMin + 1;
 
         double flashOffset = test.GraphFlashPosition;
+
+        double graphDt = test.GraphDt;
+        int pointCount = Math.Max(test.GraphNumPoints, maxSampleCount);
+        if (graphDt > 0 && pointCount > 1)
+        {
+            double totalDuration = (pointCount - 1) * graphDt;
+            double dataMin = -flashOffset;
+            double dataMax = totalDuration - flashOffset;
+            if (dataMin < xMin)
+                xMin = dataMin;
+            if (dataMax > xMax)
+                xMax = dataMax;
+        }
+
+        if (xMax <= xMin)
+            xMax = xMin + 1;
 
         var markers = BuildMarkers(eye, xMin, xMax);
 
@@ -2408,11 +2427,11 @@ public static class ErgReportBuilder
             var canvas = surface.Canvas;
             canvas.Clear(SKColors.White);
 
-            const float marginLeft = 80f;
-            const float marginRight = 30f;
+            const float marginLeft = 140f;
+            const float marginRight = 36f;
             const float marginTop = 24f;
             const float marginBottom = 120f;
-            const float axisGapHorizontal = 28f;
+            const float axisGapHorizontal = 40f;
             const float axisGapVertical = 32f;
             float majorTickLength = MillimetersToPixels(3f);
             float minorTickLength = MillimetersToPixels(1.5f);
@@ -2428,7 +2447,7 @@ public static class ErgReportBuilder
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
 
-            var xAxisTicks = BuildAxisTickSet(xMin, xMax, 0, test.GraphXValueStep, test.GraphXLineStep, allowNegativeMajorTicks: false);
+            var xAxisTicks = BuildAxisTickSet(xMin, xMax, 0, test.GraphXValueStep, test.GraphXLineStep);
             var yAxisTicks = BuildAxisTickSet(yMin, yMax, 0, test.GraphYValueStep, test.GraphYLineStep);
             var xGridLines = xAxisTicks.GridLines;
             var yGridLines = yAxisTicks.GridLines;
@@ -2441,7 +2460,7 @@ public static class ErgReportBuilder
                 foreach (var line in xGridLines)
                 {
                     var px = TransformX(line);
-                    if (px <= chartRect.Left + 1 || px >= chartRect.Right - 1)
+                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
                         continue;
                     canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, gridPaint);
                 }
@@ -2650,7 +2669,7 @@ public static class ErgReportBuilder
                         continue;
                     var text = FormatAxisValue(tick.DisplayValue);
                     var textWidth = labelPaint.MeasureText(text);
-                    canvas.DrawText(text, yAxisX - majorTickLength - 8f - textWidth, py + textHeight / 3f, labelPaint);
+                    canvas.DrawText(text, yAxisX - majorTickLength - 12f - textWidth, py + textHeight / 3f, labelPaint);
                 }
             }
 
@@ -2700,11 +2719,11 @@ public static class ErgReportBuilder
             graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
             graphics.Clear(System.Drawing.Color.White);
 
-            const float marginLeft = 80f;
-            const float marginRight = 30f;
+            const float marginLeft = 140f;
+            const float marginRight = 36f;
             const float marginTop = 24f;
             const float marginBottom = 120f;
-            const float axisGapHorizontal = 28f;
+            const float axisGapHorizontal = 40f;
             const float axisGapVertical = 32f;
             float majorTickLength = MillimetersToPixels(3f);
             float minorTickLength = MillimetersToPixels(1.5f);
@@ -2720,7 +2739,7 @@ public static class ErgReportBuilder
             float TransformX(double value) => (float)(chartRect.Left + (value - xMin) / (xMax - xMin) * chartRect.Width);
             float TransformY(double value) => (float)(chartRect.Bottom - (value - yMin) / (yMax - yMin) * chartRect.Height);
 
-            var xAxisTicks = BuildAxisTickSet(xMin, xMax, 0, test.GraphXValueStep, test.GraphXLineStep, allowNegativeMajorTicks: false);
+            var xAxisTicks = BuildAxisTickSet(xMin, xMax, 0, test.GraphXValueStep, test.GraphXLineStep);
             var yAxisTicks = BuildAxisTickSet(yMin, yMax, 0, test.GraphYValueStep, test.GraphYLineStep);
             var xGridLines = xAxisTicks.GridLines;
             var yGridLines = yAxisTicks.GridLines;
@@ -2733,7 +2752,7 @@ public static class ErgReportBuilder
                 foreach (var line in xGridLines)
                 {
                     var px = TransformX(line);
-                    if (px <= chartRect.Left + 1 || px >= chartRect.Right - 1)
+                    if (px < chartRect.Left - 1 || px > chartRect.Right + 1)
                         continue;
                     graphics.DrawLine(gridPen, px, chartRect.Top, px, chartRect.Bottom);
                 }
