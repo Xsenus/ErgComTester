@@ -40,6 +40,8 @@ public sealed class GraphRenderOptionsDto
     public float AxisThicknessPx { get; set; }
     public float TickThicknessPx { get; set; }
     public float CurveThicknessPx { get; set; }
+    public float DottedDashLengthPx { get; set; } = 6f;
+    public float DottedGapLengthPx { get; set; } = 4f;
     public float ExtremumThicknessPx { get; set; }
     public float GridThicknessPx { get; set; }
     public float LabelFontPt { get; set; }
@@ -65,6 +67,8 @@ public sealed class GraphRenderOptionsDto
         AxisThicknessPx = o.AxisThicknessPx,
         TickThicknessPx = o.TickThicknessPx,
         CurveThicknessPx = o.CurveThicknessPx,
+        DottedDashLengthPx = o.DottedDashLengthPx,
+        DottedGapLengthPx = o.DottedGapLengthPx,
         ExtremumThicknessPx = o.ExtremumThicknessPx,
         GridThicknessPx = o.GridThicknessPx,
         LabelFontPt = o.LabelFontPt,
@@ -91,6 +95,10 @@ public sealed class GraphRenderOptionsDto
         o.AxisThicknessPx = AxisThicknessPx;
         o.TickThicknessPx = TickThicknessPx;
         o.CurveThicknessPx = CurveThicknessPx;
+        var dash = DottedDashLengthPx > 0 ? DottedDashLengthPx : o.DottedDashLengthPx;
+        var gap = DottedGapLengthPx > 0 ? DottedGapLengthPx : o.DottedGapLengthPx;
+        o.DottedDashLengthPx = dash;
+        o.DottedGapLengthPx = gap;
         o.ExtremumThicknessPx = ExtremumThicknessPx;
         o.GridThicknessPx = GridThicknessPx;
         o.LabelFontPt = LabelFontPt;

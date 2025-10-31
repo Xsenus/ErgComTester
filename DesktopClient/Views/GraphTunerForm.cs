@@ -51,6 +51,8 @@ namespace MicroluxErgConnect.Views
         private readonly NumericUpDown nudAxisPx = MakeNud(0.5m, 12m, 0.1m, 3.6m);
         private readonly NumericUpDown nudTickPx = MakeNud(0.5m, 12m, 0.1m, 3.0m);
         private readonly NumericUpDown nudCurvePx = MakeNud(0.5m, 12m, 0.1m, 8.0m);
+        private readonly NumericUpDown nudDottedDash = MakeNud(0.5m, 40m, 0.1m, 6.0m);
+        private readonly NumericUpDown nudDottedGap = MakeNud(0.5m, 40m, 0.1m, 4.0m);
         private readonly NumericUpDown nudLabelPt = MakeNud(6m, 24m, 0.5m, 7m);
         private readonly NumericUpDown nudUnitsPt = MakeNud(6m, 24m, 0.5m, 6.5m);
         private readonly NumericUpDown nudMarginL = MakeNud(0m, 400m, 1m, 165m);
@@ -84,6 +86,10 @@ namespace MicroluxErgConnect.Views
             public float TickThicknessPx { get; set; }
 
             public float CurveThicknessPx { get; set; }
+
+            public float DottedDashLengthPx { get; set; } = 6f;
+
+            public float DottedGapLengthPx { get; set; } = 4f;
 
             public float ExtremumThicknessPx { get; set; }
 
@@ -178,6 +184,11 @@ namespace MicroluxErgConnect.Views
                         Row("Curve", nudCurvePx, "px"),
                         Row("Extremum", nudExtremumPx, "px"),
                         Row("Grid", nudGridPx, "px")));
+            _flow.Controls.Add(
+                MakeGroup(
+                    "Dotted pattern (px)",
+                    Row("Dash length", nudDottedDash, "px"),
+                    Row("Gap length", nudDottedGap, "px")));
             _flow.Controls.Add(MakeGroup("Fonts (pt)", Row("Labels", nudLabelPt, "pt"), Row("Units", nudUnitsPt, "pt")));
             _flow.Controls
                 .Add(
@@ -209,6 +220,8 @@ namespace MicroluxErgConnect.Views
             tip.SetToolTip(nudAxisPx, "Толщина линий осей (px)");
             tip.SetToolTip(nudTickPx, "Толщина рисок (px)");
             tip.SetToolTip(nudCurvePx, "Толщина кривых (px)");
+            tip.SetToolTip(nudDottedDash, "Длина штриха пунктирной линии (px)");
+            tip.SetToolTip(nudDottedGap, "Длина промежутка пунктирной линии (px)");
             tip.SetToolTip(nudLabelPt, "Размер шрифта цифр (pt)");
             tip.SetToolTip(nudUnitsPt, "Размер шрифта единиц (pt)");
             tip.SetToolTip(nudMarginL, "Левое поле (px)");
@@ -456,6 +469,8 @@ namespace MicroluxErgConnect.Views
                 nud == nudAxisPx ||
                 nud == nudTickPx ||
                 nud == nudCurvePx ||
+                nud == nudDottedDash ||
+                nud == nudDottedGap ||
                 nud == nudExtremumPx ||
                 nud == nudGridPx)
                 nud.Increment = 0.1m;
@@ -474,6 +489,8 @@ namespace MicroluxErgConnect.Views
             nudAxisPx.Value = Clamp(nudAxisPx, (decimal)o.AxisThicknessPx);
             nudTickPx.Value = Clamp(nudTickPx, (decimal)o.TickThicknessPx);
             nudCurvePx.Value = Clamp(nudCurvePx, (decimal)o.CurveThicknessPx);
+            nudDottedDash.Value = Clamp(nudDottedDash, (decimal)o.DottedDashLengthPx);
+            nudDottedGap.Value = Clamp(nudDottedGap, (decimal)o.DottedGapLengthPx);
             nudLabelPt.Value = Clamp(nudLabelPt, (decimal)o.LabelFontPt);
             nudUnitsPt.Value = Clamp(nudUnitsPt, (decimal)o.UnitsFontPt);
 
@@ -506,6 +523,8 @@ namespace MicroluxErgConnect.Views
                 AxisThicknessPx = (float)nudAxisPx.Value,
                 TickThicknessPx = (float)nudTickPx.Value,
                 CurveThicknessPx = (float)nudCurvePx.Value,
+                DottedDashLengthPx = (float)nudDottedDash.Value,
+                DottedGapLengthPx = (float)nudDottedGap.Value,
                 ExtremumThicknessPx = o.ExtremumThicknessPx,
                 GridThicknessPx = o.GridThicknessPx,
                 LabelFontPt = (float)nudLabelPt.Value,
@@ -534,6 +553,8 @@ namespace MicroluxErgConnect.Views
             o.AxisThicknessPx = p.AxisThicknessPx;
             o.TickThicknessPx = p.TickThicknessPx;
             o.CurveThicknessPx = p.CurveThicknessPx;
+            o.DottedDashLengthPx = p.DottedDashLengthPx > 0 ? p.DottedDashLengthPx : o.DottedDashLengthPx;
+            o.DottedGapLengthPx = p.DottedGapLengthPx > 0 ? p.DottedGapLengthPx : o.DottedGapLengthPx;
             o.ExtremumThicknessPx = p.ExtremumThicknessPx;
             o.GridThicknessPx = p.GridThicknessPx;
             o.LabelFontPt = p.LabelFontPt;
@@ -566,6 +587,8 @@ namespace MicroluxErgConnect.Views
                     AxisThicknessPx = d.AxisThicknessPx,
                     TickThicknessPx = d.TickThicknessPx,
                     CurveThicknessPx = d.CurveThicknessPx,
+                    DottedDashLengthPx = d.DottedDashLengthPx,
+                    DottedGapLengthPx = d.DottedGapLengthPx,
                     LabelFontPt = d.LabelFontPt,
                     UnitsFontPt = d.UnitsFontPt,
                     MarginLeft = d.MarginLeft,
@@ -637,6 +660,8 @@ namespace MicroluxErgConnect.Views
             o.AxisThicknessPx = (float)nudAxisPx.Value;
             o.TickThicknessPx = (float)nudTickPx.Value;
             o.CurveThicknessPx = (float)nudCurvePx.Value;
+            o.DottedDashLengthPx = (float)nudDottedDash.Value;
+            o.DottedGapLengthPx = (float)nudDottedGap.Value;
             o.LabelFontPt = (float)nudLabelPt.Value;
             o.UnitsFontPt = (float)nudUnitsPt.Value;
 
