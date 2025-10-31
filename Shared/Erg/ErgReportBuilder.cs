@@ -1915,7 +1915,11 @@ public static class ErgReportBuilder
     {
     }
 
-    private const float GraphRenderDpi = 96f;
+    private const int GraphImagePixelWidth = 900;
+    private const int GraphImagePixelHeight = 540;
+    private const float GraphImageTargetWidthInches = 3.6f;
+    private const float GraphImageTargetHeightInches = 3.0f;
+    private const float GraphRenderDpi = GraphImagePixelWidth / GraphImageTargetWidthInches;
 
     private static float MillimetersToPixels(float millimeters)
         => millimeters / 25.4f * GraphRenderDpi;
@@ -2391,8 +2395,8 @@ public static class ErgReportBuilder
     {
         try
         {
-            const int width = 900;
-            const int height = 540;
+            const int width = GraphImagePixelWidth;
+            const int height = GraphImagePixelHeight;
             var info = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
             using var surface = SKSurface.Create(info);
             if (surface == null)
@@ -2407,7 +2411,7 @@ public static class ErgReportBuilder
             const float marginLeft = 80f;
             const float marginRight = 30f;
             const float marginTop = 24f;
-            const float marginBottom = 80f;
+            const float marginBottom = 120f;
             const float axisGapHorizontal = 28f;
             const float axisGapVertical = 32f;
             float majorTickLength = MillimetersToPixels(3f);
@@ -2683,13 +2687,13 @@ public static class ErgReportBuilder
 
     private static GraphImage? TryRenderGraphImageWithGdi(ErgTest test, GraphRenderContext context)
     {
-        const int width = 900;
-        const int height = 540;
+        const int width = GraphImagePixelWidth;
+        const int height = GraphImagePixelHeight;
 
         try
         {
             using var bitmap = new Bitmap(width, height);
-            bitmap.SetResolution(96, 96);
+            bitmap.SetResolution(GraphRenderDpi, GraphRenderDpi);
             using var graphics = Graphics.FromImage(bitmap);
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
             graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
@@ -2699,7 +2703,7 @@ public static class ErgReportBuilder
             const float marginLeft = 80f;
             const float marginRight = 30f;
             const float marginTop = 24f;
-            const float marginBottom = 80f;
+            const float marginBottom = 120f;
             const float axisGapHorizontal = 28f;
             const float axisGapVertical = 32f;
             float majorTickLength = MillimetersToPixels(3f);
@@ -2802,7 +2806,7 @@ public static class ErgReportBuilder
 
             if (context.Markers.Length > 0)
             {
-                using var markerFont = new System.Drawing.Font("Arial", 10f, FontStyle.Bold, GraphicsUnit.Point);
+                using var markerFont = new System.Drawing.Font("Arial", PointsToPixels(10f), FontStyle.Bold, GraphicsUnit.Pixel);
 
                 foreach (var marker in context.Markers)
                 {
@@ -2890,7 +2894,13 @@ public static class ErgReportBuilder
 
             graphics.Restore(state);
 
-            using var tickFont = new System.Drawing.Font("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
+            float axisLabelFontSizePx = PointsToPixels(10f);
+            using var tickFont = new System.Drawing.Font("Arial", axisLabelFontSizePx, FontStyle.Regular, GraphicsUnit.Pixel);
+
+            float axisNumbersHeight = tickFont.GetHeight(graphics);
+            float axisNumberTop = xAxisY + majorTickLength + 6f - axisNumbersHeight;
+            if (axisNumberTop < xAxisY + 2f)
+                axisNumberTop = xAxisY + 2f;
 
             foreach (var tick in xAxisTicks.MajorTicks)
             {
@@ -2899,10 +2909,8 @@ public static class ErgReportBuilder
                     continue;
                 var text = FormatAxisValue(tick.DisplayValue);
                 var size = graphics.MeasureString(text, tickFont);
-                graphics.DrawString(text, tickFont, Brushes.Black, px - size.Width / 2f, xAxisY + majorTickLength + size.Height + 2f);
+                graphics.DrawString(text, tickFont, Brushes.Black, px - size.Width / 2f, axisNumberTop);
             }
-
-            using var tickFormatLeft = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
 
             foreach (var tick in yAxisTicks.MajorTicks)
             {
@@ -2910,13 +2918,16 @@ public static class ErgReportBuilder
                 if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1)
                     continue;
                 var text = FormatAxisValue(tick.DisplayValue);
-                var rect = new RectangleF(yAxisX - majorTickLength - 52f, py - tickFont.GetHeight(graphics) / 2f, 48f, tickFont.GetHeight(graphics));
-                graphics.DrawString(text, tickFont, Brushes.Black, rect, tickFormatLeft);
+                var size = graphics.MeasureString(text, tickFont);
+                var textX = yAxisX - majorTickLength - 12f - size.Width;
+                var textY = py - size.Height / 2f;
+                graphics.DrawString(text, tickFont, Brushes.Black, textX, textY);
             }
 
-            using var axisTitleFont = new System.Drawing.Font("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
+            using var axisTitleFont = new System.Drawing.Font("Arial", axisLabelFontSizePx, FontStyle.Regular, GraphicsUnit.Pixel);
+            float axisUnitsTop = axisNumberTop + axisNumbersHeight + 10f;
             var xLabelSize = graphics.MeasureString("ms", axisTitleFont);
-            graphics.DrawString("ms", axisTitleFont, Brushes.Black, chartRect.Left + (chartRect.Width - xLabelSize.Width) / 2f, xAxisY + majorTickLength + xLabelSize.Height + 10f);
+            graphics.DrawString("ms", axisTitleFont, Brushes.Black, chartRect.Left + (chartRect.Width - xLabelSize.Width) / 2f, axisUnitsTop);
 
             graphics.TranslateTransform(yAxisX - majorTickLength - 40f, chartRect.Top + chartRect.Height / 2f);
             graphics.RotateTransform(-90f);
@@ -3389,7 +3400,7 @@ public static class ErgReportBuilder
         var graph = TryRenderGraphImage(test, eye);
         if (graph != null)
         {
-            var drawing = CreateImageDrawing(mainPart, graph, $"client-{suffix}-{index}", ref imageId, maxWidthInches: 3.6, maxHeightInches: 2.2);
+            var drawing = CreateImageDrawing(mainPart, graph, $"client-{suffix}-{index}", ref imageId, maxWidthInches: GraphImageTargetWidthInches, maxHeightInches: 2.2);
             var paragraph = new Paragraph(new Run(drawing))
             {
                 ParagraphProperties = new ParagraphProperties(new Justification { Val = JustificationValues.Center })
@@ -3801,7 +3812,7 @@ public static class ErgReportBuilder
 
         if (image != null)
         {
-            var drawing = CreateImageDrawing(mainPart, image, name, ref imageId, maxWidthInches: 3.6, maxHeightInches: 3.0);
+            var drawing = CreateImageDrawing(mainPart, image, name, ref imageId, maxWidthInches: GraphImageTargetWidthInches, maxHeightInches: GraphImageTargetHeightInches);
             var paragraph = new Paragraph(new Run(drawing))
             {
                 ParagraphProperties = new ParagraphProperties(new Justification { Val = JustificationValues.Center })
@@ -3896,8 +3907,8 @@ public static class ErgReportBuilder
         }
 
         var relationshipId = mainPart.GetIdOfPart(imagePart);
-        long cx = PixelsToEmus(image.Width);
-        long cy = PixelsToEmus(image.Height);
+        long cx = PixelsToEmus(image.Width, GraphRenderDpi);
+        long cy = PixelsToEmus(image.Height, GraphRenderDpi);
         long maxCx = InchesToEmus(maxWidthInches);
         long maxCy = InchesToEmus(maxHeightInches);
 
@@ -3942,7 +3953,10 @@ public static class ErgReportBuilder
         );
     }
 
-    private static long PixelsToEmus(int pixels) => (long)(pixels / 96.0 * 914400);
+    private static long PixelsToEmus(int pixels) => PixelsToEmus(pixels, 96f);
+
+    private static long PixelsToEmus(int pixels, float dpi)
+        => (long)Math.Round(pixels / dpi * 914400);
 
     private static long InchesToEmus(double inches) => (long)(inches * 914400);
 
