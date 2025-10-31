@@ -395,7 +395,7 @@ public static class ErgReportBuilder
         static bool TryCreateMarker(byte? value, double xMin, double xMax, GraphMarkerKind kind, out GraphMarker marker)
         {
             marker = default!;
-            if (!value.HasValue || value.Value == 0)
+            if (!value.HasValue)
                 return false;
 
             double position = value.Value;
@@ -413,6 +413,67 @@ public static class ErgReportBuilder
             markers.Add(bMarker);
 
         return markers.ToArray();
+    }
+
+    private static GraphWaveLevel[] BuildWaveLevels(EyeData eye, double[][] graphs, int curves, double graphDt, double flashOffset)
+    {
+        static bool TryCreateLevel(GraphMarkerKind kind, byte? markerMs, double[][] graphs, int curves, double graphDt, double flashOffset, out GraphWaveLevel level)
+        {
+            level = default!;
+            if (!markerMs.HasValue)
+                return false;
+
+            if (graphDt <= 0)
+                return false;
+
+            var series = SelectSeries(graphs, curves);
+            if (series == null || series.Length == 0)
+                return false;
+
+            double rawIndex = (markerMs.Value + flashOffset) / graphDt;
+            if (double.IsNaN(rawIndex) || double.IsInfinity(rawIndex))
+                return false;
+
+            int length = series.Length;
+            if (rawIndex < 0 || rawIndex > length - 1)
+                return false;
+
+            int i0 = (int)Math.Floor(rawIndex);
+            int i1 = (int)Math.Ceiling(rawIndex);
+            i0 = Math.Clamp(i0, 0, length - 1);
+            i1 = Math.Clamp(i1, 0, length - 1);
+
+            double v0 = series[i0];
+            double v1 = series[i1];
+            if (double.IsNaN(v0) || double.IsInfinity(v0) || double.IsNaN(v1) || double.IsInfinity(v1))
+                return false;
+
+            double t = i1 == i0 ? 0 : rawIndex - i0;
+            double value = v0 + (v1 - v0) * t;
+            level = new GraphWaveLevel(kind, value);
+            return true;
+        }
+
+        static double[]? SelectSeries(double[][] graphs, int curves)
+        {
+            int limit = Math.Min(curves, graphs.Length);
+            for (int i = 0; i < limit; i++)
+            {
+                var series = graphs[i];
+                if (series is { Length: > 0 })
+                    return series;
+            }
+
+            return null;
+        }
+
+        var result = new List<GraphWaveLevel>(2);
+        if (TryCreateLevel(GraphMarkerKind.AWave, eye.AWaveMarker, graphs, curves, graphDt, flashOffset, out var aLevel))
+            result.Add(aLevel);
+        if (TryCreateLevel(GraphMarkerKind.BWave, eye.BWaveMarker, graphs, curves, graphDt, flashOffset, out var bLevel))
+            result.Add(bLevel);
+
+        return result.ToArray();
     }
 
     private static void BuildPatientReportLegacyPdf(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath, ReportTemplate template)
@@ -1778,7 +1839,7 @@ public static class ErgReportBuilder
         int valueCount = eye.ValueCount ?? DetermineValueCount(eye);
         if (valueCount <= 0)
             return "—";
-        if (!marker.HasValue || marker.Value == 0)
+        if (!marker.HasValue)
             return "—";
         return $"{marker} мс";
     }
@@ -1938,13 +1999,6 @@ public static class ErgReportBuilder
             .Distinct();
     }
 
-    private static System.Drawing.Color GetMarkerColor(GraphMarker marker)
-        => marker.Kind == GraphMarkerKind.AWave
-            ? System.Drawing.Color.FromArgb(0, 102, 204)
-            : System.Drawing.Color.FromArgb(0, 150, 0);
-
-    private static string GetMarkerLabel(GraphMarker marker)
-        => marker.Kind == GraphMarkerKind.AWave ? "a" : "b";
     private static SKTypeface GetTypeface()
     {
         _skTypeface ??= SKTypeface.FromFamilyName("Arial")
@@ -2199,6 +2253,8 @@ public static class ErgReportBuilder
 
         double xMin = test.GraphXScaleMin;
         double xMax = test.GraphXScaleMax;
+        double scaleXMin = xMin;
+        double scaleXMax = xMax;
         if (xMax <= xMin)
             xMax = xMin + 1;
 
@@ -2226,6 +2282,7 @@ public static class ErgReportBuilder
             xMax = xMin + 1;
 
         var markers = BuildMarkers(eye, xMin, xMax);
+        var waveLevels = BuildWaveLevels(eye, graphs, curves, graphDt, flashOffset);
 
         context = new GraphRenderContext(
             graphs,
@@ -2238,7 +2295,10 @@ public static class ErgReportBuilder
             sampleMin,
             sampleMax,
             flashOffset,
-            markers);
+            markers,
+            waveLevels,
+            scaleXMin,
+            scaleXMax);
         return true;
     }
 
@@ -2290,11 +2350,6 @@ public static class ErgReportBuilder
 
             // резерв сверху под маркеры
             float markerTopReserve = 0f;
-            if (context.Markers.Length > 0)
-            {
-                using var tmp = new System.Drawing.Font("Arial", PointsToPixels(opt.LabelFontPt), FontStyle.Bold, GraphicsUnit.Pixel);
-                markerTopReserve = tmp.GetHeight(g) + 4f;
-            }
 
             var chartRect = new RectangleF(
                 marginLeft,
@@ -2316,8 +2371,9 @@ public static class ErgReportBuilder
             float yAxisX = chartRect.Left - axisGapHorizontal; // левее области графика
 
             // сетка
-            using (var grid = new Pen(System.Drawing.Color.FromArgb(230, 230, 230), opt.GridThicknessPx))
+            if (opt.GridThicknessPx > 0f)
             {
+                using var grid = new Pen(System.Drawing.Color.FromArgb(230, 230, 230), opt.GridThicknessPx);
                 foreach (var v in xTicks.GridLines)
                 {
                     var px = X(v);
@@ -2357,64 +2413,49 @@ public static class ErgReportBuilder
                 }
             }
 
-            // вспышка x=0
             var dottedPattern = BuildDottedPattern(opt);
 
-            if (0 >= xMin && 0 <= xMax)
+            // вертикальные маркеры (a/b)
+            if (context.Markers.Length > 0 && opt.ExtremumThicknessPx > 0f)
             {
-                using var flash = new Pen(System.Drawing.Color.Black, Math.Max(1f, opt.ExtremumThicknessPx))
+                using var markerPen = new Pen(System.Drawing.Color.Black, Math.Max(1f, opt.ExtremumThicknessPx))
                 {
                     DashStyle = DashStyle.Custom,
                     DashCap = DashCap.Round,
                     StartCap = LineCap.Round,
                     EndCap = LineCap.Round
                 };
-                flash.DashPattern = (float[])dottedPattern.Clone();
-                var fx = X(0);
-                g.DrawLine(flash, fx, chartRect.Top, fx, chartRect.Bottom);
-            }
+                markerPen.DashPattern = (float[])dottedPattern.Clone();
 
-            // мин/макс
-            using (var ext = new Pen(System.Drawing.Color.FromArgb(160, 160, 160), opt.ExtremumThicknessPx) { DashPattern = new[] { 6f, 6f } })
-            {
-                if (IsWithinAxis(context.SampleMin, yMin, yMax))
-                {
-                    var py = Y(context.SampleMin);
-                    if (py > chartRect.Top + 1 && py < chartRect.Bottom - 1) g.DrawLine(ext, chartRect.Left, py, chartRect.Right, py);
-                }
-                if (IsWithinAxis(context.SampleMax, yMin, yMax) && Math.Abs(context.SampleMax - context.SampleMin) > eps)
-                {
-                    var py = Y(context.SampleMax);
-                    if (py > chartRect.Top + 1 && py < chartRect.Bottom - 1) g.DrawLine(ext, chartRect.Left, py, chartRect.Right, py);
-                }
-            }
-
-            // маркеры
-            if (context.Markers.Length > 0)
-            {
-                using var mFont = new System.Drawing.Font("Arial", PointsToPixels(opt.LabelFontPt), FontStyle.Bold, GraphicsUnit.Pixel);
                 foreach (var m in context.Markers)
                 {
                     var px = X(m.PositionMs);
                     if (float.IsNaN(px) || float.IsInfinity(px)) continue;
                     if (px < chartRect.Left - 1 || px > chartRect.Right + 1) continue;
 
-                    var c = GetMarkerColor(m);
-                    using var mp = new Pen(c, Math.Max(1f, opt.ExtremumThicknessPx))
-                    {
-                        DashStyle = DashStyle.Custom,
-                        DashCap = DashCap.Round,
-                        StartCap = LineCap.Round,
-                        EndCap = LineCap.Round
-                    };
-                    mp.DashPattern = (float[])dottedPattern.Clone();
-                    g.DrawLine(mp, px, chartRect.Top, px, chartRect.Bottom);
+                    g.DrawLine(markerPen, px, chartRect.Top, px, chartRect.Bottom);
+                }
+            }
 
-                    var lbl = GetMarkerLabel(m);
-                    using var br = new SolidBrush(c);
-                    var sz = g.MeasureString(lbl, mFont, int.MaxValue, sf);
-                    float y = Math.Max(2f, chartRect.Top - sz.Height - 2f);
-                    g.DrawString(lbl, mFont, br, px - sz.Width / 2f, y, sf);
+            // горизонтальные маркеры (уровни a/b)
+            if (context.WaveLevels.Length > 0 && opt.HorizontalMarkerThicknessPx > 0f)
+            {
+                using var levelPen = new Pen(System.Drawing.Color.Black, Math.Max(1f, opt.HorizontalMarkerThicknessPx))
+                {
+                    DashStyle = DashStyle.Custom,
+                    DashCap = DashCap.Round,
+                    StartCap = LineCap.Round,
+                    EndCap = LineCap.Round
+                };
+                levelPen.DashPattern = (float[])dottedPattern.Clone();
+
+                foreach (var level in context.WaveLevels)
+                {
+                    if (!IsWithinAxis(level.Value, yMin, yMax)) continue;
+                    var py = Y(level.Value);
+                    if (py <= chartRect.Top + 1 || py >= chartRect.Bottom - 1) continue;
+
+                    g.DrawLine(levelPen, chartRect.Left, py, chartRect.Right, py);
                 }
             }
 
@@ -2501,39 +2542,47 @@ public static class ErgReportBuilder
                 xUnitsTop = maxUnitsTop;
             }
 
-            // все видимые (major + minor)
-            var allVisibleX = xTicks.Ticks
-                .Select(t => new { T = t, Px = X(t.Position) })
-                .Where(v => v.Px >= chartRect.Left - 1 && v.Px <= chartRect.Right + 1)
-                .OrderBy(v => v.Px)
-                .ToList();
-
-            string XText(bool isMajor, double pos, double disp) =>
-                FormatAxisValue(isMajor ? disp : pos);
-
             float lastRight = float.NegativeInfinity;
             var drawnPx = new List<float>();
 
-            // левый край — обязательно
-            if (allVisibleX.Count > 0)
+            bool TryDrawLabel(double coordinate, double displayValue, bool force = false)
             {
-                var left = allVisibleX.First();
-                var txt = XText(left.T.IsMajor, left.T.Position, left.T.DisplayValue);
+                if (double.IsNaN(coordinate) || double.IsNaN(displayValue))
+                    return false;
+                if (double.IsInfinity(coordinate) || double.IsInfinity(displayValue))
+                    return false;
+
+                if (displayValue < context.ScaleXMin - eps || displayValue > context.ScaleXMax + eps)
+                    return false;
+                if (coordinate < xMin - eps || coordinate > xMax + eps)
+                    return false;
+
+                var px = X(coordinate);
+                if (float.IsNaN(px) || float.IsInfinity(px))
+                    return false;
+
+                if (drawnPx.Any(p => Math.Abs(p - px) < 0.5f))
+                    return false;
+
+                var txt = FormatAxisValue(displayValue);
                 var sz = g.MeasureString(txt, tickFont, int.MaxValue, sf);
-                g.DrawString(txt, tickFont, Brushes.Black, left.Px - sz.Width / 2f, xDigitsTop, sf);
-                lastRight = left.Px + sz.Width / 2f;
-                drawnPx.Add(left.Px);
+                float left = px - sz.Width / 2f;
+                float right = px + sz.Width / 2f;
+                if (!force && left <= lastRight + minLabelGapX)
+                    return false;
+
+                g.DrawString(txt, tickFont, Brushes.Black, left, xDigitsTop, sf);
+                lastRight = Math.Max(lastRight, right);
+                drawnPx.Add(px);
+                return true;
             }
 
-            // ноль — обязательно
-            if (0 >= xMin - eps && 0 <= xMax + eps)
+            TryDrawLabel(context.ScaleXMin, context.ScaleXMin, force: true);
+
+            bool zeroWithinScale = context.ScaleXMin - eps <= 0 && context.ScaleXMax + eps >= 0;
+            if (zeroWithinScale && 0 >= xMin - eps && 0 <= xMax + eps)
             {
-                var px0 = X(0);
-                var t0 = FormatAxisValue(0);
-                var s0 = g.MeasureString(t0, tickFont, int.MaxValue, sf);
-                g.DrawString(t0, tickFont, Brushes.Black, px0 - s0.Width / 2f, xDigitsTop, sf);
-                lastRight = Math.Max(lastRight, px0 + s0.Width / 2f);
-                drawnPx.Add(px0);
+                TryDrawLabel(0, 0);
             }
 
             // остальные major без налезаний
@@ -2545,30 +2594,13 @@ public static class ErgReportBuilder
 
             foreach (var v in majorVisibleX)
             {
-                if (drawnPx.Any(p => Math.Abs(p - v.Px) < 0.5f)) continue;
-                var txt = FormatAxisValue(v.T.DisplayValue);
-                var sz = g.MeasureString(txt, tickFont, int.MaxValue, sf);
-                float left = v.Px - sz.Width / 2f, right = v.Px + sz.Width / 2f;
-                if (left <= lastRight + minLabelGapX) continue;
+                if (Math.Abs(v.T.DisplayValue) <= eps)
+                    continue;
 
-                g.DrawString(txt, tickFont, Brushes.Black, v.Px - sz.Width / 2f, xDigitsTop, sf);
-                lastRight = right;
-                drawnPx.Add(v.Px);
+                TryDrawLabel(v.T.Position, v.T.DisplayValue);
             }
 
-            // правый край — обязательно (если ещё не подписан)
-            if (allVisibleX.Count > 0)
-            {
-                var right = allVisibleX.Last();
-                if (!drawnPx.Any(p => Math.Abs(p - right.Px) < 0.5f))
-                {
-                    var txt = XText(right.T.IsMajor, right.T.Position, right.T.DisplayValue);
-                    var sz = g.MeasureString(txt, tickFont, int.MaxValue, sf);
-                    g.DrawString(txt, tickFont, Brushes.Black, right.Px - sz.Width / 2f, xDigitsTop, sf);
-                    lastRight = Math.Max(lastRight, right.Px + sz.Width / 2f);
-                    drawnPx.Add(right.Px);
-                }
-            }
+            TryDrawLabel(context.ScaleXMax, context.ScaleXMax, force: true);
 
             // X: единицы ("ms")
             var msSz = g.MeasureString("ms", unitFont, int.MaxValue, sf);
@@ -2672,12 +2704,6 @@ public static class ErgReportBuilder
             float minorTickLength = MillimetersToPixels(opt.MinorTickLenMm);
 
             float markerTopReserve = 0f;
-            if (context.Markers.Length > 0)
-            {
-                using var markerTextPaint = SkTextPaint(opt.LabelFontPt, SKColors.Black, bold: true);
-                var markerMetrics = markerTextPaint.FontMetrics;
-                markerTopReserve = (markerMetrics.Descent - markerMetrics.Ascent) + 4f;
-            }
 
             var chartRect = new SKRect(marginLeft, marginTop + markerTopReserve, width - marginRight, height - marginBottom);
 
@@ -2697,8 +2723,9 @@ public static class ErgReportBuilder
             float yAxisX = chartRect.Left - axisGapHorizontal;
 
             // сетка
-            using (var gridPaint = new SKPaint { Color = new SKColor(230, 230, 230), StrokeWidth = opt.GridThicknessPx, IsAntialias = true })
+            if (opt.GridThicknessPx > 0f)
             {
+                using var gridPaint = new SKPaint { Color = new SKColor(230, 230, 230), StrokeWidth = opt.GridThicknessPx, IsAntialias = true };
                 foreach (var line in xAxisTicks.GridLines)
                 {
                     var px = X(line);
@@ -2740,10 +2767,10 @@ public static class ErgReportBuilder
                 }
             }
 
-            // вспышка x=0
-            if (0 >= xMin && 0 <= xMax)
+            // вертикальные маркеры (a/b)
+            if (context.Markers.Length > 0 && opt.ExtremumThicknessPx > 0f)
             {
-                using var flashPaint = new SKPaint
+                using var markerPaint = new SKPaint
                 {
                     Color = SKColors.Black,
                     StrokeWidth = Math.Max(1f, opt.ExtremumThicknessPx),
@@ -2751,54 +2778,36 @@ public static class ErgReportBuilder
                     StrokeCap = SKStrokeCap.Round,
                     PathEffect = CreateDottedPathEffect(opt)
                 };
-                var flashX = X(0);
-                canvas.DrawLine(flashX, chartRect.Top, flashX, chartRect.Bottom, flashPaint);
-            }
 
-            // мин/макс
-            using (var extremumPaint = new SKPaint { Color = new SKColor(160, 160, 160), StrokeWidth = opt.ExtremumThicknessPx, IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 6f }, 0) })
-            {
-                if (IsWithinAxis(context.SampleMin, yMin, yMax))
-                {
-                    var pyMin = Y(context.SampleMin);
-                    if (pyMin > chartRect.Top + 1 && pyMin < chartRect.Bottom - 1) canvas.DrawLine(chartRect.Left, pyMin, chartRect.Right, pyMin, extremumPaint);
-                }
-
-                if (IsWithinAxis(context.SampleMax, yMin, yMax) && Math.Abs(context.SampleMax - context.SampleMin) > eps)
-                {
-                    var pyMax = Y(context.SampleMax);
-                    if (pyMax > chartRect.Top + 1 && pyMax < chartRect.Bottom - 1) canvas.DrawLine(chartRect.Left, pyMax, chartRect.Right, pyMax, extremumPaint);
-                }
-            }
-
-            // маркеры
-            if (context.Markers.Length > 0)
-            {
                 foreach (var m in context.Markers)
                 {
                     var px = X(m.PositionMs);
                     if (double.IsNaN(px) || double.IsInfinity(px)) continue;
                     if (px < chartRect.Left - 1 || px > chartRect.Right + 1) continue;
 
-                    var c = GetMarkerColor(m);
-                    using var markerPaint = new SKPaint
-                    {
-                        Color = new SKColor(c.R, c.G, c.B),
-                        StrokeWidth = Math.Max(1f, opt.ExtremumThicknessPx),
-                        IsAntialias = true,
-                        StrokeCap = SKStrokeCap.Round,
-                        PathEffect = CreateDottedPathEffect(opt)
-                    };
                     canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, markerPaint);
+                }
+            }
 
-                    using var labelPaint = SkTextPaint(opt.LabelFontPt, new SKColor(c.R, c.G, c.B), bold: true);
-                    var text = GetMarkerLabel(m);
-                    float w = labelPaint.MeasureText(text);
-                    var metrics = labelPaint.FontMetrics;
-                    float textHeight = metrics.Descent - metrics.Ascent;
-                    float top = Math.Max(2f, chartRect.Top - textHeight - 2f);
-                    float baseline = top - metrics.Ascent;
-                    canvas.DrawText(text, px - w / 2f, baseline, labelPaint);
+            // горизонтальные маркеры (уровни a/b)
+            if (context.WaveLevels.Length > 0 && opt.HorizontalMarkerThicknessPx > 0f)
+            {
+                using var levelPaint = new SKPaint
+                {
+                    Color = SKColors.Black,
+                    StrokeWidth = Math.Max(1f, opt.HorizontalMarkerThicknessPx),
+                    IsAntialias = true,
+                    StrokeCap = SKStrokeCap.Round,
+                    PathEffect = CreateDottedPathEffect(opt)
+                };
+
+                foreach (var level in context.WaveLevels)
+                {
+                    if (!IsWithinAxis(level.Value, yMin, yMax)) continue;
+                    var py = Y(level.Value);
+                    if (py <= chartRect.Top + 1 || py >= chartRect.Bottom - 1) continue;
+
+                    canvas.DrawLine(chartRect.Left, py, chartRect.Right, py, levelPaint);
                 }
             }
 
@@ -2893,36 +2902,47 @@ public static class ErgReportBuilder
                 float minGapX = opt.MinLabelGapXPx;
 
                 // ----- X: цифры -----
-                var allVisibleX = xAxisTicks.Ticks
-                    .Select(t => new { T = t, Px = X(t.Position) })
-                    .Where(v => v.Px >= chartRect.Left - 1 && v.Px <= chartRect.Right + 1)
-                    .OrderBy(v => v.Px)
-                    .ToList();
-
-                string XTextSk(bool isMajor, double pos, double disp) =>
-                    FormatAxisValue(isMajor ? disp : pos);
-
                 float lastRight = float.NegativeInfinity;
                 var drawnPx = new List<float>();
 
-                if (allVisibleX.Count > 0)
+                bool TryDrawLabel(double coordinate, double displayValue, bool force = false)
                 {
-                    var left = allVisibleX.First();
-                    var txt = XTextSk(left.T.IsMajor, left.T.Position, left.T.DisplayValue);
+                    if (double.IsNaN(coordinate) || double.IsNaN(displayValue))
+                        return false;
+                    if (double.IsInfinity(coordinate) || double.IsInfinity(displayValue))
+                        return false;
+
+                    if (displayValue < context.ScaleXMin - eps || displayValue > context.ScaleXMax + eps)
+                        return false;
+                    if (coordinate < xMin - eps || coordinate > xMax + eps)
+                        return false;
+
+                    var px = X(coordinate);
+                    if (float.IsNaN(px) || float.IsInfinity(px))
+                        return false;
+
+                    if (drawnPx.Any(p => Math.Abs(p - px) < 0.5f))
+                        return false;
+
+                    var txt = FormatAxisValue(displayValue);
                     float w = labelPaint.MeasureText(txt);
-                    canvas.DrawText(txt, left.Px - w / 2f, xDigitsBaseline, labelPaint);
-                    lastRight = left.Px + w / 2f;
-                    drawnPx.Add(left.Px);
+                    float left = px - w / 2f;
+                    float right = px + w / 2f;
+                    if (!force && left <= lastRight + minGapX)
+                        return false;
+
+                    canvas.DrawText(txt, px - w / 2f, xDigitsBaseline, labelPaint);
+                    lastRight = Math.Max(lastRight, right);
+                    drawnPx.Add(px);
+                    return true;
                 }
 
-                if (0 >= xMin - eps && 0 <= xMax + eps)
+                TryDrawLabel(context.ScaleXMin, context.ScaleXMin, force: true);
+
+                bool zeroWithinScale = context.ScaleXMin - eps <= 0 && context.ScaleXMax + eps >= 0;
+                if (zeroWithinScale && 0 >= xMin - eps && 0 <= xMax + eps)
                 {
-                    var px0 = X(0);
-                    var t0 = FormatAxisValue(0);
-                    float w0 = labelPaint.MeasureText(t0);
-                    canvas.DrawText(t0, px0 - w0 / 2f, xDigitsBaseline, labelPaint);
-                    lastRight = Math.Max(lastRight, px0 + w0 / 2f);
-                    drawnPx.Add(px0);
+                    TryDrawLabel(0, 0);
                 }
 
                 var majorVisibleX = xAxisTicks.MajorTicks
@@ -2933,30 +2953,13 @@ public static class ErgReportBuilder
 
                 foreach (var v in majorVisibleX)
                 {
-                    if (drawnPx.Any(p => Math.Abs(p - v.Px) < 0.5f)) continue;
+                    if (Math.Abs(v.T.DisplayValue) <= eps)
+                        continue;
 
-                    var txt = FormatAxisValue(v.T.DisplayValue);
-                    float w = labelPaint.MeasureText(txt);
-                    float left = v.Px - w / 2f, right = v.Px + w / 2f;
-                    if (left <= lastRight + minGapX) continue;
-
-                    canvas.DrawText(txt, v.Px - w / 2f, xDigitsBaseline, labelPaint);
-                    lastRight = right;
-                    drawnPx.Add(v.Px);
+                    TryDrawLabel(v.T.Position, v.T.DisplayValue);
                 }
 
-                if (allVisibleX.Count > 0)
-                {
-                    var right = allVisibleX.Last();
-                    if (!drawnPx.Any(p => Math.Abs(p - right.Px) < 0.5f))
-                    {
-                        var txt = XTextSk(right.T.IsMajor, right.T.Position, right.T.DisplayValue);
-                        float w = labelPaint.MeasureText(txt);
-                        canvas.DrawText(txt, right.Px - w / 2f, xDigitsBaseline, labelPaint);
-                        lastRight = Math.Max(lastRight, right.Px + w / 2f);
-                        drawnPx.Add(right.Px);
-                    }
-                }
+                TryDrawLabel(context.ScaleXMax, context.ScaleXMax, force: true);
 
                 // ----- Y: цифры -----
                 var visMajorY = yAxisTicks.MajorTicks
@@ -4385,7 +4388,10 @@ public static class ErgReportBuilder
         double SampleMin,
         double SampleMax,
         double FlashOffset,
-        GraphMarker[] Markers);
+        GraphMarker[] Markers,
+        GraphWaveLevel[] WaveLevels,
+        double ScaleXMin,
+        double ScaleXMax);
 
     private enum GraphMarkerKind
     {
@@ -4394,6 +4400,8 @@ public static class ErgReportBuilder
     }
 
     private sealed record GraphMarker(GraphMarkerKind Kind, double PositionMs);
+
+    private sealed record GraphWaveLevel(GraphMarkerKind Kind, double Value);
 
     private sealed record AxisTick(double Position, double DisplayValue, bool IsMajor, bool IsAnchor);
 
@@ -4426,6 +4434,7 @@ public static class ErgReportBuilder
         public float AxisThicknessPx { get; set; } = 4f;
         public float CurveThicknessPx { get; set; } = 8f;
         public float ExtremumThicknessPx { get; set; } = 1.2f;
+        public float HorizontalMarkerThicknessPx { get; set; } = 1.2f;
 
         // Параметры пунктира (px)
         public float DottedDashLengthPx { get; set; } = DefaultDottedDashLengthPx;
