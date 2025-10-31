@@ -2358,9 +2358,11 @@ public static class ErgReportBuilder
             }
 
             // вспышка x=0
+            var dottedPattern = BuildDottedPattern(opt);
+
             if (0 >= xMin && 0 <= xMax)
             {
-                using var flash = new Pen(System.Drawing.Color.Black, Math.Max(1f, opt.ExtremumThicknessPx)) { DashPattern = new[] { 6f, 4f } };
+                using var flash = new Pen(System.Drawing.Color.Black, Math.Max(1f, opt.ExtremumThicknessPx)) { DashPattern = dottedPattern };
                 var fx = X(0);
                 g.DrawLine(flash, fx, chartRect.Top, fx, chartRect.Bottom);
             }
@@ -2391,7 +2393,7 @@ public static class ErgReportBuilder
                     if (px < chartRect.Left - 1 || px > chartRect.Right + 1) continue;
 
                     var c = GetMarkerColor(m);
-                    using var mp = new Pen(c, Math.Max(1f, opt.ExtremumThicknessPx)) { DashPattern = new[] { 6f, 4f } };
+                    using var mp = new Pen(c, Math.Max(1f, opt.ExtremumThicknessPx)) { DashPattern = dottedPattern };
                     g.DrawLine(mp, px, chartRect.Top, px, chartRect.Bottom);
 
                     var lbl = GetMarkerLabel(m);
@@ -2447,7 +2449,7 @@ public static class ErgReportBuilder
                                      : System.Drawing.Color.FromArgb(56, 109, 179);
 
                 using var pen = new Pen(col, opt.CurveThicknessPx) { LineJoin = LineJoin.Round };
-                if (st?.Dotted == true) pen.DashPattern = new[] { 6f, 4f };
+                if (st?.Dotted == true) pen.DashPattern = dottedPattern;
                 g.DrawLines(pen, pts.ToArray());
             }
 
@@ -2720,7 +2722,7 @@ public static class ErgReportBuilder
             // вспышка x=0
             if (0 >= xMin && 0 <= xMax)
             {
-                using var flashPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = Math.Max(1f, opt.ExtremumThicknessPx), IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0) };
+                using var flashPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = Math.Max(1f, opt.ExtremumThicknessPx), IsAntialias = true, PathEffect = CreateDottedPathEffect(opt) };
                 var flashX = X(0);
                 canvas.DrawLine(flashX, chartRect.Top, flashX, chartRect.Bottom, flashPaint);
             }
@@ -2751,7 +2753,7 @@ public static class ErgReportBuilder
                     if (px < chartRect.Left - 1 || px > chartRect.Right + 1) continue;
 
                     var c = GetMarkerColor(m);
-                    using var markerPaint = new SKPaint { Color = new SKColor(c.R, c.G, c.B), StrokeWidth = Math.Max(1f, opt.ExtremumThicknessPx), IsAntialias = true, PathEffect = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0) };
+                    using var markerPaint = new SKPaint { Color = new SKColor(c.R, c.G, c.B), StrokeWidth = Math.Max(1f, opt.ExtremumThicknessPx), IsAntialias = true, PathEffect = CreateDottedPathEffect(opt) };
                     canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, markerPaint);
 
                     using var labelPaint = SkTextPaint(opt.LabelFontPt, new SKColor(c.R, c.G, c.B), bold: true);
@@ -2811,7 +2813,7 @@ public static class ErgReportBuilder
                 var col = st != null ? new SKColor(st.Red, st.Green, st.Blue) : new SKColor(56, 109, 179);
 
                 using var linePaint = new SKPaint { Color = col, StrokeWidth = opt.CurveThicknessPx, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeJoin = SKStrokeJoin.Round, StrokeCap = SKStrokeCap.Round };
-                if (st?.Dotted == true) linePaint.PathEffect = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0);
+                if (st?.Dotted == true) linePaint.PathEffect = CreateDottedPathEffect(opt);
 
                 canvas.DrawPath(path, linePaint);
             }
@@ -4353,6 +4355,19 @@ public static class ErgReportBuilder
 
     private sealed record AxisTickSet(AxisTick[] Ticks, AxisTick[] MajorTicks, double[] GridLines);
 
+    private static float[] BuildDottedPattern(GraphRenderOptions opt)
+    {
+        var dash = Math.Max(0.1f, opt.DottedDashLengthPx);
+        var gap = Math.Max(0.1f, opt.DottedGapLengthPx);
+        return new[] { dash, gap };
+    }
+
+    private static SKPathEffect? CreateDottedPathEffect(GraphRenderOptions opt)
+    {
+        var pattern = BuildDottedPattern(opt);
+        return SKPathEffect.CreateDash(pattern, 0);
+    }
+
     public sealed class GraphRenderOptions
     {
         // Внешние зазоры под оси/подписи
@@ -4363,6 +4378,10 @@ public static class ErgReportBuilder
         public float AxisThicknessPx { get; set; } = 4f;
         public float CurveThicknessPx { get; set; } = 8f;
         public float ExtremumThicknessPx { get; set; } = 1.2f;
+
+        // Параметры пунктира (px)
+        public float DottedDashLengthPx { get; set; } = 4f;
+        public float DottedGapLengthPx { get; set; } = 3f;
 
         // Эти два не были в JSON — оставляю прежние значения
         public float GridThicknessPx { get; set; } = 1.0f;

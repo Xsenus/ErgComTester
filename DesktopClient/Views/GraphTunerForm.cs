@@ -1,4 +1,5 @@
-﻿using ErgData;
+﻿using System;
+using ErgData;
 using MicroluxErgConnect.Infrastructure;
 using System.Text.Json;
 
@@ -68,6 +69,8 @@ namespace MicroluxErgConnect.Views
         private readonly NumericUpDown nudYUnitsFb = MakeNud(0m, 120m, 1m, 70m);
         private readonly NumericUpDown nudExtremumPx = MakeNud(0.1m, 12m, 0.1m, 1.2m);
         private readonly NumericUpDown nudGridPx = MakeNud(0.1m, 6m, 0.1m, 1.0m);
+        private readonly NumericUpDown nudDottedDash = MakeNud(0.1m, 20m, 0.1m, 4.0m);
+        private readonly NumericUpDown nudDottedGap = MakeNud(0.1m, 20m, 0.1m, 3.0m);
 
         // Debounce перерисовки
         private readonly System.Windows.Forms.Timer _debounce = new System.Windows.Forms.Timer { Interval = 120 };
@@ -88,6 +91,10 @@ namespace MicroluxErgConnect.Views
             public float ExtremumThicknessPx { get; set; }
 
             public float GridThicknessPx { get; set; }
+
+            public float DottedDashLengthPx { get; set; }
+
+            public float DottedGapLengthPx { get; set; }
 
             public float LabelFontPt { get; set; }
 
@@ -178,6 +185,7 @@ namespace MicroluxErgConnect.Views
                         Row("Curve", nudCurvePx, "px"),
                         Row("Extremum", nudExtremumPx, "px"),
                         Row("Grid", nudGridPx, "px")));
+            _flow.Controls.Add(MakeGroup("Dotted pattern (px)", Row("Dash length", nudDottedDash, "px"), Row("Gap length", nudDottedGap, "px")));
             _flow.Controls.Add(MakeGroup("Fonts (pt)", Row("Labels", nudLabelPt, "pt"), Row("Units", nudUnitsPt, "pt")));
             _flow.Controls
                 .Add(
@@ -226,6 +234,8 @@ namespace MicroluxErgConnect.Views
             tip.SetToolTip(nudYUnitsFb, "Фоллбек-отступ 'µV' от оси (px)");
             tip.SetToolTip(nudExtremumPx, "Толщина отметок экстремумов (px)");
             tip.SetToolTip(nudGridPx, "Толщина линий сетки (px)");
+            tip.SetToolTip(nudDottedDash, "Длина штриха пунктира (px)");
+            tip.SetToolTip(nudDottedGap, "Зазор между штрихами пунктира (px)");
 
             // Адаптация ширины групп
             _flow.SizeChanged += (_, __) => ResizeGroups();
@@ -457,7 +467,9 @@ namespace MicroluxErgConnect.Views
                 nud == nudTickPx ||
                 nud == nudCurvePx ||
                 nud == nudExtremumPx ||
-                nud == nudGridPx)
+                nud == nudGridPx ||
+                nud == nudDottedDash ||
+                nud == nudDottedGap)
                 nud.Increment = 0.1m;
             else
                 nud.Increment = 1m;
@@ -494,6 +506,8 @@ namespace MicroluxErgConnect.Views
 
             nudExtremumPx.Value = Clamp(nudExtremumPx, (decimal)o.ExtremumThicknessPx);
             nudGridPx.Value = Clamp(nudGridPx, (decimal)o.GridThicknessPx);
+            nudDottedDash.Value = Clamp(nudDottedDash, (decimal)o.DottedDashLengthPx);
+            nudDottedGap.Value = Clamp(nudDottedGap, (decimal)o.DottedGapLengthPx);
         }
 
         private PresetDto CapturePreset()
@@ -508,6 +522,8 @@ namespace MicroluxErgConnect.Views
                 CurveThicknessPx = (float)nudCurvePx.Value,
                 ExtremumThicknessPx = o.ExtremumThicknessPx,
                 GridThicknessPx = o.GridThicknessPx,
+                DottedDashLengthPx = (float)nudDottedDash.Value,
+                DottedGapLengthPx = (float)nudDottedGap.Value,
                 LabelFontPt = (float)nudLabelPt.Value,
                 UnitsFontPt = (float)nudUnitsPt.Value,
                 MarginLeft = (float)nudMarginL.Value,
@@ -529,6 +545,7 @@ namespace MicroluxErgConnect.Views
         private void ApplyPreset(PresetDto p)
         {
             var o = ErgReportBuilder.GraphOptions;
+            var defaults = new ErgReportBuilder.GraphRenderOptions();
             o.MajorTickLenMm = p.MajorTickLenMm;
             o.MinorTickLenMm = p.MinorTickLenMm;
             o.AxisThicknessPx = p.AxisThicknessPx;
@@ -536,6 +553,8 @@ namespace MicroluxErgConnect.Views
             o.CurveThicknessPx = p.CurveThicknessPx;
             o.ExtremumThicknessPx = p.ExtremumThicknessPx;
             o.GridThicknessPx = p.GridThicknessPx;
+            o.DottedDashLengthPx = Math.Max(0.1f, p.DottedDashLengthPx > 0f ? p.DottedDashLengthPx : defaults.DottedDashLengthPx);
+            o.DottedGapLengthPx = Math.Max(0.1f, p.DottedGapLengthPx > 0f ? p.DottedGapLengthPx : defaults.DottedGapLengthPx);
             o.LabelFontPt = p.LabelFontPt;
             o.UnitsFontPt = p.UnitsFontPt;
             o.MarginLeft = p.MarginLeft;
@@ -582,7 +601,9 @@ namespace MicroluxErgConnect.Views
                     YUnitsGapFromNumbersPx = d.YUnitsGapFromNumbersPx,
                     YUnitsFallbackFromAxisPx = d.YUnitsFallbackFromAxisPx,
                     ExtremumThicknessPx = d.ExtremumThicknessPx,
-                    GridThicknessPx = d.GridThicknessPx
+                    GridThicknessPx = d.GridThicknessPx,
+                    DottedDashLengthPx = d.DottedDashLengthPx,
+                    DottedGapLengthPx = d.DottedGapLengthPx
                 });
         }
 
@@ -657,6 +678,8 @@ namespace MicroluxErgConnect.Views
 
             o.ExtremumThicknessPx = (float)nudExtremumPx.Value;
             o.GridThicknessPx = (float)nudGridPx.Value;
+            o.DottedDashLengthPx = (float)nudDottedDash.Value;
+            o.DottedGapLengthPx = (float)nudDottedGap.Value;
 
             var bytes = ErgReportBuilder.RenderGraphPng(_test, _eye);
             if(bytes == null)
