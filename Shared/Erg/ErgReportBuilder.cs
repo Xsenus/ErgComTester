@@ -2358,11 +2358,10 @@ public static class ErgReportBuilder
             }
 
             // вспышка x=0
-            var dottedPattern = BuildDottedPattern(opt);
-
             if (0 >= xMin && 0 <= xMax)
             {
-                using var flash = new Pen(System.Drawing.Color.Black, Math.Max(1f, opt.ExtremumThicknessPx)) { DashPattern = dottedPattern };
+                using var flash = new Pen(System.Drawing.Color.Black, Math.Max(1f, opt.ExtremumThicknessPx));
+                ApplyDottedPattern(flash, opt);
                 var fx = X(0);
                 g.DrawLine(flash, fx, chartRect.Top, fx, chartRect.Bottom);
             }
@@ -2393,7 +2392,8 @@ public static class ErgReportBuilder
                     if (px < chartRect.Left - 1 || px > chartRect.Right + 1) continue;
 
                     var c = GetMarkerColor(m);
-                    using var mp = new Pen(c, Math.Max(1f, opt.ExtremumThicknessPx)) { DashPattern = dottedPattern };
+                    using var mp = new Pen(c, Math.Max(1f, opt.ExtremumThicknessPx));
+                    ApplyDottedPattern(mp, opt);
                     g.DrawLine(mp, px, chartRect.Top, px, chartRect.Bottom);
 
                     var lbl = GetMarkerLabel(m);
@@ -2449,7 +2449,7 @@ public static class ErgReportBuilder
                                      : System.Drawing.Color.FromArgb(56, 109, 179);
 
                 using var pen = new Pen(col, opt.CurveThicknessPx) { LineJoin = LineJoin.Round };
-                if (st?.Dotted == true) pen.DashPattern = dottedPattern;
+                if (st?.Dotted == true) ApplyDottedPattern(pen, opt);
                 g.DrawLines(pen, pts.ToArray());
             }
 
@@ -2722,7 +2722,14 @@ public static class ErgReportBuilder
             // вспышка x=0
             if (0 >= xMin && 0 <= xMax)
             {
-                using var flashPaint = new SKPaint { Color = SKColors.Black, StrokeWidth = Math.Max(1f, opt.ExtremumThicknessPx), IsAntialias = true, PathEffect = CreateDottedPathEffect(opt) };
+                using var flashPaint = new SKPaint
+                {
+                    Color = SKColors.Black,
+                    StrokeWidth = Math.Max(1f, opt.ExtremumThicknessPx),
+                    IsAntialias = true,
+                    StrokeCap = SKStrokeCap.Round,
+                    PathEffect = CreateDottedPathEffect(opt)
+                };
                 var flashX = X(0);
                 canvas.DrawLine(flashX, chartRect.Top, flashX, chartRect.Bottom, flashPaint);
             }
@@ -2753,7 +2760,14 @@ public static class ErgReportBuilder
                     if (px < chartRect.Left - 1 || px > chartRect.Right + 1) continue;
 
                     var c = GetMarkerColor(m);
-                    using var markerPaint = new SKPaint { Color = new SKColor(c.R, c.G, c.B), StrokeWidth = Math.Max(1f, opt.ExtremumThicknessPx), IsAntialias = true, PathEffect = CreateDottedPathEffect(opt) };
+                    using var markerPaint = new SKPaint
+                    {
+                        Color = new SKColor(c.R, c.G, c.B),
+                        StrokeWidth = Math.Max(1f, opt.ExtremumThicknessPx),
+                        IsAntialias = true,
+                        StrokeCap = SKStrokeCap.Round,
+                        PathEffect = CreateDottedPathEffect(opt)
+                    };
                     canvas.DrawLine(px, chartRect.Top, px, chartRect.Bottom, markerPaint);
 
                     using var labelPaint = SkTextPaint(opt.LabelFontPt, new SKColor(c.R, c.G, c.B), bold: true);
@@ -2813,7 +2827,10 @@ public static class ErgReportBuilder
                 var col = st != null ? new SKColor(st.Red, st.Green, st.Blue) : new SKColor(56, 109, 179);
 
                 using var linePaint = new SKPaint { Color = col, StrokeWidth = opt.CurveThicknessPx, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeJoin = SKStrokeJoin.Round, StrokeCap = SKStrokeCap.Round };
-                if (st?.Dotted == true) linePaint.PathEffect = CreateDottedPathEffect(opt);
+                if (st?.Dotted == true)
+                {
+                    linePaint.PathEffect = CreateDottedPathEffect(opt);
+                }
 
                 canvas.DrawPath(path, linePaint);
             }
@@ -4354,6 +4371,20 @@ public static class ErgReportBuilder
     private sealed record AxisTick(double Position, double DisplayValue, bool IsMajor, bool IsAnchor);
 
     private sealed record AxisTickSet(AxisTick[] Ticks, AxisTick[] MajorTicks, double[] GridLines);
+
+    private static void ApplyDottedPattern(Pen pen, GraphRenderOptions opt)
+    {
+        if (pen == null)
+            return;
+
+        var dash = Math.Max(0.1f, opt.DottedDashLengthPx);
+        var gap = Math.Max(0.1f, opt.DottedGapLengthPx);
+        var width = Math.Max(0.1f, pen.Width);
+
+        pen.DashPattern = new[] { dash / width, gap / width };
+        pen.DashCap = DashCap.Round;
+        pen.DashStyle = DashStyle.Custom;
+    }
 
     private static float[] BuildDottedPattern(GraphRenderOptions opt)
     {
