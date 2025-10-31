@@ -2648,7 +2648,15 @@ public static class ErgReportBuilder
             float majorTickLength = MillimetersToPixels(opt.MajorTickLenMm);
             float minorTickLength = MillimetersToPixels(opt.MinorTickLenMm);
 
-            var chartRect = new SKRect(marginLeft, marginTop, width - marginRight, height - marginBottom);
+            float markerTopReserve = 0f;
+            if (context.Markers.Length > 0)
+            {
+                using var markerTextPaint = SkTextPaint(opt.LabelFontPt, SKColors.Black, bold: true);
+                var markerMetrics = markerTextPaint.FontMetrics;
+                markerTopReserve = (markerMetrics.Descent - markerMetrics.Ascent) + 4f;
+            }
+
+            var chartRect = new SKRect(marginLeft, marginTop + markerTopReserve, width - marginRight, height - marginBottom);
 
             double xMin = context.XMin;
             double xMax = context.XMax;
@@ -2749,14 +2757,17 @@ public static class ErgReportBuilder
                     using var labelPaint = SkTextPaint(opt.LabelFontPt, new SKColor(c.R, c.G, c.B), bold: true);
                     var text = GetMarkerLabel(m);
                     float w = labelPaint.MeasureText(text);
-                    float y = Math.Max(2f, chartRect.Top - 6f);
-                    canvas.DrawText(text, px - w / 2f, y, labelPaint);
+                    var metrics = labelPaint.FontMetrics;
+                    float textHeight = metrics.Descent - metrics.Ascent;
+                    float top = Math.Max(2f, chartRect.Top - textHeight - 2f);
+                    float baseline = top - metrics.Ascent;
+                    canvas.DrawText(text, px - w / 2f, baseline, labelPaint);
                 }
             }
 
             // кривые
             canvas.Save();
-            canvas.ClipRect(chartRect);
+            canvas.ClipRect(chartRect, SKClipOperation.Intersect, antialias: true);
 
             double dt = test.GraphDt;
             bool hasDt = dt > 0;
@@ -2799,7 +2810,7 @@ public static class ErgReportBuilder
                 var st = gi < styles.Length ? styles[gi] : null;
                 var col = st != null ? new SKColor(st.Red, st.Green, st.Blue) : new SKColor(56, 109, 179);
 
-                using var linePaint = new SKPaint { Color = col, StrokeWidth = opt.CurveThicknessPx, IsAntialias = true, Style = SKPaintStyle.Stroke };
+                using var linePaint = new SKPaint { Color = col, StrokeWidth = opt.CurveThicknessPx, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeJoin = SKStrokeJoin.Round, StrokeCap = SKStrokeCap.Round };
                 if (st?.Dotted == true) linePaint.PathEffect = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0);
 
                 canvas.DrawPath(path, linePaint);
@@ -2808,16 +2819,34 @@ public static class ErgReportBuilder
             canvas.Restore();
 
             // ===== подписи осей =====
+            float leftmostYTextX = float.PositiveInfinity;
+            float xDigitsTop = xAxisY + majorTickLength + opt.XDigitsOffsetPx;
+            float xUnitsBaseline = 0f;
+
+            using var unitPaint = SkTextPaint(opt.UnitsFontPt, SKColors.Black);
+            var unitFm = unitPaint.FontMetrics;
+            float unitsHeight = unitFm.Descent - unitFm.Ascent;
+
             using (var labelPaint = SkTextPaint(opt.LabelFontPt, SKColors.Black))
             {
                 var fm = labelPaint.FontMetrics;
-                float textH = fm.Descent - fm.Ascent;
+                float textHeight = fm.Descent - fm.Ascent;
+                const float minLabelGapY = 4f;
 
-                // ----- X: цифры -----
-                float xDigitsBase = xAxisY + majorTickLength + opt.XDigitsOffsetPx;
+                float xUnitsTop = xDigitsTop + textHeight + opt.XUnitsGapPx;
+                float maxUnitsTop = height - 6f - unitsHeight;
+                if (xUnitsTop > maxUnitsTop)
+                {
+                    float shiftUp = xUnitsTop - maxUnitsTop;
+                    xDigitsTop -= shiftUp;
+                    xUnitsTop = maxUnitsTop;
+                }
+
+                float xDigitsBaseline = xDigitsTop - fm.Ascent;
+                xUnitsBaseline = xUnitsTop - unitFm.Ascent;
                 float minGapX = opt.MinLabelGapXPx;
 
-                // все видимые тики (major + minor)
+                // ----- X: цифры -----
                 var allVisibleX = xAxisTicks.Ticks
                     .Select(t => new { T = t, Px = X(t.Position) })
                     .Where(v => v.Px >= chartRect.Left - 1 && v.Px <= chartRect.Right + 1)
@@ -2830,29 +2859,26 @@ public static class ErgReportBuilder
                 float lastRight = float.NegativeInfinity;
                 var drawnPx = new List<float>();
 
-                // левый край
                 if (allVisibleX.Count > 0)
                 {
                     var left = allVisibleX.First();
                     var txt = XTextSk(left.T.IsMajor, left.T.Position, left.T.DisplayValue);
                     float w = labelPaint.MeasureText(txt);
-                    canvas.DrawText(txt, left.Px - w / 2f, xDigitsBase, labelPaint);
+                    canvas.DrawText(txt, left.Px - w / 2f, xDigitsBaseline, labelPaint);
                     lastRight = left.Px + w / 2f;
                     drawnPx.Add(left.Px);
                 }
 
-                // ноль
                 if (0 >= xMin - eps && 0 <= xMax + eps)
                 {
                     var px0 = X(0);
                     var t0 = FormatAxisValue(0);
                     float w0 = labelPaint.MeasureText(t0);
-                    canvas.DrawText(t0, px0 - w0 / 2f, xDigitsBase, labelPaint);
+                    canvas.DrawText(t0, px0 - w0 / 2f, xDigitsBaseline, labelPaint);
                     lastRight = Math.Max(lastRight, px0 + w0 / 2f);
                     drawnPx.Add(px0);
                 }
 
-                // остальные major
                 var majorVisibleX = xAxisTicks.MajorTicks
                     .Select(t => new { T = t, Px = X(t.Position) })
                     .Where(v => v.Px >= chartRect.Left - 1 && v.Px <= chartRect.Right + 1)
@@ -2868,12 +2894,11 @@ public static class ErgReportBuilder
                     float left = v.Px - w / 2f, right = v.Px + w / 2f;
                     if (left <= lastRight + minGapX) continue;
 
-                    canvas.DrawText(txt, v.Px - w / 2f, xDigitsBase, labelPaint);
+                    canvas.DrawText(txt, v.Px - w / 2f, xDigitsBaseline, labelPaint);
                     lastRight = right;
                     drawnPx.Add(v.Px);
                 }
 
-                // правый край
                 if (allVisibleX.Count > 0)
                 {
                     var right = allVisibleX.Last();
@@ -2881,53 +2906,73 @@ public static class ErgReportBuilder
                     {
                         var txt = XTextSk(right.T.IsMajor, right.T.Position, right.T.DisplayValue);
                         float w = labelPaint.MeasureText(txt);
-                        canvas.DrawText(txt, right.Px - w / 2f, xDigitsBase, labelPaint);
+                        canvas.DrawText(txt, right.Px - w / 2f, xDigitsBaseline, labelPaint);
                         lastRight = Math.Max(lastRight, right.Px + w / 2f);
                         drawnPx.Add(right.Px);
                     }
                 }
+
+                // ----- Y: цифры -----
+                var visMajorY = yAxisTicks.MajorTicks
+                    .Select(t => new { T = t, Py = Y(t.Position) })
+                    .Where(v => v.Py >= chartRect.Top - 1 && v.Py <= chartRect.Bottom + 1)
+                    .OrderBy(v => v.Py)
+                    .ToList();
+
+                float lastYBottom = float.NegativeInfinity;
+                bool zeroDrawn = false;
+
+                foreach (var v in visMajorY)
+                {
+                    var txt = FormatAxisValue(v.T.DisplayValue);
+                    float w = labelPaint.MeasureText(txt);
+                    float top = v.Py - textHeight / 2f;
+
+                    if (top <= lastYBottom + minLabelGapY && Math.Abs(v.T.Position) > eps) continue;
+
+                    float textX = yAxisX - majorTickLength - opt.YDigitsLeftPadPx - w;
+                    float baseline = top - fm.Ascent;
+                    canvas.DrawText(txt, textX, baseline, labelPaint);
+                    leftmostYTextX = Math.Min(leftmostYTextX, textX);
+                    lastYBottom = top + textHeight;
+
+                    if (Math.Abs(v.T.Position) <= eps) zeroDrawn = true;
+                }
+
+                if (!zeroDrawn && 0 >= yMin - eps && 0 <= yMax + eps)
+                {
+                    var py = Y(0);
+                    var txt = FormatAxisValue(0);
+                    float w = labelPaint.MeasureText(txt);
+                    float top = py - textHeight / 2f;
+                    float textX = yAxisX - majorTickLength - opt.YDigitsLeftPadPx - w;
+                    float baseline = top - fm.Ascent;
+                    canvas.DrawText(txt, textX, baseline, labelPaint);
+                    leftmostYTextX = Math.Min(leftmostYTextX, textX);
+                }
             }
 
             // единицы измерения
-            using (var unitPaint = SkTextPaint(opt.UnitsFontPt, SKColors.Black))
-            {
-                // Нужна высота строки цифр X
-                using var xDigitsPaint = SkTextPaint(opt.LabelFontPt, SKColors.Black);
-                float digitsHeight = xDigitsPaint.FontMetrics.Descent - xDigitsPaint.FontMetrics.Ascent;
+            var xLabel = "ms";
+            float xLabelWidth = unitPaint.MeasureText(xLabel);
+            float midX = (chartRect.Left + chartRect.Right) / 2f;
+            canvas.DrawText(xLabel, midX - xLabelWidth / 2f, xUnitsBaseline, unitPaint);
 
-                // X: "ms" по центру, ниже цифр
-                var xLabel = "ms";
-                float xLabelWidth = unitPaint.MeasureText(xLabel);
-                float midX = (chartRect.Left + chartRect.Right) / 2f;
-                float xUnitsTop = xAxisY + majorTickLength + opt.XDigitsOffsetPx + digitsHeight + opt.XUnitsGapPx;
-                canvas.DrawText(xLabel, midX - xLabelWidth / 2f, xUnitsTop, unitPaint);
+            float uvWidth = unitPaint.MeasureText("µV");
+            float uvHeight = unitsHeight;
+            float unitsX = float.IsPositiveInfinity(leftmostYTextX)
+                ? yAxisX - majorTickLength - opt.YUnitsFallbackFromAxisPx
+                : (leftmostYTextX - opt.YUnitsGapFromNumbersPx) - uvHeight / 2f;
+            unitsX = Math.Max(uvHeight / 2f + 4f, unitsX);
 
-                // Y: "µV" левее самой левой подписи по Y
-                using var yDigitsPaint = SkTextPaint(opt.LabelFontPt, SKColors.Black);
-                float leftmostYTextX = float.PositiveInfinity;
-                foreach (var t in yAxisTicks.MajorTicks)
-                {
-                    var py = (float)(chartRect.Bottom - (t.Position - yMin) / (yMax - yMin) * chartRect.Height);
-                    if (py < chartRect.Top - 1 || py > chartRect.Bottom + 1) continue;
+            float centerY = (chartRect.Top + chartRect.Bottom) / 2f;
 
-                    var txt = FormatAxisValue(t.DisplayValue);
-                    float w = yDigitsPaint.MeasureText(txt);
-                    float textX = yAxisX - MillimetersToPixels(opt.MajorTickLenMm) - opt.YDigitsLeftPadPx - w;
-                    leftmostYTextX = Math.Min(leftmostYTextX, textX);
-                }
-
-                float centerY = (chartRect.Top + chartRect.Bottom) / 2f;
-                float unitsX = float.IsPositiveInfinity(leftmostYTextX)
-                    ? yAxisX - MillimetersToPixels(opt.MajorTickLenMm) - opt.YUnitsFallbackFromAxisPx
-                    : (leftmostYTextX - opt.YUnitsGapFromNumbersPx);
-
-                canvas.Save();
-                canvas.Translate(unitsX, centerY);
-                canvas.RotateDegrees(-90);
-                float uvWidth = unitPaint.MeasureText("µV");
-                canvas.DrawText("µV", -uvWidth / 2f, 0, unitPaint);
-                canvas.Restore();
-            }
+            canvas.Save();
+            canvas.Translate(unitsX, centerY);
+            canvas.RotateDegrees(-90);
+            float uvBaseline = -uvHeight / 2f - unitFm.Ascent;
+            canvas.DrawText("µV", -uvWidth / 2f, uvBaseline, unitPaint);
+            canvas.Restore();
 
             using var snapshot = surface.Snapshot();
             using var data = snapshot.Encode(SKEncodedImageFormat.Png, 90);
