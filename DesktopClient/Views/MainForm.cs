@@ -843,4 +843,95 @@ public partial class MainForm : Form
         trayIcon.Visible = false;
         base.OnFormClosed(e);
     }
+
+    private async void btnGraphTuner_Click(object sender, EventArgs e)
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = "Выберите файл пациента (.bin)",
+            Filter = "Файлы пациента (*.bin)|*.bin|Все файлы (*.*)|*.*",
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+            return;
+
+        var previousCursor = Cursor;
+        Cursor = Cursors.WaitCursor;
+
+        try
+        {
+            // Разбираем .bin с использованием вашей уже существующей логики
+            var result = await _viewModel.ConvertRawFileAsync(dialog.FileName);
+
+            if (!result.Success || result.Patient is null)
+            {
+                MessageBox.Show(
+                    this,
+                    string.IsNullOrWhiteSpace(result.ErrorMessage)
+                        ? "Не удалось прочитать файл пациента."
+                        : result.ErrorMessage!,
+                    "Microlux ERG-Connect",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Берём первый тест с данными
+            var test = result.Patient.Tests?.FirstOrDefault();
+            if (test is null)
+            {
+                MessageBox.Show(this, "В файле нет тестов с данными.", "Microlux ERG-Connect",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Выбираем глаз, у которого есть точки/кривые (предпочтительно правый)
+            var eye = HasGraphs(test.RightEye) ? test.RightEye
+             : HasGraphs(test.LeftEye) ? test.LeftEye
+             : test.RightEye ?? test.LeftEye;
+
+            if (eye is null || !HasGraphs(eye))
+            {
+                MessageBox.Show(this, "В тесте нет валидных данных графиков.", "Microlux ERG-Connect",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // ---------- Вариант А: открыть форму тюнера (для живой настройки) ----------
+            // Требует, чтобы у вас был добавлен класс GraphTunerForm(test, eye)
+            var tuner = new GraphTunerForm(test, eye)
+            {
+                StartPosition = FormStartPosition.CenterParent
+            };
+            tuner.Show(this);
+
+            // ---------- Вариант B: показать статическое превью прямо в MainForm ----------
+            // Раскомментируйте три строки ниже, если хотите вывод PNG в правой панели MainForm.
+            /*
+            EnsureGraphPreviewHost();
+            var png = ErgReportBuilder.RenderGraphPng(test, eye); // см. примечание ниже
+            if (png != null) SetPreviewImageFromBytes(png);
+            */
+        }
+        catch (OperationCanceledException)
+        {
+            AppServices.Log.Warn("Чтение .bin отменено пользователем.");
+        }
+        catch (Exception ex)
+        {
+            AppServices.Log.Error($"Ошибка при чтении .bin: {ex}");
+            MessageBox.Show(this, $"Ошибка при обработке файла: {ex.Message}",
+                "Microlux ERG-Connect", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            Cursor = previousCursor;
+        }
+    }
+
+    private static bool HasGraphs(EyeData? e)
+    {
+        return e?.GraphSamples is { Length: > 0 } arr && arr.Any(s => s is { Length: > 1 });
+    }
 }
