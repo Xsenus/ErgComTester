@@ -38,6 +38,7 @@ public static class AppServices
         Settings = new SettingsService();
         Settings.LoadAsync().GetAwaiter().GetResult();
         RenderingSupport.Reload(Settings.Current.ReportRenderingMode);
+        ApplyGraphOptionsFromSettingsOrInitialize();
 
         Log = new LogService(Settings);
         Log.Section("Microlux ERG-Connect Desktop");
@@ -118,6 +119,34 @@ public static class AppServices
         Log.Dispose();
         _initialized = false;
     }
+
+    public static void ApplyGraphOptionsFromSettingsOrInitialize()
+    {
+        var dto = Settings.Current.GraphOptions;
+        if (dto is null)
+        {
+            Settings.UpdateAsync(s => s.GraphOptions = GraphRenderOptionsDto.From(ErgReportBuilder.GraphOptions))
+                    .GetAwaiter().GetResult();
+        }
+        else
+        {
+            dto.ApplyTo(ErgReportBuilder.GraphOptions);
+        }
+    }
+
+    public static Task PersistGraphOptionsToSettingsAsync()
+    {
+        var snapshot = GraphRenderOptionsDto.From(ErgReportBuilder.GraphOptions);
+        return Settings.UpdateAsync(s => s.GraphOptions = snapshot);
+    }
+
+    public static void ApplyGraphOptionsFromSettings()
+    {
+        var dto = Settings.Current.GraphOptions;
+        if (dto is not null)
+            dto.ApplyTo(ErgReportBuilder.GraphOptions);
+    }
+
 
     public static Task<AutoUpdaterRunInfo> RunAutoUpdaterAsync()
     {

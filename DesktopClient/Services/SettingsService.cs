@@ -81,21 +81,42 @@ public sealed class SettingsService
         }
     }
 
-    public async Task SaveAsync()
+    public async Task SaveAsync(CancellationToken ct = default)
     {
-        await _mutex.WaitAsync().ConfigureAwait(false);
+        // тайм-аут на всякий случай, чтобы никогда не зависать
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+        // пробуем захватить семафор с тайм-аутом
+        await _mutex.WaitAsync(cts.Token).ConfigureAwait(false);
         try
         {
             Directory.CreateDirectory(BaseDirectory);
-            await using var fs = File.Open(SettingsPath, FileMode.Create, FileAccess.Write, FileShare.Read);
-            await JsonSerializer.SerializeAsync(fs, _settings, JsonOptions).ConfigureAwait(false);
+
+            // реальный асинхронный файловый поток, чтобы не блокировать пул
+            await using var fs = new FileStream(
+                SettingsPath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.Read,
+                bufferSize: 4096,
+                options: FileOptions.Asynchronous);
+
+            await JsonSerializer.SerializeAsync(fs, _settings, JsonOptions, cts.Token).ConfigureAwait(false);
+            await fs.FlushAsync(cts.Token).ConfigureAwait(false);
         }
         finally
         {
             _mutex.Release();
         }
-        SettingsChanged?.Invoke(this, _settings);
+
+        _ = Task.Run(() =>
+        {
+            try { SettingsChanged?.Invoke(this, _settings); }
+            catch { /* не даём событию уронить сохранение */ }
+        });
     }
+
 
     public async Task UpdateAsync(Action<AppSettings> update)
     {

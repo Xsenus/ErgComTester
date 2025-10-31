@@ -1,5 +1,6 @@
-﻿using System.Text.Json;
-using ErgData;
+﻿using ErgData;
+using MicroluxErgConnect.Infrastructure;
+using System.Text.Json;
 
 namespace MicroluxErgConnect.Views
 {
@@ -30,20 +31,11 @@ namespace MicroluxErgConnect.Views
             BackColor = Color.White
         };
 
-        private readonly ToolStripButton _btnReset = new ToolStripButton("Восстановить")
-        {
-            DisplayStyle = ToolStripItemDisplayStyle.Text
-        };
-
-        private readonly ToolStripButton _btnSavePreset = new ToolStripButton("Сохранить")
-        {
-            DisplayStyle = ToolStripItemDisplayStyle.Text
-        };
-
-        private readonly ToolStripButton _btnLoadPreset = new ToolStripButton("Загрузить")
-        {
-            DisplayStyle = ToolStripItemDisplayStyle.Text
-        };
+        private readonly ToolStripButton _btnReset = new("Восстановить") { DisplayStyle = ToolStripItemDisplayStyle.Text };
+        private readonly ToolStripButton _btnExportPreset = new("Экспорт в файл") { DisplayStyle = ToolStripItemDisplayStyle.Text };
+        private readonly ToolStripButton _btnImportPreset = new("Импорт из файла") { DisplayStyle = ToolStripItemDisplayStyle.Text };
+        private readonly ToolStripButton _btnSaveToSettings = new("Сохранить в настройки") { DisplayStyle = ToolStripItemDisplayStyle.Text };
+        private readonly ToolStripButton _btnLoadFromSettings = new("Загрузить из настроек") { DisplayStyle = ToolStripItemDisplayStyle.Text };
 
         private readonly FlowLayoutPanel _flow = new FlowLayoutPanel
         {
@@ -74,6 +66,8 @@ namespace MicroluxErgConnect.Views
         private readonly NumericUpDown nudYPad = MakeNud(0m, 60m, 1m, 16m);
         private readonly NumericUpDown nudYUnitsGap = MakeNud(0m, 60m, 1m, 22m);
         private readonly NumericUpDown nudYUnitsFb = MakeNud(0m, 120m, 1m, 70m);
+        private readonly NumericUpDown nudExtremumPx = MakeNud(0.1m, 12m, 0.1m, 1.2m);
+        private readonly NumericUpDown nudGridPx = MakeNud(0.1m, 6m, 0.1m, 1.0m);
 
         // Debounce перерисовки
         private readonly System.Windows.Forms.Timer _debounce = new System.Windows.Forms.Timer { Interval = 120 };
@@ -90,6 +84,10 @@ namespace MicroluxErgConnect.Views
             public float TickThicknessPx { get; set; }
 
             public float CurveThicknessPx { get; set; }
+
+            public float ExtremumThicknessPx { get; set; }
+
+            public float GridThicknessPx { get; set; }
 
             public float LabelFontPt { get; set; }
 
@@ -138,11 +136,33 @@ namespace MicroluxErgConnect.Views
             Controls.Add(_right);
 
             // Toolstrip
-            _tool.Items
-                .AddRange(new ToolStripItem[] { _btnReset, new ToolStripSeparator(), _btnSavePreset, _btnLoadPreset });
+            _tool.Items.AddRange(new ToolStripItem[] {
+                _btnReset, new ToolStripSeparator(),
+                _btnExportPreset, _btnImportPreset,
+                _btnSaveToSettings, _btnLoadFromSettings
+            });
+
+            _tool.ShowItemToolTips = true;
+            _btnExportPreset.ToolTipText = "Сохранить текущие параметры графика в JSON-файл";
+            _btnImportPreset.ToolTipText = "Загрузить параметры графика из JSON-файла";
+            _btnSaveToSettings.ToolTipText = "Записать текущий профиль в settings.json (будет применяться при старте)";
+            _btnLoadFromSettings.ToolTipText = "Применить профиль из settings.json к текущему сеансу";
+
+            // Делаем тулбар "многострочным"
+            _tool.LayoutStyle = ToolStripLayoutStyle.Flow; // вместо HorizontalStackWithOverflow
+            _tool.CanOverflow = false;                     // не уводим в ">>", лучше переносим
+            _tool.AutoSize = true;                         // высота подтянется под 2 строки
+            _tool.Padding = new Padding(6, 4, 6, 4);
+
+            // Немного красоты: равномерные отступы между кнопками
+            foreach (ToolStripItem it in _tool.Items)
+            {
+                it.Overflow = ToolStripItemOverflow.Never; // жёстко запрещаем overflow
+                it.Margin = new Padding(0, 0, 6, 4);       // правый и нижний отступ
+            }
+
+
             _right.Controls.Add(_flow);
-            _flow.SizeChanged += (_, __) => ResizeGroups();
-            ResizeGroups();
             _right.Controls.Add(_tool);
 
             _flow.SuspendLayout();
@@ -155,7 +175,9 @@ namespace MicroluxErgConnect.Views
                         "Thickness (px)",
                         Row("Axis", nudAxisPx, "px"),
                         Row("Tick", nudTickPx, "px"),
-                        Row("Curve", nudCurvePx, "px")));
+                        Row("Curve", nudCurvePx, "px"),
+                        Row("Extremum", nudExtremumPx, "px"),
+                        Row("Grid", nudGridPx, "px")));
             _flow.Controls.Add(MakeGroup("Fonts (pt)", Row("Labels", nudLabelPt, "pt"), Row("Units", nudUnitsPt, "pt")));
             _flow.Controls
                 .Add(
@@ -202,9 +224,12 @@ namespace MicroluxErgConnect.Views
             tip.SetToolTip(nudYPad, "Отступ чисел Y от оси (px)");
             tip.SetToolTip(nudYUnitsGap, "Зазор 'µV' от чисел (px)");
             tip.SetToolTip(nudYUnitsFb, "Фоллбек-отступ 'µV' от оси (px)");
+            tip.SetToolTip(nudExtremumPx, "Толщина отметок экстремумов (px)");
+            tip.SetToolTip(nudGridPx, "Толщина линий сетки (px)");
 
             // Адаптация ширины групп
             _flow.SizeChanged += (_, __) => ResizeGroups();
+            ResizeGroups();
 
             // Значения из GraphOptions → NUD
             LoadFromOptions();
@@ -222,11 +247,52 @@ namespace MicroluxErgConnect.Views
                 ResetToDefaults();
                 Redraw();
             };
-            _btnSavePreset.Click += (_, __) => SavePreset();
-            _btnLoadPreset.Click += (_, __) =>
+            _btnExportPreset.Click += (_, __) => SavePreset();
+            _btnImportPreset.Click += (_, __) =>
             {
                 if(LoadPreset())
                     Redraw();
+            };
+
+            _btnSaveToSettings.Click += async (_, __) =>
+            {
+                try
+                {
+                    // Текущие значения уже перенесены в ErgReportBuilder.GraphOptions в Redraw()
+                    await AppServices.PersistGraphOptionsToSettingsAsync().ConfigureAwait(false);
+                    MessageBox.Show(
+                        this,
+                        "Сохранено в настройки приложения.",
+                        "Graph Tuner",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                } catch(Exception ex)
+                {
+                    MessageBox.Show(
+                        this,
+                        "Не удалось сохранить настройки: " + ex.Message,
+                        "Graph Tuner",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                }
+            };
+
+            _btnLoadFromSettings.Click += (_, __) =>
+            {
+                try
+                {
+                    AppServices.ApplyGraphOptionsFromSettings();
+                    LoadFromOptions();
+                    Redraw();
+                } catch(Exception ex)
+                {
+                    MessageBox.Show(
+                        this,
+                        "Не удалось загрузить настройки: " + ex.Message,
+                        "Graph Tuner",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                }
             };
 
             _debounce.Tick += (_, __) =>
@@ -245,6 +311,18 @@ namespace MicroluxErgConnect.Views
             var img = _preview.Image;
             _preview.Image = null;
             img?.Dispose();
+
+            try
+            {
+                // Откатываем все временные правки формы.
+                // Рабочим профилем остаётся то, что в settings.json.
+                AppServices.ApplyGraphOptionsFromSettings();
+            }
+            catch
+            {
+                // best-effort: не мешаем закрытию формы
+            }
+
             base.OnFormClosed(e);
         }
 
@@ -325,15 +403,6 @@ namespace MicroluxErgConnect.Views
             return grp;
         }
 
-        // ВАРИАНТ B: совместимость — принимает пары (string, Control)
-        // и сам проставляет единицы измерения по заголовку группы
-        private Control MakeGroup(string title, params (string label, Control ctrl)[] rows)
-        {
-            string units = UnitsByTitle(title);
-            var triples = rows.Select(r => Row(r.label, r.ctrl, units)).ToArray();
-            return MakeGroup(title, triples); // → перегрузка выше
-        }
-
         private static string UnitsByTitle(string title)
         {
             var t = title.ToLowerInvariant();
@@ -343,12 +412,6 @@ namespace MicroluxErgConnect.Views
                 return "pt";
             return "px";
         }
-
-
-        // простой хелпер, чтобы заполнить правую колонку единицами
-        private static string GuessUnits(string label) => label.Contains("mm", StringComparison.OrdinalIgnoreCase)
-            ? "mm"
-            : label.Contains("pt", StringComparison.OrdinalIgnoreCase) ? "pt" : "px";
 
         private void ResizeGroups()
         {
@@ -361,7 +424,6 @@ namespace MicroluxErgConnect.Views
                 gb.Width = w;
             }
         }
-
 
         private static decimal Clamp(NumericUpDown nud, decimal v)
         {
@@ -389,7 +451,13 @@ namespace MicroluxErgConnect.Views
                 return;
             if(nud == nudLabelPt || nud == nudUnitsPt)
                 nud.Increment = 0.5m;
-            else if(nud == nudMajorMm || nud == nudMinorMm || nud == nudAxisPx || nud == nudTickPx || nud == nudCurvePx)
+            else if(nud == nudMajorMm ||
+                nud == nudMinorMm ||
+                nud == nudAxisPx ||
+                nud == nudTickPx ||
+                nud == nudCurvePx ||
+                nud == nudExtremumPx ||
+                nud == nudGridPx)
                 nud.Increment = 0.1m;
             else
                 nud.Increment = 1m;
@@ -423,31 +491,40 @@ namespace MicroluxErgConnect.Views
             nudYPad.Value = Clamp(nudYPad, (decimal)o.YDigitsLeftPadPx);
             nudYUnitsGap.Value = Clamp(nudYUnitsGap, (decimal)o.YUnitsGapFromNumbersPx);
             nudYUnitsFb.Value = Clamp(nudYUnitsFb, (decimal)o.YUnitsFallbackFromAxisPx);
+
+            nudExtremumPx.Value = Clamp(nudExtremumPx, (decimal)o.ExtremumThicknessPx);
+            nudGridPx.Value = Clamp(nudGridPx, (decimal)o.GridThicknessPx);
         }
 
-        private PresetDto CapturePreset() => new PresetDto
+        private PresetDto CapturePreset()
         {
-            MajorTickLenMm = (float)nudMajorMm.Value,
-            MinorTickLenMm = (float)nudMinorMm.Value,
-            AxisThicknessPx = (float)nudAxisPx.Value,
-            TickThicknessPx = (float)nudTickPx.Value,
-            CurveThicknessPx = (float)nudCurvePx.Value,
-            LabelFontPt = (float)nudLabelPt.Value,
-            UnitsFontPt = (float)nudUnitsPt.Value,
-            MarginLeft = (float)nudMarginL.Value,
-            MarginRight = (float)nudMarginR.Value,
-            MarginTop = (float)nudMarginT.Value,
-            MarginBottom = (float)nudMarginB.Value,
-            AxisGapHorizontal = (float)nudGapH.Value,
-            AxisGapVertical = (float)nudGapV.Value,
-            XDigitsOffsetPx = (float)nudXDigitsOff.Value,
-            XUnitsGapPx = (float)nudXUnitsGap.Value,
-            MinLabelGapXPx = (float)nudMinGapX.Value,
-            MinLabelGapYPx = (float)nudMinGapY.Value,
-            YDigitsLeftPadPx = (float)nudYPad.Value,
-            YUnitsGapFromNumbersPx = (float)nudYUnitsGap.Value,
-            YUnitsFallbackFromAxisPx = (float)nudYUnitsFb.Value
-        };
+            var o = ErgReportBuilder.GraphOptions;
+            return new PresetDto
+            {
+                MajorTickLenMm = (float)nudMajorMm.Value,
+                MinorTickLenMm = (float)nudMinorMm.Value,
+                AxisThicknessPx = (float)nudAxisPx.Value,
+                TickThicknessPx = (float)nudTickPx.Value,
+                CurveThicknessPx = (float)nudCurvePx.Value,
+                ExtremumThicknessPx = o.ExtremumThicknessPx,
+                GridThicknessPx = o.GridThicknessPx,
+                LabelFontPt = (float)nudLabelPt.Value,
+                UnitsFontPt = (float)nudUnitsPt.Value,
+                MarginLeft = (float)nudMarginL.Value,
+                MarginRight = (float)nudMarginR.Value,
+                MarginTop = (float)nudMarginT.Value,
+                MarginBottom = (float)nudMarginB.Value,
+                AxisGapHorizontal = (float)nudGapH.Value,
+                AxisGapVertical = (float)nudGapV.Value,
+                XDigitsOffsetPx = (float)nudXDigitsOff.Value,
+                XUnitsGapPx = (float)nudXUnitsGap.Value,
+                MinLabelGapXPx = (float)nudMinGapX.Value,
+                MinLabelGapYPx = (float)nudMinGapY.Value,
+                YDigitsLeftPadPx = (float)nudYPad.Value,
+                YUnitsGapFromNumbersPx = (float)nudYUnitsGap.Value,
+                YUnitsFallbackFromAxisPx = (float)nudYUnitsFb.Value
+            };
+        }
 
         private void ApplyPreset(PresetDto p)
         {
@@ -457,6 +534,8 @@ namespace MicroluxErgConnect.Views
             o.AxisThicknessPx = p.AxisThicknessPx;
             o.TickThicknessPx = p.TickThicknessPx;
             o.CurveThicknessPx = p.CurveThicknessPx;
+            o.ExtremumThicknessPx = p.ExtremumThicknessPx;
+            o.GridThicknessPx = p.GridThicknessPx;
             o.LabelFontPt = p.LabelFontPt;
             o.UnitsFontPt = p.UnitsFontPt;
             o.MarginLeft = p.MarginLeft;
@@ -501,7 +580,9 @@ namespace MicroluxErgConnect.Views
                     MinLabelGapYPx = d.MinLabelGapYPx,
                     YDigitsLeftPadPx = d.YDigitsLeftPadPx,
                     YUnitsGapFromNumbersPx = d.YUnitsGapFromNumbersPx,
-                    YUnitsFallbackFromAxisPx = d.YUnitsFallbackFromAxisPx
+                    YUnitsFallbackFromAxisPx = d.YUnitsFallbackFromAxisPx,
+                    ExtremumThicknessPx = d.ExtremumThicknessPx,
+                    GridThicknessPx = d.GridThicknessPx
                 });
         }
 
@@ -573,6 +654,9 @@ namespace MicroluxErgConnect.Views
             o.YDigitsLeftPadPx = (float)nudYPad.Value;
             o.YUnitsGapFromNumbersPx = (float)nudYUnitsGap.Value;
             o.YUnitsFallbackFromAxisPx = (float)nudYUnitsFb.Value;
+
+            o.ExtremumThicknessPx = (float)nudExtremumPx.Value;
+            o.GridThicknessPx = (float)nudGridPx.Value;
 
             var bytes = ErgReportBuilder.RenderGraphPng(_test, _eye);
             if(bytes == null)

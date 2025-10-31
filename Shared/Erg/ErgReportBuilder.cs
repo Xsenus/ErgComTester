@@ -4355,7 +4355,6 @@ public static class ErgReportBuilder
 
     public sealed class GraphRenderOptions
     {
-
         // Внешние зазоры под оси/подписи
         public float AxisGapHorizontal { get; set; } = 20f; // слева под цифры Y и "µV"
         public float AxisGapVertical { get; set; } = 8f;  // снизу под цифры X и "ms"
