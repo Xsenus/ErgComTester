@@ -1,3 +1,4 @@
+using System;
 using System.Text.Json.Serialization;
 using ErgData;
 
@@ -42,6 +43,8 @@ public sealed class GraphRenderOptionsDto
     public float CurveThicknessPx { get; set; }
     public float ExtremumThicknessPx { get; set; }
     public float GridThicknessPx { get; set; }
+    public float DottedDashLengthPx { get; set; }
+    public float DottedGapLengthPx { get; set; }
     public float LabelFontPt { get; set; }
     public float UnitsFontPt { get; set; }
     public float MarginLeft { get; set; }
@@ -67,6 +70,8 @@ public sealed class GraphRenderOptionsDto
         CurveThicknessPx = o.CurveThicknessPx,
         ExtremumThicknessPx = o.ExtremumThicknessPx,
         GridThicknessPx = o.GridThicknessPx,
+        DottedDashLengthPx = o.DottedDashLengthPx,
+        DottedGapLengthPx = o.DottedGapLengthPx,
         LabelFontPt = o.LabelFontPt,
         UnitsFontPt = o.UnitsFontPt,
         MarginLeft = o.MarginLeft,
@@ -93,6 +98,10 @@ public sealed class GraphRenderOptionsDto
         o.CurveThicknessPx = CurveThicknessPx;
         o.ExtremumThicknessPx = ExtremumThicknessPx;
         o.GridThicknessPx = GridThicknessPx;
+        if (DottedDashLengthPx > 0f)
+            o.DottedDashLengthPx = ErgReportBuilder.GraphRenderOptions.NormalizeDottedLength(DottedDashLengthPx, o.DottedDashLengthPx);
+        if (DottedGapLengthPx > 0f)
+            o.DottedGapLengthPx = ErgReportBuilder.GraphRenderOptions.NormalizeDottedLength(DottedGapLengthPx, o.DottedGapLengthPx);
         o.LabelFontPt = LabelFontPt;
         o.UnitsFontPt = UnitsFontPt;
         o.MarginLeft = MarginLeft;
