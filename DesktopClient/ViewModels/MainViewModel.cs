@@ -160,7 +160,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private void OpenReportsFolder() => OpenFolderSafely(_settings.Current.ReportsDirectory, "отчеты");
+    private void OpenReportsFolder() => OpenFolderSafely(_settings.Current.PdfReportsDirectory, "PDF-отчеты");
 
     private void OpenLogsFolder() => OpenFolderSafely(_settings.Current.LogsDirectory, "логи");
 

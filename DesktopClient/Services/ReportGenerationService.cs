@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Globalization;
 using System.IO;
 using System.IO.Ports;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ErgData;
@@ -22,6 +23,22 @@ public sealed class ReportGenerationService : IDisposable
     private bool _pdfGenerationEnabled;
     private string? _pdfGenerationIssue;
     private string? _lastPdfWarningMessage;
+    private string? _lastInvalidTestDate;
+
+    private static readonly string[] PatientDateFormats = new[]
+    {
+        "dd.MM.yyyy HH:mm",
+        "dd.MM.yy HH:mm",
+        "dd/MM/yyyy HH:mm",
+        "dd/MM/yy HH:mm",
+        "yyyy-MM-dd HH:mm",
+        "dd.MM.yyyy H:mm",
+        "dd.MM.yy H:mm",
+        "dd/MM/yyyy H:mm",
+        "dd/MM/yy H:mm"
+    };
+
+    private static readonly CultureInfo RussianCulture = CultureInfo.GetCultureInfo("ru-RU");
 
     public event EventHandler<string>? ReportGenerated;
     public event EventHandler<string>? SyncStateChanged;
@@ -125,6 +142,7 @@ public sealed class ReportGenerationService : IDisposable
     {
         var options = _settings.Current.Serial;
         Directory.CreateDirectory(_settings.Current.ReportsDirectory);
+        EnsurePdfDirectory();
         using var port = SerialPortUtility.CreatePort(portName, options);
         port.Open();
         SerialPortUtility.ToggleLinesIfNeeded(port, options, _log);
@@ -255,7 +273,7 @@ public sealed class ReportGenerationService : IDisposable
                     string? pdfPath = null;
                     if (_pdfGenerationEnabled)
                     {
-                        var candidatePdfPath = Path.Combine(sessionDir, $"patient_{index:000}.pdf");
+                        var candidatePdfPath = BuildPdfReportPath(patient);
                         try
                         {
                             ErgReportBuilder.BuildPatientReport(patient, candidatePdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: finalRawPath, template: template);
@@ -623,7 +641,7 @@ public sealed class ReportGenerationService : IDisposable
 
         var baseName = Path.GetFileNameWithoutExtension(filePath);
         var jsonPath = Path.Combine(directory, $"{baseName}.json");
-        var pdfPath = Path.Combine(directory, $"{baseName}.pdf");
+        var pdfPath = BuildPdfReportPath(patient);
         var docxPath = Path.Combine(directory, $"{baseName}.docx");
 
         var template = _settings.Current.ReportTemplate;
@@ -682,6 +700,75 @@ public sealed class ReportGenerationService : IDisposable
         _log.Info($"Ручное преобразование успешно завершено для {filePath}.");
         _telegram?.NotifyManualConversionSucceeded(filePath, patient, jsonPath, pdfPath, docxPath);
         return result with { Success = true, JsonPath = jsonPath, PdfPath = pdfPath, DocxPath = docxPath, Patient = patient };
+    }
+
+    private string BuildPdfReportPath(ErgPatient patient)
+    {
+        var directory = EnsurePdfDirectory();
+        var patientId = FormatPatientId(patient.PatientId);
+        var timestamp = GetReportTimestamp(patient);
+        var fileName = $"{patientId}_{timestamp:yyMMddHHmm}.pdf";
+        return Path.Combine(directory, fileName);
+    }
+
+    private string EnsurePdfDirectory()
+    {
+        var directory = _settings.Current.PdfReportsDirectory;
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            directory = Path.Combine(AppContext.BaseDirectory, "out");
+        }
+
+        Directory.CreateDirectory(directory);
+        return directory;
+    }
+
+    private static string FormatPatientId(uint patientId)
+    {
+        return patientId.ToString("D6", CultureInfo.InvariantCulture);
+    }
+
+    private DateTime GetReportTimestamp(ErgPatient patient)
+    {
+        var normalized = NormalizeTestDate(patient.TestDateTime);
+        if (!string.IsNullOrEmpty(normalized))
+        {
+            const DateTimeStyles styles = DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal;
+
+            if (DateTime.TryParseExact(normalized, PatientDateFormats, RussianCulture, styles, out var exact))
+            {
+                return exact;
+            }
+
+            if (DateTime.TryParse(normalized, RussianCulture, styles, out var parsedRu))
+            {
+                return parsedRu;
+            }
+
+            if (DateTime.TryParse(normalized, CultureInfo.InvariantCulture, styles, out var parsedInvariant))
+            {
+                return parsedInvariant;
+            }
+
+            if (!string.Equals(_lastInvalidTestDate, normalized, StringComparison.Ordinal))
+            {
+                _log.Warn($"Не удалось распознать дату исследования '{normalized}', используется текущее время.");
+                _lastInvalidTestDate = normalized;
+            }
+        }
+
+        return DateTime.Now;
+    }
+
+    private static string NormalizeTestDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var filtered = value.Where(c => !char.IsControl(c)).ToArray();
+        return new string(filtered).Trim();
     }
 
     private void LogPatientWarnings(ErgPatient patient, string context)

@@ -24,11 +24,15 @@ public sealed class SettingsService
 
     public event EventHandler<AppSettings>? SettingsChanged;
 
+    private static string GetDefaultPdfDirectory()
+        => Path.Combine(AppContext.BaseDirectory, "out");
+
     public async Task LoadAsync()
     {
         Directory.CreateDirectory(BaseDirectory);
 
         var saveRequired = false;
+        var settingsLoadedFromFile = false;
 
         if (File.Exists(SettingsPath))
         {
@@ -37,6 +41,7 @@ public sealed class SettingsService
             if (loaded != null)
             {
                 _settings = loaded;
+                settingsLoadedFromFile = true;
             }
             else
             {
@@ -72,8 +77,41 @@ public sealed class SettingsService
             saveRequired = true;
         }
 
+        if (string.IsNullOrWhiteSpace(_settings.PdfReportsDirectory))
+        {
+            _settings.PdfReportsDirectory = settingsLoadedFromFile
+                ? _settings.ReportsDirectory
+                : GetDefaultPdfDirectory();
+            saveRequired = true;
+        }
+        else
+        {
+            try
+            {
+                var normalized = Path.GetFullPath(_settings.PdfReportsDirectory);
+                if (!string.Equals(normalized, _settings.PdfReportsDirectory, StringComparison.Ordinal))
+                {
+                    _settings.PdfReportsDirectory = normalized;
+                    saveRequired = true;
+                }
+            }
+            catch
+            {
+                _settings.PdfReportsDirectory = GetDefaultPdfDirectory();
+                saveRequired = true;
+            }
+        }
+
+        var workingDirectory = Path.Combine(BaseDirectory, "Sessions");
+        if (!string.Equals(_settings.ReportsDirectory, workingDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            _settings.ReportsDirectory = workingDirectory;
+            saveRequired = true;
+        }
+
         Directory.CreateDirectory(_settings.LogsDirectory);
         Directory.CreateDirectory(_settings.ReportsDirectory);
+        Directory.CreateDirectory(_settings.PdfReportsDirectory);
 
         if (saveRequired)
         {
@@ -83,17 +121,17 @@ public sealed class SettingsService
 
     public async Task SaveAsync(CancellationToken ct = default)
     {
-        // тайм-аут на всякий случай, чтобы никогда не зависать
+        // ГІГ Г©Г¬-Г ГіГІ Г­Г  ГўГ±ГїГЄГЁГ© Г±Г«ГіГ·Г Г©, Г·ГІГ®ГЎГ» Г­ГЁГЄГ®ГЈГ¤Г  Г­ГҐ Г§Г ГўГЁГ±Г ГІГј
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(5));
 
-        // пробуем захватить семафор с тайм-аутом
+        // ГЇГ°Г®ГЎГіГҐГ¬ Г§Г ГµГўГ ГІГЁГІГј Г±ГҐГ¬Г ГґГ®Г° Г± ГІГ Г©Г¬-Г ГіГІГ®Г¬
         await _mutex.WaitAsync(cts.Token).ConfigureAwait(false);
         try
         {
             Directory.CreateDirectory(BaseDirectory);
 
-            // реальный асинхронный файловый поток, чтобы не блокировать пул
+            // Г°ГҐГ Г«ГјГ­Г»Г© Г Г±ГЁГ­ГµГ°Г®Г­Г­Г»Г© ГґГ Г©Г«Г®ГўГ»Г© ГЇГ®ГІГ®ГЄ, Г·ГІГ®ГЎГ» Г­ГҐ ГЎГ«Г®ГЄГЁГ°Г®ГўГ ГІГј ГЇГіГ«
             await using var fs = new FileStream(
                 SettingsPath,
                 FileMode.Create,
@@ -113,7 +151,7 @@ public sealed class SettingsService
         _ = Task.Run(() =>
         {
             try { SettingsChanged?.Invoke(this, _settings); }
-            catch { /* не даём событию уронить сохранение */ }
+            catch { /* Г­ГҐ Г¤Г ВёГ¬ Г±Г®ГЎГ»ГІГЁГѕ ГіГ°Г®Г­ГЁГІГј Г±Г®ГµГ°Г Г­ГҐГ­ГЁГҐ */ }
         });
     }
 
