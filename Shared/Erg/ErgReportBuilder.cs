@@ -4206,13 +4206,15 @@ public static class ErgReportBuilder
 
             container.Column(column =>
             {
-                column.Spacing(10);
-                column.Item().Background(Colors.Grey.Lighten2)
-                    .PaddingVertical(6)
-                    .PaddingHorizontal(8)
-                    .MarginBottom(6)
-                    .AlignCenter()
-                    .Text(FormatClientTestTitle(_index, _test)).FontSize(12).SemiBold();
+                column.Spacing(12);
+                column.Item().Element(header =>
+                {
+                    header.Background(Colors.Grey.Lighten2)
+                        .PaddingVertical(6)
+                        .PaddingHorizontal(8)
+                        .AlignCenter()
+                        .Text(FormatClientTestTitle(_index, _test)).FontSize(12).SemiBold();
+                });
 
                 column.Item().Row(row =>
                 {
