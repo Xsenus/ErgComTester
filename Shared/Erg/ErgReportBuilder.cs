@@ -2205,13 +2205,13 @@ public static class ErgReportBuilder
 
         for (int i = 0; i < headerLineCount; i++)
         {
-            if (lines != null && i < lines.Length && !string.IsNullOrEmpty(lines[i]))
+            if (lines != null && i < lines.Length && !string.IsNullOrWhiteSpace(lines[i]))
             {
                 result[i] = lines[i]!;
             }
             else
             {
-                result[i] = $"строка {i + 1}";
+                result[i] = "\u00A0";
             }
         }
 
