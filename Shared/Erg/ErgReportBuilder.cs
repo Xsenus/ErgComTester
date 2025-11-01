@@ -96,8 +96,17 @@ public static class ErgReportBuilder
             body.Append(CreateGraphTable(mainPart, rightGraph, leftGraph, ref imageId));
         }
 
-        body.Append(CreateParagraph("Первые 10 точек (правый глаз, график 1): " + BuildGraphPreview(test.RightEye.GraphsNormalized, test.GraphNumPoints), fontSizePt: 10));
-        body.Append(CreateParagraph("Первые 10 точек (левый глаз, график 1): " + BuildGraphPreview(test.LeftEye.GraphsNormalized, test.GraphNumPoints), fontSizePt: 10));
+        var rightPreview = BuildGraphPreview(test.RightEye.GraphsNormalized, test.GraphNumPoints);
+        if (!string.Equals(rightPreview, "нет данных", StringComparison.OrdinalIgnoreCase))
+        {
+            body.Append(CreateParagraph("Первые 10 точек (правый глаз, график 1): " + rightPreview, fontSizePt: 10));
+        }
+
+        var leftPreview = BuildGraphPreview(test.LeftEye.GraphsNormalized, test.GraphNumPoints);
+        if (!string.Equals(leftPreview, "нет данных", StringComparison.OrdinalIgnoreCase))
+        {
+            body.Append(CreateParagraph("Первые 10 точек (левый глаз, график 1): " + leftPreview, fontSizePt: 10));
+        }
     }
 
     private static void AppendTextWithBreaks(Run run, string text)
@@ -118,13 +127,10 @@ public static class ErgReportBuilder
             return;
 
         var sectionProps = body.Elements<SectionProperties>().LastOrDefault();
-        if (sectionProps != null)
-        {
-            sectionProps.Remove();
-        }
-        else
+        if (sectionProps == null)
         {
             sectionProps = new SectionProperties();
+            body.Append(sectionProps);
         }
 
         var pageMargin = sectionProps.GetFirstChild<PageMargin>();
@@ -143,7 +149,8 @@ public static class ErgReportBuilder
         if (bottomCm.HasValue)
             pageMargin.Bottom = new Int32Value(TwipsFromCentimeters(bottomCm.Value));
 
-        body.Append(sectionProps);
+        if (!body.Elements<SectionProperties>().Contains(sectionProps))
+            body.Append(sectionProps);
     }
 
     private static string BoolText(bool value) => value ? "Да" : "Нет";
@@ -264,15 +271,18 @@ public static class ErgReportBuilder
 
     private static string[] BuildClinicHeaderLines(string? clinicName)
     {
-        var lines = new string[4];
+        const int headerLineCount = 4;
+        var lines = new string[headerLineCount];
+        Array.Fill(lines, string.Empty);
+
         if (string.IsNullOrWhiteSpace(clinicName))
             return lines;
 
         var normalized = clinicName.Replace("\r\n", "\n").Replace('\r', '\n');
-        var parts = normalized.Split('\n', StringSplitOptions.None);
-        for (int i = 0; i < lines.Length && i < parts.Length; i++)
+        var parts = normalized.Split(new[] { '\n' }, headerLineCount, StringSplitOptions.None);
+        for (int i = 0; i < headerLineCount && i < parts.Length; i++)
         {
-            lines[i] = parts[i].Trim();
+            lines[i] = parts[i] ?? string.Empty;
         }
 
         return lines;
@@ -563,7 +573,9 @@ public static class ErgReportBuilder
             container.Page(page =>
             {
                 page.Size(PageSizes.A4);
-                page.Margin(36);
+                const float mmToPoints = 72f / 25.4f;
+                var margin = 20f * mmToPoints;
+                page.Margin(margin);
                 page.PageColor(Colors.White);
                 page.DefaultTextStyle(t => t.FontFamily("Arial").FontSize(11));
 
@@ -571,30 +583,42 @@ public static class ErgReportBuilder
 
                 page.Header().Column(column =>
                 {
-                    column.Spacing(0);
+                    column.Spacing(4);
 
-                    for (int i = 0; i < clinicHeaderLines.Length; i++)
+                    column.Item().Element(header =>
                     {
-                        var line = clinicHeaderLines[i];
-                        var bottomPadding = i == clinicHeaderLines.Length - 1
-                            ? (float)HeaderTitleSpacingPoints
-                            : (float)HeaderLineSpacingPoints;
-
-                        column.Item().MinHeight(12).PaddingBottom(bottomPadding).AlignRight().AlignMiddle().Text(text =>
+                        header.ShowOnce().Column(headerColumn =>
                         {
-                            text.DefaultTextStyle(style => style.FontFamily("Arial").FontSize(10));
-                            text.AlignRight();
-                            text.Span(string.IsNullOrWhiteSpace(line) ? "\u00A0" : line);
-                        });
-                    }
+                            headerColumn.Spacing(0);
 
-                    column.Item().AlignCenter().Text(reportTitle).FontSize(14).SemiBold();
+                            for (int i = 0; i < clinicHeaderLines.Length; i++)
+                            {
+                                var line = clinicHeaderLines[i];
+                                var bottomPadding = i == clinicHeaderLines.Length - 1
+                                    ? (float)HeaderTitleSpacingPoints
+                                    : (float)HeaderLineSpacingPoints;
+
+                                headerColumn.Item().MinHeight(12)
+                                    .PaddingBottom(bottomPadding)
+                                    .AlignCenter().AlignMiddle()
+                                    .Text(text =>
+                                    {
+                                        text.DefaultTextStyle(style => style.FontFamily("Arial").FontSize(10));
+                                        text.AlignCenter();
+                                        text.Span(string.IsNullOrWhiteSpace(line) ? "\u00A0" : line);
+                                    });
+                            }
+
+                            headerColumn.Item().AlignCenter().Text(reportTitle).FontSize(14).SemiBold();
+                        });
+                    });
+
+                    column.Item().PaddingBottom(6).Component(new ClientInfoComponent(patient, deviceInfo));
                 });
 
                 page.Content().Column(column =>
                 {
                     column.Spacing(12);
-                    column.Item().Component(new ClientInfoComponent(patient, deviceInfo));
 
                     for (int i = 0; i < patient.Tests.Count; i++)
                     {
@@ -608,19 +632,21 @@ public static class ErgReportBuilder
 
                 });
 
-                page.Footer().Column(footer =>
+                page.Footer().Row(row =>
                 {
-                    footer.Spacing(2);
-                    if (!string.IsNullOrWhiteSpace(reportVersion) && reportVersion != "—")
-                    {
-                        footer.Item().AlignCenter().Text(t =>
-                        {
-                            t.DefaultTextStyle(style => style.FontSize(8).FontColor(Colors.Grey.Darken1));
-                            t.Span($"Версия отчета: {reportVersion}");
-                        });
-                    }
+                    row.Spacing(6);
 
-                    footer.Item().AlignCenter().Text(txt =>
+                    var versionText = !string.IsNullOrWhiteSpace(reportVersion) && reportVersion != "—"
+                        ? $"Версия отчета: {reportVersion}"
+                        : string.Empty;
+
+                    row.RelativeItem().AlignLeft().Text(text =>
+                    {
+                        text.DefaultTextStyle(style => style.FontSize(8).FontColor(Colors.Grey.Darken1));
+                        text.Span(string.IsNullOrEmpty(versionText) ? string.Empty : versionText);
+                    });
+
+                    row.RelativeItem().AlignRight().Text(txt =>
                     {
                         txt.DefaultTextStyle(style => style.FontSize(9).FontColor(Colors.Grey.Darken1));
                         txt.Span("Стр. ");
@@ -649,6 +675,9 @@ public static class ErgReportBuilder
             body.Append(CreateParagraph(headerTitle, fontSizePt: 16, bold: true, justification: JustificationValues.Center, spacingAfter: TwipsFromPoints(12)));
             body.Append(CreateHeaderTable(patient, deviceInfo));
 
+            var classicHeaderInfo = CreateClientInfoTable(patient, deviceInfo);
+            EnsureClientHeaderRepeat(mainPart, body, classicHeaderInfo);
+
             uint imageId = 1;
 
             for (int i = 0; i < patient.Tests.Count; i++)
@@ -672,7 +701,7 @@ public static class ErgReportBuilder
                 body.Append(CreateDescriptionTable(patient.Description));
             }
 
-            ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
+            ApplyPageMargins(body, leftCm: 2.0, rightCm: 2.0, topCm: 2.0, bottomCm: 2.0);
 
             EnsureDocumentPropertiesParts(document, headerTitle);
 
@@ -703,8 +732,8 @@ public static class ErgReportBuilder
                 body.Append(CreateParagraph(
                     text,
                     fontSizePt: 10,
-                    bold: true,
-                    justification: JustificationValues.Right,
+                    bold: false,
+                    justification: JustificationValues.Center,
                     spacingAfter: spacingAfter));
             }
 
@@ -719,7 +748,9 @@ public static class ErgReportBuilder
                 justification: JustificationValues.Center,
                 spacingBefore: TwipsFromPoints(HeaderTitleSpacingPoints),
                 spacingAfter: TwipsFromPoints(8)));
-            body.Append(CreateClientInfoTable(patient, deviceInfo));
+            var infoTable = CreateClientInfoTable(patient, deviceInfo);
+            EnsureClientHeaderRepeat(mainPart, body, infoTable);
+            body.Append(infoTable);
 
             uint imageId = 1;
 
@@ -740,7 +771,7 @@ public static class ErgReportBuilder
                 body.Append(CreateParagraph($"Версия отчета: {version}", fontSizePt: 8, colorHex: "777777", justification: JustificationValues.Center, spacingBefore: TwipsFromPoints(12)));
             }
 
-            ApplyPageMargins(body, leftCm: 1.0, rightCm: 1.0, topCm: 1.0, bottomCm: 1.0);
+            ApplyPageMargins(body, leftCm: 2.0, rightCm: 2.0, topCm: 2.0, bottomCm: 2.0);
 
             EnsureDocumentPropertiesParts(document, reportTitle);
 
@@ -826,7 +857,7 @@ public static class ErgReportBuilder
             LeftMargin = new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
             RightMargin = new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
             TopMargin = new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
-            BottomMargin = new BottomMargin { Width = "20", Type = TableWidthUnitValues.Dxa }
+            BottomMargin = new BottomMargin { Width = "120", Type = TableWidthUnitValues.Dxa }
         });
 
         var cell = new TableCell(props);
@@ -885,7 +916,7 @@ public static class ErgReportBuilder
         var props = new TableCellProperties(
             new GridSpan { Val = gridSpan },
             new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center },
-            new Shading { Fill = "EEEEEE", Val = ShadingPatternValues.Clear, Color = "000000" }
+            new Shading { Fill = "CCCCCC", Val = ShadingPatternValues.Clear, Color = "000000" }
         );
         props.Append(new TableCellMargin
         {
@@ -930,6 +961,34 @@ public static class ErgReportBuilder
         }
 
         return table;
+    }
+
+    private static void EnsureClientHeaderRepeat(MainDocumentPart mainPart, Body body, Table infoTable)
+    {
+        if (mainPart == null || body == null || infoTable == null)
+            return;
+
+        var defaultHeaderPart = mainPart.AddNewPart<HeaderPart>();
+        var defaultHeader = new Header();
+        defaultHeader.Append(infoTable.CloneNode(true));
+        defaultHeaderPart.Header = defaultHeader;
+
+        var firstHeaderPart = mainPart.AddNewPart<HeaderPart>();
+        var firstHeader = new Header(new Paragraph(new Run(new Text(string.Empty))));
+        firstHeaderPart.Header = firstHeader;
+
+        var sectionProps = body.Elements<SectionProperties>().LastOrDefault();
+        if (sectionProps == null)
+        {
+            sectionProps = new SectionProperties();
+            body.Append(sectionProps);
+        }
+
+        sectionProps.RemoveAllChildren<HeaderReference>();
+        sectionProps.RemoveAllChildren<TitlePage>();
+        sectionProps.Append(new TitlePage());
+        sectionProps.Append(new HeaderReference { Type = HeaderFooterValues.First, Id = mainPart.GetIdOfPart(firstHeaderPart) });
+        sectionProps.Append(new HeaderReference { Type = HeaderFooterValues.Default, Id = mainPart.GetIdOfPart(defaultHeaderPart) });
     }
 
     private static Table CreateClientTestTable(MainDocumentPart mainPart, ErgTest test, int index, ref uint imageId)
@@ -1004,7 +1063,7 @@ public static class ErgReportBuilder
 
         var cell = new TableCell(props);
         var text = string.IsNullOrWhiteSpace(label) ? string.Empty : label;
-        cell.Append(CreateParagraph(text, fontSizePt: 11, bold: true, justification: JustificationValues.Left));
+        cell.Append(CreateParagraph(text, fontSizePt: 11, bold: false, justification: JustificationValues.Left));
         return cell;
     }
 
@@ -1183,10 +1242,34 @@ public static class ErgReportBuilder
         headerRow.Append(CreateGraphHeaderCell("Левый глаз"));
         table.Append(headerRow);
 
-        var imageRow = new TableRow();
-        imageRow.Append(CreateGraphImageCell(mainPart, rightGraph, "right-eye", ref imageId));
-        imageRow.Append(CreateGraphImageCell(mainPart, leftGraph, "left-eye", ref imageId));
-        table.Append(imageRow);
+        if (rightGraph == null && leftGraph == null)
+        {
+            var cellProps = new TableCellProperties(
+                new GridSpan { Val = 2 },
+                new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center }
+            );
+            cellProps.Append(new TableCellMargin
+            {
+                TopMargin = new TopMargin { Width = "120", Type = TableWidthUnitValues.Dxa },
+                BottomMargin = new BottomMargin { Width = "120", Type = TableWidthUnitValues.Dxa },
+                LeftMargin = new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+                RightMargin = new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa }
+            });
+
+            var emptyCell = new TableCell(cellProps);
+            emptyCell.Append(CreateParagraph("Нет данных", fontSizePt: 10, italic: true, colorHex: "666666", justification: JustificationValues.Center));
+
+            var row = new TableRow();
+            row.Append(emptyCell);
+            table.Append(row);
+        }
+        else
+        {
+            var imageRow = new TableRow();
+            imageRow.Append(CreateGraphImageCell(mainPart, rightGraph, "right-eye", ref imageId));
+            imageRow.Append(CreateGraphImageCell(mainPart, leftGraph, "left-eye", ref imageId));
+            table.Append(imageRow);
+        }
 
         return table;
     }
@@ -1351,7 +1434,7 @@ public static class ErgReportBuilder
 
         if (!string.IsNullOrEmpty(unit))
         {
-            const int unitOffset = 4;
+            const int unitOffset = 8;
             paragraph.Append(CreateMeasurementRun(" ", 12, preserveSpace: true, position: unitOffset));
             paragraph.Append(CreateMeasurementRun(unit, 12, position: unitOffset));
         }
@@ -1811,13 +1894,14 @@ public static class ErgReportBuilder
         if (string.IsNullOrWhiteSpace(testName))
             return "—";
 
-        return testName.Trim();
+        var trimmedEnd = testName.TrimEnd();
+        return string.IsNullOrEmpty(trimmedEnd) ? "—" : trimmedEnd;
     }
 
     private static string FormatClientTestTitle(int index, ErgTest test)
     {
         var name = FormatClientTestName(test.TestName);
-        return $"Тест № {index}: {name}";
+        return $"Тест № {index}:  {name}";
     }
 
     private static string FormatDeviceInfo(CommonInfo? deviceInfo)
@@ -2117,18 +2201,18 @@ public static class ErgReportBuilder
 
     private static string[] PrepareClinicHeaderLines(string[] lines)
     {
+        const int headerLineCount = 4;
+        var result = new string[headerLineCount];
+        Array.Fill(result, "\u00A0");
+
         if (lines == null || lines.Length == 0)
-            return new[] { "Шапка [название организации]" };
+            return result;
 
-        var lastNonEmpty = Array.FindLastIndex(lines, line => !string.IsNullOrWhiteSpace(line));
-        if (lastNonEmpty < 0)
-            return new[] { "Шапка [название организации]" };
-
-        var result = new string[lastNonEmpty + 1];
-        Array.Copy(lines, result, lastNonEmpty + 1);
-        for (int i = 0; i < result.Length; i++)
+        for (int i = 0; i < headerLineCount && i < lines.Length; i++)
         {
-            result[i] ??= string.Empty;
+            var line = lines[i];
+            if (!string.IsNullOrWhiteSpace(line))
+                result[i] = line!;
         }
 
         return result;
@@ -3148,7 +3232,7 @@ public static class ErgReportBuilder
 
         private Bitmap? _bitmap;
 
-        private readonly DrawingFont _clinicFont = new("Arial", 10f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly DrawingFont _clinicFont = new("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
 
         private readonly string[] _clinicHeaderLines;
         private readonly SolidBrush _descriptionBackgroundBrush = new(DrawingColor.FromArgb(245, 245, 245));
@@ -3157,6 +3241,7 @@ public static class ErgReportBuilder
         private readonly string _descriptionTitleText;
         private readonly CommonInfo? _deviceInfo;
         private readonly DrawingFont _eyeLabelFont = new("Arial", 11f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly DrawingFont _waveLabelFont = new("Arial", 11f, FontStyle.Regular, GraphicsUnit.Point);
 
         private readonly StringFormat _formatCenter = new(StringFormatFlags.LineLimit)
         {
@@ -3197,7 +3282,7 @@ public static class ErgReportBuilder
         private readonly float _marginTop;
 
         private readonly SolidBrush _mutedBrush = new(DrawingColor.FromArgb(100, 100, 100));
-        private readonly DrawingFont _normFont = new("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly DrawingFont _normFont = new("Arial", 9f, FontStyle.Regular, GraphicsUnit.Point);
 
         private readonly List<byte[]> _pages = new();
 
@@ -3213,7 +3298,7 @@ public static class ErgReportBuilder
         private readonly float _summarySpacingMedium = 0.08f * Dpi;
         private readonly float _summarySpacingSmall = 0.05f * Dpi;
         private readonly ReportTemplate _template;
-        private readonly SolidBrush _testHeaderBackgroundBrush = new(DrawingColor.FromArgb(0xEE, 0xEE, 0xEE));
+        private readonly SolidBrush _testHeaderBackgroundBrush = new(DrawingColor.FromArgb(0xCC, 0xCC, 0xCC));
         private readonly DrawingFont _testTitleFont = new("Arial", 12f, FontStyle.Bold, GraphicsUnit.Point);
         private readonly DrawingFont _unitFont = new("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
         private readonly bool _useDescriptionBackground;
@@ -3235,7 +3320,7 @@ public static class ErgReportBuilder
             var version = GetApplicationVersion();
             _reportVersion = string.IsNullOrWhiteSpace(version) || version == "—" ? null : version;
 
-            var marginPoints = template == ReportTemplate.Client ? 36d : 25d;
+            var marginPoints = MillimetersToPoints(20d);
             var margin = PointsToPixels(marginPoints);
             _marginLeft = margin;
             _marginRight = margin;
@@ -3366,7 +3451,6 @@ public static class ErgReportBuilder
 
             if (!EyeHasUsableMeasurements(eye))
             {
-                DrawPlaceholder(rect.Left, rect.Width, ref cursor);
                 cursor += _summarySpacingSmall;
                 return;
             }
@@ -3397,7 +3481,7 @@ public static class ErgReportBuilder
                 if (!string.IsNullOrWhiteSpace(waveLabel) && labelColumnWidth > 0f)
                 {
                     var waveRect = new RectangleF(rect.Left, cursor, labelColumnWidth, measurementHeight);
-                    _graphics.DrawString(waveLabel, _eyeLabelFont, Brushes.Black, waveRect, _formatLeftCenter);
+                    _graphics.DrawString(waveLabel, _waveLabelFont, Brushes.Black, waveRect, _formatLeftCenter);
                 }
 
                 var valueArea = new RectangleF(rect.Left + labelColumnWidth, cursor, valuesWidth, measurementHeight);
@@ -3410,7 +3494,7 @@ public static class ErgReportBuilder
                     continue;
                 }
 
-                DrawMeasurementPair(valueArea, display.MsValue, display.MkVValue);
+                var centers = DrawMeasurementPair(valueArea, display.MsValue, display.MkVValue);
                 cursor += measurementHeight;
 
                 var msText = FormatNormForClient(display.MsNorm);
@@ -3419,7 +3503,7 @@ public static class ErgReportBuilder
                 if (normHeight > 0f)
                 {
                     var normRect = new RectangleF(valueArea.Left, cursor, valuesWidth, normHeight);
-                    DrawNormPair(normRect, msText, mkvText);
+                    DrawNormPair(normRect, msText, mkvText, centers.MsCenter, centers.MkVCenter);
                     cursor += normHeight;
                 }
 
@@ -3428,10 +3512,7 @@ public static class ErgReportBuilder
             }
 
             if (!hasContent)
-            {
-                DrawPlaceholder(rect.Left, rect.Width, ref cursor);
                 cursor += _summarySpacingSmall;
-            }
         }
 
         private void DrawEyeSummaryRow(ErgTest test)
@@ -3479,19 +3560,14 @@ public static class ErgReportBuilder
             }
             else
             {
-                using var dashedPen = new Pen(DrawingColor.FromArgb(200, 200, 200)) { DashPattern = new[] { 4f, 4f } };
-                _graphics.DrawRectangle(dashedPen, graphRect.X, graphRect.Y, graphRect.Width, graphRect.Height);
                 _graphics.DrawString("Нет данных", _placeholderFont, _mutedBrush, graphRect, _formatCenter);
             }
         }
 
-        private void DrawGraphSection(ErgTest test)
+        private void DrawGraphSection(ErgTest test, GraphImage? rightGraph, GraphImage? leftGraph)
         {
             if (_graphics == null)
                 return;
-
-            var rightGraph = TryRenderGraphImage(test, test.RightEye);
-            var leftGraph = TryRenderGraphImage(test, test.LeftEye);
 
             var columnWidth = (ContentWidth - _graphGap) / 2f;
             float graphHeight = 0f;
@@ -3507,6 +3583,15 @@ public static class ErgReportBuilder
             EnsureSpace(totalHeight + _spacingSmall);
 
             var top = _y;
+
+            if (rightGraph == null && leftGraph == null)
+            {
+                var rect = new RectangleF(_marginLeft, top, ContentWidth, totalHeight);
+                _graphics.DrawString("Нет данных", _placeholderFont, _mutedBrush, rect, _formatCenter);
+                _y = top + totalHeight + _spacingSmall;
+                return;
+            }
+
             var rightRect = new RectangleF(_marginLeft, top, columnWidth, totalHeight);
             var leftRect = new RectangleF(_marginLeft + columnWidth + _graphGap, top, columnWidth, totalHeight);
 
@@ -3516,7 +3601,7 @@ public static class ErgReportBuilder
             _y = top + totalHeight + _spacingSmall;
         }
 
-        private void DrawInfoBlock()
+        private void DrawInfoBlock(bool allowPageBreak = true)
         {
             var lines = new List<(string Label, string Value)>
             {
@@ -3533,13 +3618,13 @@ public static class ErgReportBuilder
 
             foreach (var (label, value) in lines)
             {
-                DrawInfoLine(label, string.IsNullOrWhiteSpace(value) ? "—" : value);
+                DrawInfoLine(label, string.IsNullOrWhiteSpace(value) ? "—" : value, allowPageBreak);
             }
 
             _y += _spacingSmall * 0.5f;
         }
 
-        private void DrawInfoLine(string label, string value)
+        private void DrawInfoLine(string label, string value, bool allowPageBreak)
         {
             if (_graphics == null)
                 return;
@@ -3547,7 +3632,8 @@ public static class ErgReportBuilder
             var labelWidth = Math.Min(ContentWidth * 0.45f, _graphics.MeasureString(label, _infoLabelFont).Width + 4f);
             var lineHeight = Math.Max(_infoLabelFont.GetHeight(_graphics), _infoValueFont.GetHeight(_graphics));
 
-            EnsureSpace(lineHeight + _summarySpacingSmall * 0.5f);
+            if (allowPageBreak)
+                EnsureSpace(lineHeight + _summarySpacingSmall * 0.5f);
 
             var labelRect = new RectangleF(_marginLeft, _y, labelWidth, lineHeight);
             _graphics.DrawString(label, _infoLabelFont, Brushes.Black, labelRect, _formatLeft);
@@ -3558,25 +3644,27 @@ public static class ErgReportBuilder
             _y += lineHeight + _summarySpacingSmall * 0.5f;
         }
 
-        private void DrawMeasurementPair(RectangleF rect, string msValue, string mkvValue)
+        private (float MsCenter, float MkVCenter) DrawMeasurementPair(RectangleF rect, string msValue, string mkvValue)
         {
             var halfWidth = rect.Width / 2f;
             var leftRect = new RectangleF(rect.Left, rect.Top, halfWidth, rect.Height);
             var rightRect = new RectangleF(rect.Left + halfWidth, rect.Top, halfWidth, rect.Height);
 
-            DrawMeasurementValue(leftRect, msValue);
-            DrawMeasurementValue(rightRect, mkvValue);
+            var msCenter = DrawMeasurementValue(leftRect, msValue);
+            var mkvCenter = DrawMeasurementValue(rightRect, mkvValue);
+
+            return (msCenter, mkvCenter);
         }
 
-        private void DrawMeasurementValue(RectangleF rect, string text)
+        private float DrawMeasurementValue(RectangleF rect, string text)
         {
             if (_graphics == null)
-                return;
+                return rect.Left + rect.Width / 2f;
 
             if (text == "FLAT")
             {
                 _graphics.DrawString(text, _valueFont, Brushes.Black, rect, _formatCenter);
-                return;
+                return rect.Left + rect.Width / 2f;
             }
 
             var parts = SplitValueAndUnit(text);
@@ -3590,14 +3678,23 @@ public static class ErgReportBuilder
             var valueRect = new RectangleF(startX, rect.Top + (rect.Height - _valueFont.GetHeight(_graphics)) / 2f, valueSize.Width, _valueFont.GetHeight(_graphics));
             _graphics.DrawString(parts.Value, _valueFont, Brushes.Black, valueRect, _formatLeft);
 
+            float valueCenter = valueRect.Left + valueRect.Width / 2f;
+
             if (!string.IsNullOrEmpty(parts.Unit))
             {
-                var unitRect = new RectangleF(startX + valueSize.Width + spaceWidth, rect.Top + rect.Height - _unitFont.GetHeight(_graphics), unitSize.Width, _unitFont.GetHeight(_graphics));
+                var unitHeight = _unitFont.GetHeight(_graphics);
+                var unitRect = new RectangleF(
+                    startX + valueSize.Width + spaceWidth,
+                    valueRect.Bottom - unitHeight,
+                    unitSize.Width,
+                    unitHeight);
                 _graphics.DrawString(parts.Unit, _unitFont, Brushes.Black, unitRect, _formatLeft);
             }
+
+            return valueCenter;
         }
 
-        private void DrawNormPair(RectangleF rect, string? msText, string? mkvText)
+        private void DrawNormPair(RectangleF rect, string? msText, string? mkvText, float msCenter, float mkvCenter)
         {
             if (_graphics == null)
                 return;
@@ -3607,9 +3704,31 @@ public static class ErgReportBuilder
             var rightRect = new RectangleF(rect.Left + halfWidth, rect.Top, halfWidth, rect.Height);
 
             if (!string.IsNullOrWhiteSpace(msText))
-                _graphics.DrawString(msText!, _normFont, _mutedBrush, leftRect, _formatCenter);
+            {
+                var size = _graphics.MeasureString(msText!, _normFont);
+                var x = msCenter - size.Width / 2f;
+                var min = leftRect.Left;
+                var max = leftRect.Right - size.Width;
+                if (x < min)
+                    x = min;
+                if (x > max)
+                    x = max;
+                var textRect = new RectangleF(x, rect.Top, size.Width, rect.Height);
+                _graphics.DrawString(msText!, _normFont, _mutedBrush, textRect, _formatCenter);
+            }
             if (!string.IsNullOrWhiteSpace(mkvText))
-                _graphics.DrawString(mkvText!, _normFont, _mutedBrush, rightRect, _formatCenter);
+            {
+                var size = _graphics.MeasureString(mkvText!, _normFont);
+                var x = mkvCenter - size.Width / 2f;
+                var min = rightRect.Left;
+                var max = rightRect.Right - size.Width;
+                if (x < min)
+                    x = min;
+                if (x > max)
+                    x = max;
+                var textRect = new RectangleF(x, rect.Top, size.Width, rect.Height);
+                _graphics.DrawString(mkvText!, _normFont, _mutedBrush, textRect, _formatCenter);
+            }
         }
 
         private void DrawParagraph(string text, DrawingFont font, Brush brush, float spacingBefore, float spacingAfter, StringFormat? format = null)
@@ -3649,7 +3768,7 @@ public static class ErgReportBuilder
                 return;
 
             float spacingBefore = _spacingLarge * 0.4f;
-            float spacingAfter = _summarySpacingSmall;
+            float spacingAfter = Math.Max(_summarySpacingSmall, LayoutMillimetersToPixels(2d));
 
             if (string.IsNullOrWhiteSpace(title))
             {
@@ -3680,9 +3799,61 @@ public static class ErgReportBuilder
         private void DrawTestSection(int index, ErgTest test)
         {
             var title = FormatClientTestTitle(index + 1, test);
+            var rightGraph = TryRenderGraphImage(test, test.RightEye);
+            var leftGraph = TryRenderGraphImage(test, test.LeftEye);
+            var requiredHeight = MeasureTestSectionHeight(title, test, rightGraph, leftGraph);
+            EnsureSpace(requiredHeight);
             DrawTestHeader(title);
             DrawEyeSummaryRow(test);
-            DrawGraphSection(test);
+            DrawGraphSection(test, rightGraph, leftGraph);
+        }
+
+        private float MeasureTestSectionHeight(string title, ErgTest test, GraphImage? rightGraph, GraphImage? leftGraph)
+        {
+            if (_graphics == null)
+                return 0f;
+
+            float total = 0f;
+            float spacingBefore = _spacingLarge * 0.4f;
+            float spacingAfter = Math.Max(_summarySpacingSmall, LayoutMillimetersToPixels(2d));
+
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                total += spacingBefore + spacingAfter;
+            }
+            else
+            {
+                float padding = _summarySpacingSmall * 0.6f;
+                float textWidth = ContentWidth - padding * 2f;
+                if (textWidth <= 0f)
+                    textWidth = ContentWidth;
+                float textHeight = MeasureText(title, _testTitleFont, textWidth, _formatCenter);
+                float blockHeight = textHeight + padding * 2f;
+                total += spacingBefore + blockHeight + spacingAfter;
+            }
+
+            var columnWidth = (ContentWidth - _graphGap) / 2f;
+            if (columnWidth <= 0f)
+                columnWidth = ContentWidth / 2f;
+
+            var rightHeight = MeasureEyeSummaryHeight("Правый глаз", test, test.RightEye, columnWidth);
+            var leftHeight = MeasureEyeSummaryHeight("Левый глаз", test, test.LeftEye, columnWidth);
+            float summaryHeight = Math.Max(rightHeight, leftHeight);
+            if (summaryHeight <= 0f)
+                summaryHeight = _valueFont.GetHeight(_graphics) + _summarySpacingSmall;
+            total += summaryHeight + _summarySpacingMedium;
+
+            float graphHeight = 0f;
+            if (rightGraph != null)
+                graphHeight = Math.Max(graphHeight, CalculateGraphHeight(rightGraph, columnWidth));
+            if (leftGraph != null)
+                graphHeight = Math.Max(graphHeight, CalculateGraphHeight(leftGraph, columnWidth));
+            if (graphHeight <= 0f)
+                graphHeight = columnWidth * 0.55f;
+
+            total += graphHeight + _spacingSmall;
+
+            return total;
         }
 
         private void DrawTitle()
@@ -3692,7 +3863,7 @@ public static class ErgReportBuilder
             {
                 var text = string.IsNullOrWhiteSpace(line) ? "\u00A0" : line;
                 var spacingAfter = index == _clinicHeaderLines.Length - 1 ? 0f : headerLineSpacing;
-                DrawParagraph(text, _clinicFont, Brushes.Black, 0, spacingAfter, _formatRight);
+                DrawParagraph(text, _clinicFont, Brushes.Black, 0, spacingAfter, _formatCenter);
             }
 
             DrawParagraph(
@@ -3713,7 +3884,7 @@ public static class ErgReportBuilder
             if (_y + requiredHeight <= limit)
                 return;
 
-            StartNewPage();
+            StartNewPage(includeHeader: false);
         }
 
         private void FinalizeCurrentPage()
@@ -3758,7 +3929,7 @@ public static class ErgReportBuilder
 
             if (!EyeHasUsableMeasurements(eye))
             {
-                total += _placeholderFont.GetHeight(_graphics) + _summarySpacingSmall;
+                total += _summarySpacingSmall;
                 return total;
             }
 
@@ -3798,7 +3969,7 @@ public static class ErgReportBuilder
 
             if (!hasContent)
             {
-                total += _placeholderFont.GetHeight(_graphics) + _summarySpacingSmall;
+                total += _summarySpacingSmall;
             }
 
             return total;
@@ -3824,6 +3995,10 @@ public static class ErgReportBuilder
 
         private static float PointsToPixels(double points) => (float)(points / 72d * Dpi);
 
+        private static double MillimetersToPoints(double millimeters) => millimeters / 25.4d * 72d;
+
+        private static float LayoutMillimetersToPixels(double millimeters) => (float)(millimeters / 25.4d * Dpi);
+
         private void SavePdf()
         {
             using var document = new PdfDocument();
@@ -3832,6 +4007,9 @@ public static class ErgReportBuilder
             var versionText = _reportVersion != null ? $"Версия отчета: {_reportVersion}" : null;
             var versionFont = new XFont("Arial", 8, XFontStyle.Regular);
             var pageFont = new XFont("Arial", 9, XFontStyle.Regular);
+            var footerRectFormatLeft = new XStringFormat { Alignment = XStringAlignment.Near, LineAlignment = XLineAlignment.Center };
+            var footerRectFormatRight = new XStringFormat { Alignment = XStringAlignment.Far, LineAlignment = XLineAlignment.Center };
+            var footerHeight = MillimetersToPoints(20d);
 
             for (int i = 0; i < totalPages; i++)
             {
@@ -3843,19 +4021,21 @@ public static class ErgReportBuilder
                 using var image = XImage.FromStream(() => new MemoryStream(pageImage));
                 gfx.DrawImage(image, 0, 0, page.Width, page.Height);
 
+                var footerRect = new XRect(footerHeight, page.Height - footerHeight, page.Width - footerHeight * 2d, footerHeight);
+
                 if (versionText != null)
                 {
-                    gfx.DrawString(versionText, versionFont, XBrushes.Gray, new XPoint(page.Width / 2, page.Height - 32), XStringFormats.Center);
+                    gfx.DrawString(versionText, versionFont, XBrushes.Gray, footerRect, footerRectFormatLeft);
                 }
 
                 var pageLabel = $"Стр. {i + 1} из {totalPages}";
-                gfx.DrawString(pageLabel, pageFont, XBrushes.Gray, new XPoint(page.Width / 2, page.Height - 18), XStringFormats.Center);
+                gfx.DrawString(pageLabel, pageFont, XBrushes.Gray, footerRect, footerRectFormatRight);
             }
 
             document.Save(_pdfPath);
         }
 
-        private void StartNewPage()
+        private void StartNewPage(bool includeHeader)
         {
             FinalizeCurrentPage();
 
@@ -3866,15 +4046,18 @@ public static class ErgReportBuilder
             _graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
             _graphics.Clear(DrawingColor.White);
             _y = _marginTop;
+
+            if (includeHeader)
+                DrawTitle();
+
+            DrawInfoBlock(allowPageBreak: false);
         }
 
         private float ContentWidth => PageWidth - _marginLeft - _marginRight;
 
         public void Build()
         {
-            StartNewPage();
-            DrawTitle();
-            DrawInfoBlock();
+            StartNewPage(includeHeader: true);
             for (int i = 0; i < _patient.Tests.Count; i++)
             {
                 DrawTestSection(i, _patient.Tests[i]);
@@ -3901,6 +4084,7 @@ public static class ErgReportBuilder
             _descriptionFont.Dispose();
             _infoSmallFont.Dispose();
             _eyeLabelFont.Dispose();
+            _waveLabelFont.Dispose();
             _valueFont.Dispose();
             _unitFont.Dispose();
             _normFont.Dispose();
@@ -4020,14 +4204,19 @@ public static class ErgReportBuilder
 
         public void Compose(IContainer container)
         {
+            container = container.ShowEntire();
+
             container.Column(column =>
             {
-                column.Spacing(10);
-                column.Item().Background(Colors.Grey.Lighten3)
-                    .PaddingVertical(6)
-                    .PaddingHorizontal(8)
-                    .AlignCenter()
-                    .Text(FormatClientTestTitle(_index, _test)).FontSize(12).SemiBold();
+                column.Spacing(12);
+                column.Item().Element(header =>
+                {
+                    header.Background(Colors.Grey.Lighten2)
+                        .PaddingVertical(6)
+                        .PaddingHorizontal(8)
+                        .AlignCenter()
+                        .Text(FormatClientTestTitle(_index, _test)).FontSize(12).SemiBold();
+                });
 
                 column.Item().Row(row =>
                 {
@@ -4146,7 +4335,7 @@ public static class ErgReportBuilder
             if (formatted == null)
                 return;
 
-            column.Item().AlignCenter().Text(formatted).FontSize(10).FontColor(Colors.Grey.Darken1);
+            column.Item().AlignCenter().Text(formatted).FontSize(9).FontColor(Colors.Grey.Darken1);
         }
 
         public void Compose(IContainer container)
@@ -4161,7 +4350,7 @@ public static class ErgReportBuilder
 
                     row.AutoItem().MinWidth(68).AlignMiddle().Text(text =>
                     {
-                        text.DefaultTextStyle(style => style.FontSize(11).SemiBold());
+                        text.DefaultTextStyle(style => style.FontSize(11));
                         text.Span(string.IsNullOrWhiteSpace(_label) ? " " : _label);
                     });
 
@@ -4223,8 +4412,8 @@ public static class ErgReportBuilder
                 }
                 else
                 {
-                    column.Item().Border(1).BorderColor(Colors.Grey.Lighten2)
-                        .Padding(12)
+                    column.Item()
+                        .MinHeight(120)
                         .AlignCenter().AlignMiddle()
                         .Text("Нет данных").Italic().FontColor(Colors.Grey.Darken1);
                 }
@@ -4317,7 +4506,7 @@ public static class ErgReportBuilder
 
                 if (rightGraph == null && leftGraph == null)
                 {
-                    column.Item().Text("Графические данные недоступны.").Italic().FontColor(Colors.Grey.Darken1);
+                    column.Item().AlignCenter().Text("Нет данных").Italic().FontColor(Colors.Grey.Darken1);
                 }
                 else
                 {
@@ -4335,7 +4524,7 @@ public static class ErgReportBuilder
                             }
                             else
                             {
-                                col.Item().Text("Нет данных").Italic().FontColor(Colors.Grey.Darken1);
+                                col.Item().AlignCenter().AlignMiddle().Text("Нет данных").Italic().FontColor(Colors.Grey.Darken1);
                             }
                         });
 
@@ -4349,14 +4538,23 @@ public static class ErgReportBuilder
                             }
                             else
                             {
-                                col.Item().Text("Нет данных").Italic().FontColor(Colors.Grey.Darken1);
+                                col.Item().AlignCenter().AlignMiddle().Text("Нет данных").Italic().FontColor(Colors.Grey.Darken1);
                             }
                         });
                     });
                 }
 
-                column.Item().Text("Первые 10 точек (правый глаз, график 1): " + BuildGraphPreview(_test.RightEye.GraphsNormalized, _test.GraphNumPoints)).FontSize(10);
-                column.Item().Text("Первые 10 точек (левый глаз, график 1): " + BuildGraphPreview(_test.LeftEye.GraphsNormalized, _test.GraphNumPoints)).FontSize(10);
+                var rightPreview = BuildGraphPreview(_test.RightEye.GraphsNormalized, _test.GraphNumPoints);
+                if (!string.Equals(rightPreview, "нет данных", StringComparison.OrdinalIgnoreCase))
+                {
+                    column.Item().Text("Первые 10 точек (правый глаз, график 1): " + rightPreview).FontSize(10);
+                }
+
+                var leftPreview = BuildGraphPreview(_test.LeftEye.GraphsNormalized, _test.GraphNumPoints);
+                if (!string.Equals(leftPreview, "нет данных", StringComparison.OrdinalIgnoreCase))
+                {
+                    column.Item().Text("Первые 10 точек (левый глаз, график 1): " + leftPreview).FontSize(10);
+                }
             });
         }
     }

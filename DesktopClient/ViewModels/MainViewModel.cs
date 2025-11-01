@@ -12,6 +12,7 @@ using ErgData;
 using MicroluxErgConnect.Infrastructure;
 using MicroluxErgConnect.Models;
 using MicroluxErgConnect.Services;
+using MicroluxErgConnect.Utils;
 
 namespace MicroluxErgConnect.ViewModels;
 
@@ -365,7 +366,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void UpdateReportHeader(string? value)
     {
-        var normalized = NormalizeReportHeader(value);
+        var normalized = ReportHeaderFormatter.Normalize(value);
         if (string.Equals(normalized, _settings.Current.ReportHeader, StringComparison.Ordinal))
         {
             _log.Debug("Шапка отчета не изменилась.");
@@ -373,27 +374,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         _ = ApplySettingAsync(nameof(ReportHeader), normalized, (s, v) => s.ReportHeader = v);
-    }
-
-    private static string NormalizeReportHeader(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return string.Empty;
-
-        var normalized = value.Replace("\r\n", "\n").Replace('\r', '\n');
-        var lines = normalized.Split('\n');
-        var builder = new List<string>(lines.Length);
-        foreach (var line in lines)
-        {
-            builder.Add(line.TrimEnd());
-        }
-
-        while (builder.Count > 0 && string.IsNullOrWhiteSpace(builder[^1]))
-        {
-            builder.RemoveAt(builder.Count - 1);
-        }
-
-        return string.Join("\n", builder);
     }
 
     private async Task ApplySettingAsync<T>(string propertyName, T value, Action<AppSettings, T> setter)
