@@ -1849,44 +1849,14 @@ public static class ErgReportBuilder
 
     private static string FormatClientDateTime(string value)
     {
+        if (ErgDateParser.TryParseTestDateTime(value, out var parsed))
+        {
+            var ruCulture = CultureInfo.GetCultureInfo("ru-RU");
+            return parsed.ToString("dd/MM/yyyy HH:mm", ruCulture);
+        }
+
         var trimmed = value?.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-            return "—";
-
-        var ruCulture = CultureInfo.GetCultureInfo("ru-RU");
-        var cultures = new[] { ruCulture, CultureInfo.InvariantCulture };
-        var formats = new[]
-        {
-            "dd.MM.yyyy HH:mm",
-            "dd.MM.yyyy H:mm",
-            "dd/MM/yyyy HH:mm",
-            "dd/MM/yyyy H:mm",
-            "dd-MM-yyyy HH:mm",
-            "dd-MM-yyyy H:mm",
-            "yyyy-MM-dd HH:mm",
-            "yyyy-MM-dd H:mm",
-            "yyyy-MM-ddTHH:mm",
-            "yyyy-MM-ddTHH:mm:ss",
-            "yyyy-MM-ddTHH:mm:ss.FFF",
-            "yyyy.MM.dd HH:mm"
-        };
-
-        foreach (var culture in cultures)
-        {
-            if (DateTime.TryParse(trimmed, culture, DateTimeStyles.AssumeLocal | DateTimeStyles.AllowWhiteSpaces, out var parsed))
-                return parsed.ToString("dd/MM/yyyy HH:mm", ruCulture);
-        }
-
-        foreach (var culture in cultures)
-        {
-            foreach (var format in formats)
-            {
-                if (DateTime.TryParseExact(trimmed, format, culture, DateTimeStyles.AssumeLocal | DateTimeStyles.AllowWhiteSpaces, out var parsedExact))
-                    return parsedExact.ToString("dd/MM/yyyy HH:mm", ruCulture);
-            }
-        }
-
-        return trimmed;
+        return string.IsNullOrEmpty(trimmed) ? "—" : trimmed!;
     }
 
     private static string FormatClientTestName(string testName)

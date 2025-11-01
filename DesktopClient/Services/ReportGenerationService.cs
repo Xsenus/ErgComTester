@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ErgData;
 using MicroluxErgConnect.Models;
+using MicroluxErgConnect.Utils;
 
 namespace MicroluxErgConnect.Services;
 
@@ -255,12 +256,15 @@ public sealed class ReportGenerationService : IDisposable
                     string? pdfPath = null;
                     if (_pdfGenerationEnabled)
                     {
-                        var candidatePdfPath = Path.Combine(sessionDir, $"patient_{index:000}.pdf");
+                        var outputDirectory = _settings.Current.PdfOutputDirectory;
+                        var targetPdfPath = PdfReportPathBuilder.BuildFilePath(patient, outputDirectory);
+                        var pdfExisted = File.Exists(targetPdfPath);
                         try
                         {
-                            ErgReportBuilder.BuildPatientReport(patient, candidatePdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: finalRawPath, template: template);
-                            _log.Info($"PDF-отчет для пациента #{index} создан: {candidatePdfPath}");
-                            pdfPath = candidatePdfPath;
+                            ErgReportBuilder.BuildPatientReport(patient, targetPdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: finalRawPath, template: template);
+                            var action = pdfExisted ? "обновлен" : "создан";
+                            _log.Info($"PDF-отчет для пациента #{index} {action}: {targetPdfPath}");
+                            pdfPath = targetPdfPath;
                             ReportGenerated?.Invoke(this, pdfPath);
                             generatedPdfReports.Add(pdfPath);
                         }
@@ -623,8 +627,9 @@ public sealed class ReportGenerationService : IDisposable
 
         var baseName = Path.GetFileNameWithoutExtension(filePath);
         var jsonPath = Path.Combine(directory, $"{baseName}.json");
-        var pdfPath = Path.Combine(directory, $"{baseName}.pdf");
         var docxPath = Path.Combine(directory, $"{baseName}.docx");
+        var pdfPath = PdfReportPathBuilder.BuildFilePath(patient, _settings.Current.PdfOutputDirectory);
+        var pdfExisted = File.Exists(pdfPath);
 
         var template = _settings.Current.ReportTemplate;
         var clinicHeader = GetClinicHeader();
@@ -645,7 +650,7 @@ public sealed class ReportGenerationService : IDisposable
         try
         {
             ErgReportBuilder.BuildPatientReport(patient, pdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: filePath, template: template);
-            _log.Info($"PDF-отчет сохранен: {pdfPath}");
+            _log.Info($"PDF-отчет {(pdfExisted ? "обновлен" : "сохранен")}: {pdfPath}");
         }
         catch (Exception ex)
         {

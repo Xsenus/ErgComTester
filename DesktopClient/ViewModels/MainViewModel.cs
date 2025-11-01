@@ -160,7 +160,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private void OpenReportsFolder() => OpenFolderSafely(_settings.Current.ReportsDirectory, "отчеты");
+    private void OpenReportsFolder() => OpenFolderSafely(_settings.Current.PdfOutputDirectory, "PDF-отчеты");
 
     private void OpenLogsFolder() => OpenFolderSafely(_settings.Current.LogsDirectory, "логи");
 
@@ -322,6 +322,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => UpdateReportHeader(value);
     }
 
+    public string PdfReportsDirectory
+    {
+        get => _settings.Current.PdfOutputDirectory;
+        set => UpdatePdfReportsDirectory(value);
+    }
+
     private void UpdateIntSetting(string propertyName, int value, int min, int max, Func<AppSettings, int> accessor, Action<AppSettings, int> setter)
     {
         var normalized = Math.Clamp(value, min, max);
@@ -374,6 +380,39 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         _ = ApplySettingAsync(nameof(ReportHeader), normalized, (s, v) => s.ReportHeader = v);
+    }
+
+    private void UpdatePdfReportsDirectory(string? value)
+    {
+        var trimmed = value?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            const string message = "Каталог PDF-отчетов не может быть пустым.";
+            _log.Warn(message);
+            throw new InvalidOperationException(message);
+        }
+
+        string normalized;
+        try
+        {
+            var expanded = Environment.ExpandEnvironmentVariables(trimmed);
+            normalized = Path.GetFullPath(expanded);
+            Directory.CreateDirectory(normalized);
+        }
+        catch (Exception ex)
+        {
+            var message = $"Недопустимый путь каталога PDF-отчетов: {ex.Message}";
+            _log.Warn(message);
+            throw new InvalidOperationException(message, ex);
+        }
+
+        if (string.Equals(normalized, _settings.Current.PdfOutputDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            _log.Debug($"Каталог PDF-отчетов не изменился: {normalized}.");
+            return;
+        }
+
+        _ = ApplySettingAsync(nameof(PdfReportsDirectory), normalized, (s, v) => s.PdfOutputDirectory = v);
     }
 
     private async Task ApplySettingAsync<T>(string propertyName, T value, Action<AppSettings, T> setter)

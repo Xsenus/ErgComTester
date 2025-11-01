@@ -72,8 +72,11 @@ public sealed class SettingsService
             saveRequired = true;
         }
 
+        _settings.PdfOutputDirectory = EnsurePdfDirectoryInitialized(_settings.PdfOutputDirectory);
+
         Directory.CreateDirectory(_settings.LogsDirectory);
         Directory.CreateDirectory(_settings.ReportsDirectory);
+        Directory.CreateDirectory(_settings.PdfOutputDirectory);
 
         if (saveRequired)
         {
@@ -83,17 +86,17 @@ public sealed class SettingsService
 
     public async Task SaveAsync(CancellationToken ct = default)
     {
-        // тайм-аут на всякий случай, чтобы никогда не зависать
+        // С‚Р°Р№Рј-Р°СѓС‚ РЅР° РІСЃСЏРєРёР№ СЃР»СѓС‡Р°Р№, С‡С‚РѕР±С‹ РЅРёРєРѕРіРґР° РЅРµ Р·Р°РІРёСЃР°С‚СЊ
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(5));
 
-        // пробуем захватить семафор с тайм-аутом
+        // РїСЂРѕР±СѓРµРј Р·Р°С…РІР°С‚РёС‚СЊ СЃРµРјР°С„РѕСЂ СЃ С‚Р°Р№Рј-Р°СѓС‚РѕРј
         await _mutex.WaitAsync(cts.Token).ConfigureAwait(false);
         try
         {
             Directory.CreateDirectory(BaseDirectory);
 
-            // реальный асинхронный файловый поток, чтобы не блокировать пул
+            // СЂРµР°Р»СЊРЅС‹Р№ Р°СЃРёРЅС…СЂРѕРЅРЅС‹Р№ С„Р°Р№Р»РѕРІС‹Р№ РїРѕС‚РѕРє, С‡С‚РѕР±С‹ РЅРµ Р±Р»РѕРєРёСЂРѕРІР°С‚СЊ РїСѓР»
             await using var fs = new FileStream(
                 SettingsPath,
                 FileMode.Create,
@@ -113,7 +116,7 @@ public sealed class SettingsService
         _ = Task.Run(() =>
         {
             try { SettingsChanged?.Invoke(this, _settings); }
-            catch { /* не даём событию уронить сохранение */ }
+            catch { /* РЅРµ РґР°С‘Рј СЃРѕР±С‹С‚РёСЋ СѓСЂРѕРЅРёС‚СЊ СЃРѕС…СЂР°РЅРµРЅРёРµ */ }
         });
     }
 
@@ -131,4 +134,25 @@ public sealed class SettingsService
         }
         await SaveAsync().ConfigureAwait(false);
     }
+    private static string EnsurePdfDirectoryInitialized(string? value)
+    {
+        var baseDirectory = AppContext.BaseDirectory ?? Environment.CurrentDirectory;
+        var defaultPath = Path.Combine(baseDirectory, "out");
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return defaultPath;
+        }
+
+        try
+        {
+            var expanded = Environment.ExpandEnvironmentVariables(value);
+            var fullPath = Path.GetFullPath(expanded);
+            return fullPath;
+        }
+        catch
+        {
+            return defaultPath;
+        }
+    }
+
 }

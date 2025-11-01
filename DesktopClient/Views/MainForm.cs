@@ -11,7 +11,6 @@ using System.Windows.Forms;
 using ErgData;
 using MicroluxErgConnect.Infrastructure;
 using MicroluxErgConnect.Models;
-using MicroluxErgConnect.Utils;
 using MicroluxErgConnect.ViewModels;
 
 namespace MicroluxErgConnect.Views;
@@ -383,34 +382,6 @@ public partial class MainForm : Form
         manifestUrlTextBox.Text = _viewModel.UpdateManifestUrl;
         reportTemplateComboBox.SelectedValue = _viewModel.ReportTemplate;
         renderingModeComboBox.SelectedValue = _viewModel.ReportRenderingMode;
-        ApplyReportHeaderToInput(_viewModel.ReportHeader);
-    }
-
-    private void ApplyReportHeaderToInput(string header)
-    {
-        var desiredLines = ReportHeaderFormatter.Split(header);
-        if (!LinesEqual(reportHeaderTextBox.Lines, desiredLines))
-        {
-            reportHeaderTextBox.Lines = desiredLines;
-        }
-    }
-
-    private static bool LinesEqual(string[]? current, string[] desired)
-    {
-        if (current == null || current.Length != desired.Length)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < desired.Length; i++)
-        {
-            if (!string.Equals(current[i], desired[i], StringComparison.Ordinal))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private void UpdateAll()
@@ -521,6 +492,13 @@ public partial class MainForm : Form
     private void OnOpenReportsClicked(object? sender, EventArgs e)
     {
         ExecuteSafeAsync(_viewModel.OpenReportsCommand, "открытие каталога отчетов");
+    }
+
+    private void OnOpenSettingsClicked(object? sender, EventArgs e)
+    {
+        using var dialog = new SettingsForm(_viewModel);
+        AppServices.Log.Info("Пользователь открыл окно пользовательских настроек.");
+        dialog.ShowDialog(this);
     }
 
     private void OnOpenLogsClicked(object? sender, EventArgs e)
@@ -811,18 +789,6 @@ public partial class MainForm : Form
             _viewModel.UpdateManifestUrl = url;
         }
         manifestUrlTextBox.Text = _viewModel.UpdateManifestUrl;
-    }
-
-    private void OnReportHeaderValidated(object? sender, EventArgs e)
-    {
-        var normalized = ReportHeaderFormatter.Normalize(reportHeaderTextBox.Text);
-        if (!string.Equals(normalized, _viewModel.ReportHeader, StringComparison.Ordinal))
-        {
-            AppServices.Log.Info("Пользователь изменил шапку отчета.");
-            _viewModel.ReportHeader = normalized;
-        }
-
-        ApplyReportHeaderToInput(_viewModel.ReportHeader);
     }
 
     private void OnReportTemplateChanged(object? sender, EventArgs e)

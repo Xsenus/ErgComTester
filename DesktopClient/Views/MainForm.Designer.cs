@@ -50,9 +50,8 @@ partial class MainForm
     private ComboBox reportTemplateComboBox;
     private Label renderingModeLabel;
     private ComboBox renderingModeComboBox;
-    private Label reportHeaderLabel;
-    private TextBox reportHeaderTextBox;
     private FlowLayoutPanel settingsButtonsPanel;
+    private Button openSettingsButton;
     private Button openReportsButton;
     private Button convertBinButton;
     private GroupBox updatesGroup;
@@ -127,9 +126,8 @@ partial class MainForm
         reportTemplateComboBox = new ComboBox();
         renderingModeLabel = new Label();
         renderingModeComboBox = new ComboBox();
-        reportHeaderLabel = new Label();
-        reportHeaderTextBox = new TextBox();
         settingsButtonsPanel = new FlowLayoutPanel();
+        openSettingsButton = new Button();
         openReportsButton = new Button();
         convertBinButton = new Button();
         btnGraphTuner = new Button();
@@ -653,9 +651,7 @@ partial class MainForm
         settingsLayout.Controls.Add(reportTemplateComboBox, 1, 3);
         settingsLayout.Controls.Add(renderingModeLabel, 0, 4);
         settingsLayout.Controls.Add(renderingModeComboBox, 1, 4);
-        settingsLayout.Controls.Add(reportHeaderLabel, 0, 5);
-        settingsLayout.Controls.Add(reportHeaderTextBox, 1, 5);
-        settingsLayout.Controls.Add(settingsButtonsPanel, 0, 6);
+        settingsLayout.Controls.Add(settingsButtonsPanel, 0, 5);
         settingsLayout.Controls.Add(btnGraphTuner, 0, 8);
         settingsLayout.Dock = DockStyle.Fill;
         settingsLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
@@ -800,48 +796,45 @@ partial class MainForm
         renderingModeComboBox.Size = new Size(192, 25);
         renderingModeComboBox.TabIndex = 9;
         // 
-        // reportHeaderLabel
-        // 
-        reportHeaderLabel.AutoSize = true;
-        reportHeaderLabel.Font = new Font("Segoe UI", 9F);
-        reportHeaderLabel.ForeColor = Color.FromArgb(120, 128, 145);
-        reportHeaderLabel.Location = new Point(0, 179);
-        reportHeaderLabel.Margin = new Padding(0, 10, 16, 0);
-        reportHeaderLabel.Name = "reportHeaderLabel";
-        reportHeaderLabel.Size = new Size(85, 15);
-        reportHeaderLabel.TabIndex = 10;
-        reportHeaderLabel.Text = "Шапка отчета:";
-        // 
-        // reportHeaderTextBox
-        // 
-        reportHeaderTextBox.AcceptsReturn = true;
-        reportHeaderTextBox.BorderStyle = BorderStyle.FixedSingle;
-        reportHeaderTextBox.Dock = DockStyle.Fill;
-        reportHeaderTextBox.Location = new Point(195, 173);
-        reportHeaderTextBox.Margin = new Padding(4);
-        reportHeaderTextBox.MinimumSize = new Size(160, 60);
-        reportHeaderTextBox.Multiline = true;
-        reportHeaderTextBox.Name = "reportHeaderTextBox";
-        reportHeaderTextBox.ScrollBars = ScrollBars.Vertical;
-        reportHeaderTextBox.Size = new Size(192, 80);
-        reportHeaderTextBox.TabIndex = 11;
-        reportHeaderTextBox.Validated += OnReportHeaderValidated;
-        // 
         // settingsButtonsPanel
         // 
         settingsButtonsPanel.AutoSize = true;
         settingsButtonsPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         settingsLayout.SetColumnSpan(settingsButtonsPanel, 2);
+        settingsButtonsPanel.Controls.Add(openSettingsButton);
         settingsButtonsPanel.Controls.Add(openReportsButton);
         settingsButtonsPanel.Controls.Add(convertBinButton);
-        settingsButtonsPanel.Location = new Point(0, 273);
+        settingsButtonsPanel.Location = new Point(0, 206);
         settingsButtonsPanel.Margin = new Padding(0, 16, 0, 0);
         settingsButtonsPanel.Name = "settingsButtonsPanel";
-        settingsButtonsPanel.Size = new Size(387, 37);
-        settingsButtonsPanel.TabIndex = 12;
-        // 
+        settingsButtonsPanel.Size = new Size(552, 37);
+        settingsButtonsPanel.TabIndex = 10;
+        //
+        // openSettingsButton
+        //
+        openSettingsButton.AutoSize = true;
+        openSettingsButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        openSettingsButton.BackColor = Color.FromArgb(239, 246, 249);
+        openSettingsButton.Cursor = Cursors.Hand;
+        openSettingsButton.FlatAppearance.BorderSize = 0;
+        openSettingsButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(212, 228, 236);
+        openSettingsButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(225, 236, 242);
+        openSettingsButton.FlatStyle = FlatStyle.Flat;
+        openSettingsButton.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+        openSettingsButton.ForeColor = Color.FromArgb(33, 37, 41);
+        openSettingsButton.Location = new Point(0, 0);
+        openSettingsButton.Margin = new Padding(0, 0, 12, 0);
+        openSettingsButton.MinimumSize = new Size(140, 36);
+        openSettingsButton.Name = "openSettingsButton";
+        openSettingsButton.Padding = new Padding(10, 6, 10, 6);
+        openSettingsButton.Size = new Size(153, 37);
+        openSettingsButton.TabIndex = 0;
+        openSettingsButton.Text = "Настройки…";
+        openSettingsButton.UseVisualStyleBackColor = false;
+        openSettingsButton.Click += OnOpenSettingsClicked;
+        //
         // openReportsButton
-        // 
+        //
         openReportsButton.AutoSize = true;
         openReportsButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         openReportsButton.BackColor = Color.FromArgb(239, 246, 249);
@@ -852,19 +845,19 @@ partial class MainForm
         openReportsButton.FlatStyle = FlatStyle.Flat;
         openReportsButton.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
         openReportsButton.ForeColor = Color.FromArgb(33, 37, 41);
-        openReportsButton.Location = new Point(0, 0);
+        openReportsButton.Location = new Point(165, 0);
         openReportsButton.Margin = new Padding(0, 0, 12, 0);
         openReportsButton.MinimumSize = new Size(140, 36);
         openReportsButton.Name = "openReportsButton";
         openReportsButton.Padding = new Padding(10, 6, 10, 6);
         openReportsButton.Size = new Size(181, 37);
-        openReportsButton.TabIndex = 0;
-        openReportsButton.Text = "Открыть каталог отчетов";
+        openReportsButton.TabIndex = 1;
+        openReportsButton.Text = "Открыть папку PDF-отчетов";
         openReportsButton.UseVisualStyleBackColor = false;
         openReportsButton.Click += OnOpenReportsClicked;
-        // 
+        //
         // convertBinButton
-        // 
+        //
         convertBinButton.AutoSize = true;
         convertBinButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         convertBinButton.BackColor = Color.FromArgb(34, 158, 189);
@@ -875,13 +868,13 @@ partial class MainForm
         convertBinButton.FlatStyle = FlatStyle.Flat;
         convertBinButton.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
         convertBinButton.ForeColor = Color.White;
-        convertBinButton.Location = new Point(193, 0);
+        convertBinButton.Location = new Point(358, 0);
         convertBinButton.Margin = new Padding(0);
         convertBinButton.MinimumSize = new Size(140, 36);
         convertBinButton.Name = "convertBinButton";
         convertBinButton.Padding = new Padding(10, 6, 10, 6);
         convertBinButton.Size = new Size(194, 37);
-        convertBinButton.TabIndex = 1;
+        convertBinButton.TabIndex = 2;
         convertBinButton.Text = "Конвертировать .bin в отчет";
         convertBinButton.UseVisualStyleBackColor = false;
         convertBinButton.Click += OnConvertBinClicked;

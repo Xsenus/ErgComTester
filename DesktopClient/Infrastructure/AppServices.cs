@@ -399,7 +399,7 @@ public static class AppServices
         Log.Info($"Настройки устройства: preferredPort={s.PreferredPort ?? "<не задан>"}, scanInterval={s.DeviceScanInterval.TotalSeconds}s, reconnectDelay={s.DeviceReconnectDelay.TotalSeconds}s");
         Log.Info($"Синхронизация пациентов: interval={s.BackgroundSyncInterval.TotalMinutes} мин.");
         Log.Info($"Обновления: interval={s.UpdateCheckInterval.TotalMinutes} мин., авто-загрузка={(s.AutoDownloadUpdates ? "да" : "нет")}, manifest={s.UpdateManifestUrl}");
-        Log.Info($"Каталоги: отчеты={s.ReportsDirectory}, логи={s.LogsDirectory}");
+        Log.Info($"Каталоги: рабочие отчеты={s.ReportsDirectory}, PDF={s.PdfOutputDirectory}, логи={s.LogsDirectory}");
         var serial = s.Serial;
         Log.Info($"COM-порт: baud={serial.BaudRate}, readTimeout={serial.ReadTimeoutMs}мс, writeTimeout={serial.WriteTimeoutMs}мс, quiet={serial.QuietTimeMs}мс, window={serial.MaxReadWindowMs}мс");
         Log.Info($"COM-параметры: DTR={(serial.DtrEnable ? "on" : "off")}, RTS={(serial.RtsEnable ? "on" : "off")}, toggle={(serial.ToggleLinesOnOpen ? "on" : "off")}, retries={serial.RetryCount}, minCI={serial.MinCommonInfoSize}, minPatient={serial.MinPatientBlockSize}");
