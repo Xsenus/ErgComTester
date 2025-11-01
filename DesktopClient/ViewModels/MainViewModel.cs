@@ -322,6 +322,51 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => UpdateReportHeader(value);
     }
 
+    public string ReportsDirectory => _settings.Current.ReportsDirectory;
+
+    public async Task<(bool Success, string? Error)> TryUpdateReportsDirectoryAsync(string? value)
+    {
+        var trimmed = value?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            var message = "Путь к каталогу отчетов не может быть пустым.";
+            _log.Warn(message);
+            return (false, message);
+        }
+
+        string normalized;
+        try
+        {
+            normalized = Path.GetFullPath(trimmed);
+        }
+        catch (Exception ex)
+        {
+            var message = $"Недопустимый путь: {ex.Message}";
+            _log.Warn(message);
+            return (false, message);
+        }
+
+        if (string.Equals(normalized, _settings.Current.ReportsDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            _log.Debug($"Каталог отчетов не изменился: {normalized}.");
+            return (true, null);
+        }
+
+        try
+        {
+            Directory.CreateDirectory(normalized);
+        }
+        catch (Exception ex)
+        {
+            var message = $"Не удалось создать каталог отчетов '{normalized}': {ex.Message}";
+            _log.Error(message);
+            return (false, message);
+        }
+
+        await ApplySettingAsync(nameof(ReportsDirectory), normalized, (s, v) => s.ReportsDirectory = v);
+        return (true, null);
+    }
+
     private void UpdateIntSetting(string propertyName, int value, int min, int max, Func<AppSettings, int> accessor, Action<AppSettings, int> setter)
     {
         var normalized = Math.Clamp(value, min, max);

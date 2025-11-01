@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Text.Json.Serialization;
 using ErgData;
 
@@ -17,7 +18,7 @@ public class AppSettings
     public string UpdateManifestUrl { get; set; } = DefaultManifestUrl;
     public SerialCommunicationOptions Serial { get; set; } = SerialCommunicationOptions.CreateDefault();
     public int BackgroundSyncIntervalMinutes { get; set; } = 30;
-    public string ReportsDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Microlux ERG Connect", "Reports");
+    public string ReportsDirectory { get; set; } = Path.Combine(AppContext.BaseDirectory ?? Environment.CurrentDirectory, "out");
     public string LogsDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Microlux ERG Connect", "Logs");
     public bool MinimizeToTray { get; set; } = true;
     public bool StartMinimized { get; set; } = false;

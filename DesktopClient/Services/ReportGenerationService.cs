@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ErgData;
 using MicroluxErgConnect.Models;
+using MicroluxErgConnect.Utils;
 
 namespace MicroluxErgConnect.Services;
 
@@ -255,9 +256,20 @@ public sealed class ReportGenerationService : IDisposable
                     string? pdfPath = null;
                     if (_pdfGenerationEnabled)
                     {
-                        var candidatePdfPath = Path.Combine(sessionDir, $"patient_{index:000}.pdf");
+                        var pdfNameInfo = ReportFileNaming.CreatePdfFileName(patient, DateTime.Now);
+                        if (pdfNameInfo.UsedFallback)
+                        {
+                            _log.Warn($"[{portName}] не удалось определить дату из '{patient.TestDateTime}', используется {pdfNameInfo.Timestamp:dd.MM.yyyy HH:mm} для имени файла.");
+                        }
+
+                        var candidatePdfPath = Path.Combine(_settings.Current.ReportsDirectory, pdfNameInfo.FileName);
                         try
                         {
+                            if (File.Exists(candidatePdfPath))
+                            {
+                                _log.Info($"Существующий PDF-отчет будет обновлен: {candidatePdfPath}");
+                            }
+
                             ErgReportBuilder.BuildPatientReport(patient, candidatePdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: finalRawPath, template: template);
                             _log.Info($"PDF-отчет для пациента #{index} создан: {candidatePdfPath}");
                             pdfPath = candidatePdfPath;
@@ -469,10 +481,33 @@ public sealed class ReportGenerationService : IDisposable
     private string CreateSessionDirectory()
     {
         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
-        var sessionDir = Path.Combine(_settings.Current.ReportsDirectory, timestamp);
+        var root = Path.Combine(_settings.BaseDirectory, "Sessions");
+        Directory.CreateDirectory(root);
+        var sessionDir = Path.Combine(root, timestamp);
         Directory.CreateDirectory(sessionDir);
-        _log.Info($"Отчеты будут сохранены в каталоге {sessionDir}.");
+        _log.Info($"Рабочие файлы синхронизации сохраняются в каталоге {sessionDir}.");
         return sessionDir;
+    }
+
+    private static DateTime ResolveFallbackTimestamp(string? filePath)
+    {
+        if (!string.IsNullOrWhiteSpace(filePath))
+        {
+            try
+            {
+                var info = new FileInfo(filePath);
+                if (info.Exists)
+                {
+                    return info.LastWriteTime;
+                }
+            }
+            catch
+            {
+                // ignore IO exceptions, fallback to current time
+            }
+        }
+
+        return DateTime.Now;
     }
 
     private string SavePatientAttempt(string sessionDir, int patientIndex, int attempt, byte[] raw)
@@ -623,8 +658,21 @@ public sealed class ReportGenerationService : IDisposable
 
         var baseName = Path.GetFileNameWithoutExtension(filePath);
         var jsonPath = Path.Combine(directory, $"{baseName}.json");
-        var pdfPath = Path.Combine(directory, $"{baseName}.pdf");
         var docxPath = Path.Combine(directory, $"{baseName}.docx");
+
+        var pdfFallback = ResolveFallbackTimestamp(filePath);
+        var pdfNameInfo = ReportFileNaming.CreatePdfFileName(patient, pdfFallback);
+        if (pdfNameInfo.UsedFallback)
+        {
+            _log.Warn($"[{filePath}] не удалось определить дату из '{patient.TestDateTime}', используется {pdfNameInfo.Timestamp:dd.MM.yyyy HH:mm} для имени файла.");
+        }
+
+        Directory.CreateDirectory(_settings.Current.ReportsDirectory);
+        var pdfPath = Path.Combine(_settings.Current.ReportsDirectory, pdfNameInfo.FileName);
+        if (File.Exists(pdfPath))
+        {
+            _log.Info($"Существующий PDF-отчет будет обновлен: {pdfPath}");
+        }
 
         var template = _settings.Current.ReportTemplate;
         var clinicHeader = GetClinicHeader();
