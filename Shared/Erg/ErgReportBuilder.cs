@@ -2271,6 +2271,18 @@ public static class ErgReportBuilder
         return (value, unit);
     }
 
+    private static float GetBaselineOffset(Font font, Graphics graphics)
+    {
+        var family = font.FontFamily;
+        var style = font.Style;
+        var lineSpacing = family.GetLineSpacing(style);
+        if (lineSpacing == 0)
+            return font.GetHeight(graphics);
+
+        var ascent = family.GetCellAscent(style);
+        return font.GetHeight(graphics) * ascent / lineSpacing;
+    }
+
     private static bool TryGetImageContentType(string extension, out string contentType)
     {
         contentType = extension.ToLowerInvariant() switch
@@ -3683,9 +3695,13 @@ public static class ErgReportBuilder
             if (!string.IsNullOrEmpty(parts.Unit))
             {
                 var unitHeight = _unitFont.GetHeight(_graphics);
+                var valueBaselineOffset = GetBaselineOffset(_valueFont, _graphics);
+                var unitBaselineOffset = GetBaselineOffset(_unitFont, _graphics);
+                var unitTop = valueRect.Top + valueBaselineOffset - unitBaselineOffset;
+
                 var unitRect = new RectangleF(
                     startX + valueSize.Width + spaceWidth,
-                    valueRect.Bottom - unitHeight,
+                    unitTop,
                     unitSize.Width,
                     unitHeight);
                 _graphics.DrawString(parts.Unit, _unitFont, Brushes.Black, unitRect, _formatLeft);
