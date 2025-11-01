@@ -42,6 +42,7 @@ public sealed class GraphRenderOptionsDto
     public float TickThicknessPx { get; set; }
     public float CurveThicknessPx { get; set; }
     public float ExtremumThicknessPx { get; set; }
+    public float? HorizontalMarkerThicknessPx { get; set; }
     public float GridThicknessPx { get; set; }
     public float DottedDashLengthPx { get; set; }
     public float DottedGapLengthPx { get; set; }
@@ -69,6 +70,7 @@ public sealed class GraphRenderOptionsDto
         TickThicknessPx = o.TickThicknessPx,
         CurveThicknessPx = o.CurveThicknessPx,
         ExtremumThicknessPx = o.ExtremumThicknessPx,
+        HorizontalMarkerThicknessPx = o.HorizontalMarkerThicknessPx,
         GridThicknessPx = o.GridThicknessPx,
         DottedDashLengthPx = o.DottedDashLengthPx,
         DottedGapLengthPx = o.DottedGapLengthPx,
@@ -97,6 +99,8 @@ public sealed class GraphRenderOptionsDto
         o.TickThicknessPx = TickThicknessPx;
         o.CurveThicknessPx = CurveThicknessPx;
         o.ExtremumThicknessPx = ExtremumThicknessPx;
+        if (HorizontalMarkerThicknessPx.HasValue)
+            o.HorizontalMarkerThicknessPx = HorizontalMarkerThicknessPx.Value;
         o.GridThicknessPx = GridThicknessPx;
         if (DottedDashLengthPx > 0f)
             o.DottedDashLengthPx = ErgReportBuilder.GraphRenderOptions.NormalizeDottedLength(DottedDashLengthPx, o.DottedDashLengthPx);

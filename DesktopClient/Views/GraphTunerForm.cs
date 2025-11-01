@@ -68,7 +68,8 @@ namespace MicroluxErgConnect.Views
         private readonly NumericUpDown nudYUnitsGap = MakeNud(0m, 60m, 1m, 22m);
         private readonly NumericUpDown nudYUnitsFb = MakeNud(0m, 120m, 1m, 70m);
         private readonly NumericUpDown nudExtremumPx = MakeNud(0.1m, 12m, 0.1m, 1.2m);
-        private readonly NumericUpDown nudGridPx = MakeNud(0.1m, 6m, 0.1m, 1.0m);
+        private readonly NumericUpDown nudHorizontalMarkerPx = MakeNud(0m, 12m, 0.1m, 1.2m);
+        private readonly NumericUpDown nudGridPx = MakeNud(0m, 6m, 0.1m, 1.0m);
         private readonly NumericUpDown nudDottedDash = MakeNud(1.0m, 20m, 0.1m, 4.0m);
         private readonly NumericUpDown nudDottedGap = MakeNud(1.0m, 20m, 0.1m, 3.0m);
 
@@ -89,6 +90,8 @@ namespace MicroluxErgConnect.Views
             public float CurveThicknessPx { get; set; }
 
             public float ExtremumThicknessPx { get; set; }
+
+            public float? HorizontalMarkerThicknessPx { get; set; }
 
             public float GridThicknessPx { get; set; }
 
@@ -183,7 +186,8 @@ namespace MicroluxErgConnect.Views
                         Row("Axis", nudAxisPx, "px"),
                         Row("Tick", nudTickPx, "px"),
                         Row("Curve", nudCurvePx, "px"),
-                        Row("Extremum", nudExtremumPx, "px"),
+                        Row("Marker V", nudExtremumPx, "px"),
+                        Row("Marker H", nudHorizontalMarkerPx, "px"),
                         Row("Grid", nudGridPx, "px")));
             _flow.Controls.Add(MakeGroup("Dotted pattern (px)", Row("Dash length", nudDottedDash, "px"), Row("Gap length", nudDottedGap, "px")));
             _flow.Controls.Add(MakeGroup("Fonts (pt)", Row("Labels", nudLabelPt, "pt"), Row("Units", nudUnitsPt, "pt")));
@@ -232,8 +236,9 @@ namespace MicroluxErgConnect.Views
             tip.SetToolTip(nudYPad, "Отступ чисел Y от оси (px)");
             tip.SetToolTip(nudYUnitsGap, "Зазор 'µV' от чисел (px)");
             tip.SetToolTip(nudYUnitsFb, "Фоллбек-отступ 'µV' от оси (px)");
-            tip.SetToolTip(nudExtremumPx, "Толщина отметок экстремумов (px)");
-            tip.SetToolTip(nudGridPx, "Толщина линий сетки (px)");
+            tip.SetToolTip(nudExtremumPx, "Толщина вертикальных маркеров (px)");
+            tip.SetToolTip(nudHorizontalMarkerPx, "Толщина горизонтальных маркеров (px, 0 — скрыть)");
+            tip.SetToolTip(nudGridPx, "Толщина линий сетки (px, 0 — отключить)");
             tip.SetToolTip(nudDottedDash, "Длина штриха пунктира (px)");
             tip.SetToolTip(nudDottedGap, "Зазор между штрихами пунктира (px)");
 
@@ -467,6 +472,7 @@ namespace MicroluxErgConnect.Views
                 nud == nudTickPx ||
                 nud == nudCurvePx ||
                 nud == nudExtremumPx ||
+                nud == nudHorizontalMarkerPx ||
                 nud == nudGridPx ||
                 nud == nudDottedDash ||
                 nud == nudDottedGap)
@@ -505,6 +511,7 @@ namespace MicroluxErgConnect.Views
             nudYUnitsFb.Value = Clamp(nudYUnitsFb, (decimal)o.YUnitsFallbackFromAxisPx);
 
             nudExtremumPx.Value = Clamp(nudExtremumPx, (decimal)o.ExtremumThicknessPx);
+            nudHorizontalMarkerPx.Value = Clamp(nudHorizontalMarkerPx, (decimal)o.HorizontalMarkerThicknessPx);
             nudGridPx.Value = Clamp(nudGridPx, (decimal)o.GridThicknessPx);
             nudDottedDash.Value = Clamp(nudDottedDash, (decimal)o.DottedDashLengthPx);
             nudDottedGap.Value = Clamp(nudDottedGap, (decimal)o.DottedGapLengthPx);
@@ -521,6 +528,7 @@ namespace MicroluxErgConnect.Views
                 TickThicknessPx = (float)nudTickPx.Value,
                 CurveThicknessPx = (float)nudCurvePx.Value,
                 ExtremumThicknessPx = o.ExtremumThicknessPx,
+                HorizontalMarkerThicknessPx = o.HorizontalMarkerThicknessPx,
                 GridThicknessPx = o.GridThicknessPx,
                 DottedDashLengthPx = (float)nudDottedDash.Value,
                 DottedGapLengthPx = (float)nudDottedGap.Value,
@@ -552,6 +560,7 @@ namespace MicroluxErgConnect.Views
             o.TickThicknessPx = p.TickThicknessPx;
             o.CurveThicknessPx = p.CurveThicknessPx;
             o.ExtremumThicknessPx = p.ExtremumThicknessPx;
+            o.HorizontalMarkerThicknessPx = p.HorizontalMarkerThicknessPx ?? defaults.HorizontalMarkerThicknessPx;
             o.GridThicknessPx = p.GridThicknessPx;
             o.DottedDashLengthPx = ErgReportBuilder.GraphRenderOptions.NormalizeDottedLength(
                 p.DottedDashLengthPx > 0f ? p.DottedDashLengthPx : defaults.DottedDashLengthPx,
@@ -605,6 +614,7 @@ namespace MicroluxErgConnect.Views
                     YUnitsGapFromNumbersPx = d.YUnitsGapFromNumbersPx,
                     YUnitsFallbackFromAxisPx = d.YUnitsFallbackFromAxisPx,
                     ExtremumThicknessPx = d.ExtremumThicknessPx,
+                    HorizontalMarkerThicknessPx = d.HorizontalMarkerThicknessPx,
                     GridThicknessPx = d.GridThicknessPx,
                     DottedDashLengthPx = d.DottedDashLengthPx,
                     DottedGapLengthPx = d.DottedGapLengthPx
@@ -681,6 +691,7 @@ namespace MicroluxErgConnect.Views
             o.YUnitsFallbackFromAxisPx = (float)nudYUnitsFb.Value;
 
             o.ExtremumThicknessPx = (float)nudExtremumPx.Value;
+            o.HorizontalMarkerThicknessPx = (float)nudHorizontalMarkerPx.Value;
             o.GridThicknessPx = (float)nudGridPx.Value;
             o.DottedDashLengthPx = ErgReportBuilder.GraphRenderOptions.NormalizeDottedLength((float)nudDottedDash.Value, o.DottedDashLengthPx);
             o.DottedGapLengthPx = ErgReportBuilder.GraphRenderOptions.NormalizeDottedLength((float)nudDottedGap.Value, o.DottedGapLengthPx);
