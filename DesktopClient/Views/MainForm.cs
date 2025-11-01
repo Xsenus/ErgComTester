@@ -11,6 +11,7 @@ using System.Windows.Forms;
 using ErgData;
 using MicroluxErgConnect.Infrastructure;
 using MicroluxErgConnect.Models;
+using MicroluxErgConnect.Utils;
 using MicroluxErgConnect.ViewModels;
 
 namespace MicroluxErgConnect.Views;
@@ -382,7 +383,34 @@ public partial class MainForm : Form
         manifestUrlTextBox.Text = _viewModel.UpdateManifestUrl;
         reportTemplateComboBox.SelectedValue = _viewModel.ReportTemplate;
         renderingModeComboBox.SelectedValue = _viewModel.ReportRenderingMode;
-        reportHeaderTextBox.Text = _viewModel.ReportHeader;
+        ApplyReportHeaderToInput(_viewModel.ReportHeader);
+    }
+
+    private void ApplyReportHeaderToInput(string header)
+    {
+        var desiredLines = ReportHeaderFormatter.Split(header);
+        if (!LinesEqual(reportHeaderTextBox.Lines, desiredLines))
+        {
+            reportHeaderTextBox.Lines = desiredLines;
+        }
+    }
+
+    private static bool LinesEqual(string[]? current, string[] desired)
+    {
+        if (current == null || current.Length != desired.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < desired.Length; i++)
+        {
+            if (!string.Equals(current[i], desired[i], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private void UpdateAll()
@@ -787,14 +815,14 @@ public partial class MainForm : Form
 
     private void OnReportHeaderValidated(object? sender, EventArgs e)
     {
-        var header = reportHeaderTextBox.Text;
-        if (!string.Equals(header, _viewModel.ReportHeader, StringComparison.Ordinal))
+        var normalized = ReportHeaderFormatter.Normalize(reportHeaderTextBox.Text);
+        if (!string.Equals(normalized, _viewModel.ReportHeader, StringComparison.Ordinal))
         {
             AppServices.Log.Info("Пользователь изменил шапку отчета.");
-            _viewModel.ReportHeader = header;
+            _viewModel.ReportHeader = normalized;
         }
 
-        reportHeaderTextBox.Text = _viewModel.ReportHeader;
+        ApplyReportHeaderToInput(_viewModel.ReportHeader);
     }
 
     private void OnReportTemplateChanged(object? sender, EventArgs e)

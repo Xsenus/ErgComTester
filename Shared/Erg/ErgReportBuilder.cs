@@ -279,11 +279,10 @@ public static class ErgReportBuilder
             return lines;
 
         var normalized = clinicName.Replace("\r\n", "\n").Replace('\r', '\n');
-        var parts = normalized.Split('\n', StringSplitOptions.None);
+        var parts = normalized.Split(new[] { '\n' }, headerLineCount, StringSplitOptions.None);
         for (int i = 0; i < headerLineCount && i < parts.Length; i++)
         {
-            var part = parts[i];
-            lines[i] = part?.TrimEnd() ?? string.Empty;
+            lines[i] = parts[i] ?? string.Empty;
         }
 
         return lines;
