@@ -29,7 +29,6 @@ partial class SettingsForm
 
     private void InitializeComponent()
     {
-        components = new Container();
         layout = new TableLayoutPanel();
         folderLabel = new Label();
         folderTextBox = new TextBox();
@@ -58,7 +57,7 @@ partial class SettingsForm
         layout.Controls.Add(headerHintLabel, 0, 2);
         layout.Controls.Add(buttonsPanel, 0, 3);
         layout.Dock = DockStyle.Fill;
-        layout.Location = new Point(12, 12);
+        layout.Location = new Point(0, 0);
         layout.Margin = new Padding(0);
         layout.Name = "layout";
         layout.Padding = new Padding(0, 0, 0, 8);
@@ -67,7 +66,7 @@ partial class SettingsForm
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         layout.RowStyles.Add(new RowStyle());
         layout.RowStyles.Add(new RowStyle());
-        layout.Size = new Size(560, 257);
+        layout.Size = new Size(584, 281);
         layout.TabIndex = 0;
         // 
         // folderLabel
@@ -78,17 +77,17 @@ partial class SettingsForm
         folderLabel.Location = new Point(0, 0);
         folderLabel.Margin = new Padding(0, 0, 12, 0);
         folderLabel.Name = "folderLabel";
-        folderLabel.Size = new Size(142, 15);
+        folderLabel.Size = new Size(125, 15);
         folderLabel.TabIndex = 0;
         folderLabel.Text = "Каталог PDF-отчетов:";
         // 
         // folderTextBox
         // 
         folderTextBox.Dock = DockStyle.Fill;
-        folderTextBox.Location = new Point(154, 3);
+        folderTextBox.Location = new Point(155, 3);
         folderTextBox.Margin = new Padding(0, 3, 8, 3);
         folderTextBox.Name = "folderTextBox";
-        folderTextBox.Size = new Size(325, 23);
+        folderTextBox.Size = new Size(334, 23);
         folderTextBox.TabIndex = 1;
         // 
         // browseButton
@@ -103,12 +102,12 @@ partial class SettingsForm
         browseButton.FlatStyle = FlatStyle.Flat;
         browseButton.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
         browseButton.ForeColor = Color.FromArgb(33, 37, 41);
-        browseButton.Location = new Point(487, 0);
+        browseButton.Location = new Point(497, 0);
         browseButton.Margin = new Padding(0);
         browseButton.MinimumSize = new Size(80, 30);
         browseButton.Name = "browseButton";
         browseButton.Padding = new Padding(10, 5, 10, 5);
-        browseButton.Size = new Size(73, 32);
+        browseButton.Size = new Size(87, 35);
         browseButton.TabIndex = 2;
         browseButton.Text = "Выбрать";
         browseButton.UseVisualStyleBackColor = false;
@@ -122,50 +121,51 @@ partial class SettingsForm
         headerLabel.Location = new Point(0, 47);
         headerLabel.Margin = new Padding(0, 12, 12, 0);
         headerLabel.Name = "headerLabel";
-        headerLabel.Size = new Size(137, 15);
+        headerLabel.Size = new Size(143, 15);
         headerLabel.TabIndex = 3;
         headerLabel.Text = "Шапка отчета (4 строки):";
         // 
         // headerTextBox
         // 
-        layout.SetColumnSpan(headerTextBox, 2);
         headerTextBox.AcceptsReturn = true;
         headerTextBox.BorderStyle = BorderStyle.FixedSingle;
+        layout.SetColumnSpan(headerTextBox, 2);
         headerTextBox.Dock = DockStyle.Fill;
-        headerTextBox.Location = new Point(154, 50);
+        headerTextBox.Location = new Point(155, 47);
         headerTextBox.Margin = new Padding(0, 12, 0, 3);
         headerTextBox.MinimumSize = new Size(200, 100);
         headerTextBox.Multiline = true;
         headerTextBox.Name = "headerTextBox";
         headerTextBox.ScrollBars = ScrollBars.Vertical;
-        headerTextBox.Size = new Size(406, 132);
+        headerTextBox.Size = new Size(429, 163);
         headerTextBox.TabIndex = 4;
         // 
         // headerHintLabel
         // 
-        layout.SetColumnSpan(headerHintLabel, 3);
         headerHintLabel.AutoSize = true;
+        layout.SetColumnSpan(headerHintLabel, 3);
         headerHintLabel.Font = new Font("Segoe UI", 8F);
         headerHintLabel.ForeColor = Color.FromArgb(120, 128, 145);
-        headerHintLabel.Location = new Point(0, 187);
+        headerHintLabel.Location = new Point(0, 215);
         headerHintLabel.Margin = new Padding(0, 2, 0, 8);
         headerHintLabel.Name = "headerHintLabel";
-        headerHintLabel.Size = new Size(280, 13);
+        headerHintLabel.Size = new Size(329, 13);
         headerHintLabel.TabIndex = 5;
         headerHintLabel.Text = "Каждая строка будет выведена отдельной строкой в отчете.";
         // 
         // buttonsPanel
         // 
-        layout.SetColumnSpan(buttonsPanel, 3);
         buttonsPanel.AutoSize = true;
         buttonsPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        layout.SetColumnSpan(buttonsPanel, 3);
+        buttonsPanel.Controls.Add(saveButton);
+        buttonsPanel.Controls.Add(cancelButton);
         buttonsPanel.Dock = DockStyle.Fill;
         buttonsPanel.FlowDirection = FlowDirection.RightToLeft;
-        buttonsPanel.Location = new Point(0, 208);
+        buttonsPanel.Location = new Point(0, 236);
         buttonsPanel.Margin = new Padding(0);
         buttonsPanel.Name = "buttonsPanel";
-        buttonsPanel.Padding = new Padding(0);
-        buttonsPanel.Size = new Size(560, 41);
+        buttonsPanel.Size = new Size(584, 37);
         buttonsPanel.TabIndex = 6;
         // 
         // saveButton
@@ -180,12 +180,12 @@ partial class SettingsForm
         saveButton.FlatStyle = FlatStyle.Flat;
         saveButton.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
         saveButton.ForeColor = Color.White;
-        saveButton.Location = new Point(400, 0);
+        saveButton.Location = new Point(474, 0);
         saveButton.Margin = new Padding(0);
         saveButton.MinimumSize = new Size(110, 34);
         saveButton.Name = "saveButton";
         saveButton.Padding = new Padding(10, 6, 10, 6);
-        saveButton.Size = new Size(160, 34);
+        saveButton.Size = new Size(110, 37);
         saveButton.TabIndex = 0;
         saveButton.Text = "Сохранить";
         saveButton.UseVisualStyleBackColor = false;
@@ -203,21 +203,16 @@ partial class SettingsForm
         cancelButton.FlatStyle = FlatStyle.Flat;
         cancelButton.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
         cancelButton.ForeColor = Color.FromArgb(33, 37, 41);
-        cancelButton.Location = new Point(305, 0);
+        cancelButton.Location = new Point(372, 0);
         cancelButton.Margin = new Padding(0, 0, 12, 0);
         cancelButton.MinimumSize = new Size(90, 34);
         cancelButton.Name = "cancelButton";
         cancelButton.Padding = new Padding(10, 6, 10, 6);
-        cancelButton.Size = new Size(83, 34);
+        cancelButton.Size = new Size(90, 37);
         cancelButton.TabIndex = 1;
         cancelButton.Text = "Отмена";
         cancelButton.UseVisualStyleBackColor = false;
         cancelButton.Click += OnCancelClicked;
-        // 
-        // buttonsPanel children
-        // 
-        buttonsPanel.Controls.Add(saveButton);
-        buttonsPanel.Controls.Add(cancelButton);
         // 
         // SettingsForm
         // 
@@ -228,10 +223,10 @@ partial class SettingsForm
         ClientSize = new Size(584, 281);
         Controls.Add(layout);
         Font = new Font("Segoe UI", 9F);
-        FormBorderStyle = FormBorderStyle.FixedDialog;
         Margin = new Padding(4, 3, 4, 3);
         MaximizeBox = false;
         MinimizeBox = false;
+        MinimumSize = new Size(600, 320);
         Name = "SettingsForm";
         StartPosition = FormStartPosition.CenterParent;
         Text = "Настройки";
