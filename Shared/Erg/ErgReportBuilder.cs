@@ -2271,6 +2271,18 @@ public static class ErgReportBuilder
         return (value, unit);
     }
 
+    private static float GetBaselineOffset(DrawingFont font, Graphics graphics)
+    {
+        var family = font.FontFamily;
+        var style = font.Style;
+        var lineSpacing = family.GetLineSpacing(style);
+        if (lineSpacing == 0)
+            return font.GetHeight(graphics);
+
+        var ascent = family.GetCellAscent(style);
+        return font.GetHeight(graphics) * ascent / lineSpacing;
+    }
+
     private static bool TryGetImageContentType(string extension, out string contentType)
     {
         contentType = extension.ToLowerInvariant() switch
@@ -3670,9 +3682,15 @@ public static class ErgReportBuilder
             var parts = SplitValueAndUnit(text);
             var valueSize = _graphics.MeasureString(parts.Value, _valueFont);
             var unitSize = string.IsNullOrEmpty(parts.Unit) ? SizeF.Empty : _graphics.MeasureString(parts.Unit, _unitFont);
-            var spaceWidth = string.IsNullOrEmpty(parts.Unit) ? 0f : _graphics.MeasureString(" ", _unitFont).Width * 0.5f;
+            float unitGap = 0f;
+            if (!string.IsNullOrEmpty(parts.Unit))
+            {
+                const float UnitGapFactor = 0.25f;
+                var measuredSpace = _graphics.MeasureString(" ", _unitFont).Width;
+                unitGap = Math.Max(0f, measuredSpace * UnitGapFactor);
+            }
 
-            var totalWidth = valueSize.Width + (string.IsNullOrEmpty(parts.Unit) ? 0f : spaceWidth + unitSize.Width);
+            var totalWidth = valueSize.Width + (string.IsNullOrEmpty(parts.Unit) ? 0f : unitGap + unitSize.Width);
             var startX = rect.Left + (rect.Width - totalWidth) / 2f;
 
             var valueRect = new RectangleF(startX, rect.Top + (rect.Height - _valueFont.GetHeight(_graphics)) / 2f, valueSize.Width, _valueFont.GetHeight(_graphics));
@@ -3683,9 +3701,13 @@ public static class ErgReportBuilder
             if (!string.IsNullOrEmpty(parts.Unit))
             {
                 var unitHeight = _unitFont.GetHeight(_graphics);
+                var valueBaselineOffset = GetBaselineOffset(_valueFont, _graphics);
+                var unitBaselineOffset = GetBaselineOffset(_unitFont, _graphics);
+                var unitTop = valueRect.Top + valueBaselineOffset - unitBaselineOffset;
+
                 var unitRect = new RectangleF(
-                    startX + valueSize.Width + spaceWidth,
-                    valueRect.Bottom - unitHeight,
+                    startX + valueSize.Width + unitGap,
+                    unitTop,
                     unitSize.Width,
                     unitHeight);
                 _graphics.DrawString(parts.Unit, _unitFont, Brushes.Black, unitRect, _formatLeft);
