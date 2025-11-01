@@ -258,7 +258,7 @@ public sealed class TelegramNotificationService : IDisposable
         {
             if (File.Exists(pdfPath))
             {
-                EnqueueDocument(pdfPath, $"patient_{patientIndex:000}.pdf");
+                EnqueueDocument(pdfPath, Path.GetFileName(pdfPath));
             }
 
             if (File.Exists(docxPath))
