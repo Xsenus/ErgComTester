@@ -2201,16 +2201,18 @@ public static class ErgReportBuilder
     {
         const int headerLineCount = 4;
 
-        if (lines == null || lines.Length == 0)
-            return Enumerable.Repeat(string.Empty, headerLineCount).ToArray();
-
         var result = new string[headerLineCount];
-        Array.Fill(result, string.Empty);
 
-        var limit = Math.Min(lines.Length, headerLineCount);
-        for (int i = 0; i < limit; i++)
+        for (int i = 0; i < headerLineCount; i++)
         {
-            result[i] = lines[i] ?? string.Empty;
+            if (lines != null && i < lines.Length && !string.IsNullOrEmpty(lines[i]))
+            {
+                result[i] = lines[i]!;
+            }
+            else
+            {
+                result[i] = $"строка {i + 1}";
+            }
         }
 
         return result;
