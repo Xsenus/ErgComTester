@@ -271,13 +271,16 @@ public static class ErgReportBuilder
 
     private static string[] BuildClinicHeaderLines(string? clinicName)
     {
-        var lines = new string[4];
+        const int headerLineCount = 4;
+        var lines = new string[headerLineCount];
+        Array.Fill(lines, string.Empty);
+
         if (string.IsNullOrWhiteSpace(clinicName))
             return lines;
 
         var normalized = clinicName.Replace("\r\n", "\n").Replace('\r', '\n');
         var parts = normalized.Split('\n', StringSplitOptions.None);
-        for (int i = 0; i < lines.Length && i < parts.Length; i++)
+        for (int i = 0; i < headerLineCount && i < parts.Length; i++)
         {
             var part = parts[i];
             lines[i] = part?.TrimEnd() ?? string.Empty;
@@ -2200,19 +2203,17 @@ public static class ErgReportBuilder
     private static string[] PrepareClinicHeaderLines(string[] lines)
     {
         const int headerLineCount = 4;
-
         var result = new string[headerLineCount];
+        Array.Fill(result, "\u00A0");
 
-        for (int i = 0; i < headerLineCount; i++)
+        if (lines == null || lines.Length == 0)
+            return result;
+
+        for (int i = 0; i < headerLineCount && i < lines.Length; i++)
         {
-            if (lines != null && i < lines.Length && !string.IsNullOrWhiteSpace(lines[i]))
-            {
-                result[i] = lines[i]!;
-            }
-            else
-            {
-                result[i] = "\u00A0";
-            }
+            var line = lines[i];
+            if (!string.IsNullOrWhiteSpace(line))
+                result[i] = line!;
         }
 
         return result;
