@@ -5,9 +5,9 @@ namespace MicroluxErgConnect;
 public sealed class SerialCommunicationOptions
 {
     public int BaudRate { get; set; } = 115200;
-    public bool DtrEnable { get; set; } = true;
-    public bool RtsEnable { get; set; } = true;
-    public bool ToggleLinesOnOpen { get; set; } = true;
+    public bool DtrEnable { get; set; } = false;
+    public bool RtsEnable { get; set; } = false;
+    public bool ToggleLinesOnOpen { get; set; } = false;
     public int QuietTimeMs { get; set; } = 120;
     public int MaxReadWindowMs { get; set; } = 1500;
     public int ReadTimeoutMs { get; set; } = 400;

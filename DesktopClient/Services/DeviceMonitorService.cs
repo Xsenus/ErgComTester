@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO.Ports;
 using System.Linq;
 using System.Threading;
@@ -125,20 +124,12 @@ public sealed class DeviceMonitorService : IDisposable
         UpdateStatus(new DeviceStatus(false, null, null, DateTime.Now, "Сканирование портов"));
         _log.Info($"Сканирование {ports.Count} портов...");
 
-        var tasks = new List<Task<DeviceConnectionInfo?>>();
         foreach (var port in ports)
         {
-            tasks.Add(ProbeWithStartupStrategyAsync(port, ct));
-        }
-
-        while (tasks.Count > 0)
-        {
-            var completed = await Task.WhenAny(tasks);
-            tasks.Remove(completed);
-            DeviceConnectionInfo? info;
+            DeviceConnectionInfo? info = null;
             try
             {
-                info = await completed;
+                info = await ProbeWithStartupStrategyAsync(port, ct).ConfigureAwait(false);
             }
             catch (SerialPortInUseException ex)
             {
@@ -151,7 +142,7 @@ public sealed class DeviceMonitorService : IDisposable
             }
             catch (Exception ex)
             {
-                _log.Debug($"[{DateTime.Now:HH:mm:ss}] ошибка при сканировании: {ex.Message}");
+                _log.Debug($"[{port}] ошибка при сканировании: {ex.Message}");
                 continue;
             }
 
@@ -367,10 +358,16 @@ public sealed class DeviceMonitorService : IDisposable
     {
         try
         {
-            _log.Debug($"[{connection.PortName}] повторное сканирование для проверки связи.");
+            if (_reports.IsPortBusy(connection.PortName))
+            {
+                _log.Debug($"[{connection.PortName}] активный обмен данными, проверка подключения пропущена.");
+                return true;
+            }
+
+            _log.Debug($"[{connection.PortName}] контрольная проверка связи.");
             var info = await ProbeWithWatchdogAsync(connection.PortName, ct, toggleLines: false).ConfigureAwait(false);
             if (info == null) return false;
-            _log.Debug($"[{connection.PortName}] устройство ответило корректно при повторной проверке.");
+            _log.Debug($"[{connection.PortName}] устройство ответило корректно при контрольной проверке.");
             return true;
         }
         catch (SerialPortInUseException ex)
