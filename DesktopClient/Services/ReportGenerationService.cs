@@ -156,6 +156,11 @@ public sealed class ReportGenerationService : IDisposable
         string? sessionDir = null;
         var generatedPdfReports = new List<string>();
         var generatedWordReports = new List<string>();
+        var wordGenerationEnabled = _settings.Current.GenerateWordReports;
+        if (!wordGenerationEnabled)
+        {
+            _log.Info("Генерация Word-отчетов отключена в настройках. DOCX-файлы создаваться не будут.");
+        }
         int maxPatients = Math.Max(1, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 1);
         bool sessionAnnounced = false;
         int processedPatients = 0;
@@ -310,6 +315,58 @@ public sealed class ReportGenerationService : IDisposable
                             ReportGenerated?.Invoke(this, pdfPath);
                             generatedPdfReports.Add(pdfPath);
                         }
+                        catch (IOException ex) when (IsFileInUse(ex))
+                        {
+                            var fallback = TrySavePdfWithFallback(
+                                patient,
+                                finalRawPath,
+                                clinicHeader,
+                                template,
+                                candidatePdfPath,
+                                ex,
+                                $"[{portName}] пациент #{index}",
+                                path =>
+                                {
+                                    ReportGenerated?.Invoke(this, path);
+                                    generatedPdfReports.Add(path);
+                                });
+
+                            pdfPath = fallback.Path;
+                            if (pdfPath == null)
+                            {
+                                var reason = $"Не удалось создать PDF-отчет: {fallback.Error ?? ex.Message}";
+                                RenderingSupport.DisablePdf(reason);
+                                _pdfGenerationEnabled = false;
+                                _pdfGenerationIssue = RenderingSupport.PdfIssue ?? reason;
+                                LogPdfGenerationDisabled(portName);
+                            }
+                        }
+                        catch (UnauthorizedAccessException ex)
+                        {
+                            var fallback = TrySavePdfWithFallback(
+                                patient,
+                                finalRawPath,
+                                clinicHeader,
+                                template,
+                                candidatePdfPath,
+                                ex,
+                                $"[{portName}] пациент #{index}",
+                                path =>
+                                {
+                                    ReportGenerated?.Invoke(this, path);
+                                    generatedPdfReports.Add(path);
+                                });
+
+                            pdfPath = fallback.Path;
+                            if (pdfPath == null)
+                            {
+                                var reason = $"Не удалось создать PDF-отчет: {fallback.Error ?? ex.Message}";
+                                RenderingSupport.DisablePdf(reason);
+                                _pdfGenerationEnabled = false;
+                                _pdfGenerationIssue = RenderingSupport.PdfIssue ?? reason;
+                                LogPdfGenerationDisabled(portName);
+                            }
+                        }
                         catch (Exception ex)
                         {
                             var reason = $"Не удалось создать PDF-отчет: {ex.Message}";
@@ -326,24 +383,31 @@ public sealed class ReportGenerationService : IDisposable
                     }
 
                     string? docxPath = null;
-                    var candidateDocx = Path.Combine(sessionDir, $"patient_{index:000}.docx");
-                    try
+                    if (wordGenerationEnabled)
                     {
-                        ErgReportBuilder.BuildPatientWordReport(patient, candidateDocx, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: finalRawPath, template: template);
-                        _log.Info($"Word-отчет для пациента #{index} создан: {candidateDocx}");
-                        docxPath = candidateDocx;
-                        ReportGenerated?.Invoke(this, docxPath);
-                        generatedWordReports.Add(docxPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        _log.Warn($"[{portName}] не удалось создать Word-отчет для пациента #{index}: {ex.Message}");
-                        _telegram?.NotifyMessage($"⚠️ Не удалось создать Word-отчет пациента #{index:000}: {ex.Message}");
+                        var candidateDocx = Path.Combine(sessionDir, $"patient_{index:000}.docx");
+                        try
+                        {
+                            ErgReportBuilder.BuildPatientWordReport(patient, candidateDocx, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: finalRawPath, template: template);
+                            _log.Info($"Word-отчет для пациента #{index} создан: {candidateDocx}");
+                            docxPath = candidateDocx;
+                            ReportGenerated?.Invoke(this, docxPath);
+                            generatedWordReports.Add(docxPath);
+                        }
+                        catch (Exception ex)
+                        {
+                            _log.Warn($"[{portName}] не удалось создать Word-отчет для пациента #{index}: {ex.Message}");
+                            _telegram?.NotifyMessage($"⚠️ Не удалось создать Word-отчет пациента #{index:000}: {ex.Message}");
+                        }
                     }
 
                     processedPatients++;
                     var pdfPathForNotification = pdfPath ?? "<не создан>";
-                    var docxPathForNotification = docxPath ?? "<не создан>";
+                    string? docxPathForNotification = null;
+                    if (wordGenerationEnabled)
+                    {
+                        docxPathForNotification = docxPath ?? "<не создан>";
+                    }
                     _telegram?.NotifyPatientProcessed(index, patient, finalRawPath, jsonPath, pdfPathForNotification, docxPathForNotification);
                 }
 
@@ -692,7 +756,11 @@ public sealed class ReportGenerationService : IDisposable
 
         var baseName = Path.GetFileNameWithoutExtension(filePath);
         var jsonPath = Path.Combine(directory, $"{baseName}.json");
-        var docxPath = Path.Combine(directory, $"{baseName}.docx");
+        string? docxPath = null;
+        if (_settings.Current.GenerateWordReports)
+        {
+            docxPath = Path.Combine(directory, $"{baseName}.docx");
+        }
 
         var pdfFallback = ResolveFallbackTimestamp(filePath);
         var pdfNameInfo = ReportFileNaming.CreatePdfFileName(patient, pdfFallback);
@@ -729,6 +797,54 @@ public sealed class ReportGenerationService : IDisposable
             ErgReportBuilder.BuildPatientReport(patient, pdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: filePath, template: template);
             _log.Info($"PDF-отчет сохранен: {pdfPath}");
         }
+        catch (IOException ex) when (IsFileInUse(ex))
+        {
+            var fallback = TrySavePdfWithFallback(
+                patient,
+                filePath,
+                clinicHeader,
+                template,
+                pdfPath,
+                ex,
+                $"[{Path.GetFileName(filePath)}]",
+                notifyTelegram: false);
+
+            if (fallback.Path is { } alternate)
+            {
+                pdfPath = alternate;
+            }
+            else
+            {
+                var reason = $"Ошибка генерации PDF: {fallback.Error ?? ex.Message}";
+                _log.Error($"[{filePath}] {reason}");
+                _telegram?.NotifyManualConversionFailed(filePath, reason);
+                return result with { ErrorMessage = reason, JsonPath = jsonPath };
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            var fallback = TrySavePdfWithFallback(
+                patient,
+                filePath,
+                clinicHeader,
+                template,
+                pdfPath,
+                ex,
+                $"[{Path.GetFileName(filePath)}]",
+                notifyTelegram: false);
+
+            if (fallback.Path is { } alternate)
+            {
+                pdfPath = alternate;
+            }
+            else
+            {
+                var reason = $"Ошибка генерации PDF: {fallback.Error ?? ex.Message}";
+                _log.Error($"[{filePath}] {reason}");
+                _telegram?.NotifyManualConversionFailed(filePath, reason);
+                return result with { ErrorMessage = reason, JsonPath = jsonPath };
+            }
+        }
         catch (Exception ex)
         {
             var reason = $"Ошибка генерации PDF: {ex.Message}";
@@ -737,33 +853,111 @@ public sealed class ReportGenerationService : IDisposable
             return result with { ErrorMessage = reason, JsonPath = jsonPath };
         }
 
-        try
+        if (_settings.Current.GenerateWordReports)
         {
-            ErgReportBuilder.BuildPatientWordReport(patient, docxPath, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: filePath, template: template);
-            _log.Info($"Word-отчет сохранен: {docxPath}");
-        }
-        catch (Exception ex)
-        {
-            var reason = $"Ошибка генерации Word: {ex.Message}";
-            _log.Error($"[{filePath}] {reason}");
             try
             {
-                if (File.Exists(pdfPath))
-                {
-                    File.Delete(pdfPath);
-                }
+                ErgReportBuilder.BuildPatientWordReport(patient, docxPath!, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: filePath, template: template);
+                _log.Info($"Word-отчет сохранен: {docxPath}");
             }
-            catch (Exception cleanupEx)
+            catch (Exception ex)
             {
-                _log.Warn($"[{pdfPath}] не удалось удалить PDF после ошибки Word: {cleanupEx.Message}");
+                var reason = $"Ошибка генерации Word: {ex.Message}";
+                _log.Error($"[{filePath}] {reason}");
+                try
+                {
+                    if (File.Exists(pdfPath))
+                    {
+                        File.Delete(pdfPath);
+                    }
+                }
+                catch (Exception cleanupEx)
+                {
+                    _log.Warn($"[{pdfPath}] не удалось удалить PDF после ошибки Word: {cleanupEx.Message}");
+                }
+                _telegram?.NotifyManualConversionFailed(filePath, reason);
+                return result with { ErrorMessage = reason, JsonPath = jsonPath };
             }
-            _telegram?.NotifyManualConversionFailed(filePath, reason);
-            return result with { ErrorMessage = reason, JsonPath = jsonPath };
+        }
+        else
+        {
+            _log.Info("Генерация Word-отчетов отключена в настройках. DOCX-файл сохранен не будет.");
         }
 
         _log.Info($"Ручное преобразование успешно завершено для {filePath}.");
         _telegram?.NotifyManualConversionSucceeded(filePath, patient, jsonPath, pdfPath, docxPath);
         return result with { Success = true, JsonPath = jsonPath, PdfPath = pdfPath, DocxPath = docxPath, Patient = patient };
+    }
+
+    private (string? Path, string? Error) TrySavePdfWithFallback(
+        ErgPatient patient,
+        string? finalRawPath,
+        string? clinicHeader,
+        ReportTemplate template,
+        string originalPath,
+        Exception reason,
+        string logContext,
+        Action<string>? onSuccess = null,
+        bool notifyTelegram = true)
+    {
+        var fallbackPath = CreateFileInUseFallbackPath(originalPath);
+        _log.Warn($"{logContext} не удалось сохранить PDF {originalPath}: {reason.Message}. Попытка записать новый файл: {fallbackPath}.");
+
+        try
+        {
+            ErgReportBuilder.BuildPatientReport(patient, fallbackPath, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: finalRawPath, template: template);
+            _log.Info($"{logContext} PDF-отчет сохранен: {fallbackPath}");
+            onSuccess?.Invoke(fallbackPath);
+            if (notifyTelegram)
+            {
+                _telegram?.NotifyMessage($"ℹ️ {logContext} сохранен как {Path.GetFileName(fallbackPath)}. Исходный файл был недоступен.");
+            }
+
+            return (fallbackPath, null);
+        }
+        catch (Exception fallbackEx)
+        {
+            var message = fallbackEx.Message;
+            _log.Error($"{logContext} не удалось сохранить PDF при повторной попытке: {message}");
+            if (notifyTelegram)
+            {
+                _telegram?.NotifyMessage($"⚠️ {logContext} не удалось сохранить PDF: {message}");
+            }
+
+            return (null, message);
+        }
+    }
+
+    private static string CreateFileInUseFallbackPath(string originalPath)
+    {
+        var directory = Path.GetDirectoryName(originalPath);
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            directory = Directory.GetCurrentDirectory();
+        }
+
+        var baseName = Path.GetFileNameWithoutExtension(originalPath);
+        var extension = Path.GetExtension(originalPath);
+        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        var candidate = Path.Combine(directory, $"{baseName}_{timestamp}{extension}");
+        var counter = 1;
+
+        while (File.Exists(candidate))
+        {
+            candidate = Path.Combine(directory, $"{baseName}_{timestamp}_{counter++}{extension}");
+        }
+
+        return candidate;
+    }
+
+    private static bool IsFileInUse(IOException ex)
+    {
+        const int ErrorSharingViolation = 32;
+        const int ErrorLockViolation = 33;
+        const int ErrorAccessDenied = 5;
+
+        var code = ex.HResult & 0xFFFF;
+        return code is ErrorSharingViolation or ErrorLockViolation or ErrorAccessDenied;
     }
 
     private void LogPatientWarnings(ErgPatient patient, string context)

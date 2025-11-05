@@ -7,12 +7,13 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>MicroluxErgConnect</AssemblyName>
     <RootNamespace>MicroluxErgConnect</RootNamespace>
-    <AssemblyVersion>1.0.0.38</AssemblyVersion>
-    <FileVersion>1.0.0.38</FileVersion>
+    <AssemblyVersion>1.0.0.39</AssemblyVersion>
+    <FileVersion>1.0.0.39</FileVersion>
     <ApplicationIcon Condition="Exists('Resources\microlux-connect.ico')">Resources\microlux-connect.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en;ru</SatelliteResourceLanguages>
     <PlatformTarget Condition="'$(PlatformTarget)' == ''">x86</PlatformTarget>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x86</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Autoupdater.NET.Official" Version="1.9.2" />

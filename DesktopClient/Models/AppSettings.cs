@@ -23,6 +23,7 @@ public class AppSettings
     public bool MinimizeToTray { get; set; } = true;
     public bool StartMinimized { get; set; } = false;
     public TelegramSettings Telegram { get; set; } = TelegramSettings.CreateDefault();
+    public bool GenerateWordReports { get; set; } = false;
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public ReportTemplate ReportTemplate { get; set; } = ReportTemplate.Client;
     [JsonConverter(typeof(JsonStringEnumConverter))]
