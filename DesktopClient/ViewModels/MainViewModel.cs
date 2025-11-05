@@ -275,44 +275,56 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public ReportTemplate ReportTemplate
     {
-        get => _settings.Current.ReportTemplate;
+        get => ReportTemplate.Client;
         set
         {
-            if (!Enum.IsDefined(typeof(ReportTemplate), value))
+            if (value != ReportTemplate.Client)
             {
-                _log.Warn($"Попытка установить неизвестный шаблон отчета: {value}.");
-                return;
+                _log.Warn("Выбор шаблона отчета недоступен. Используется шаблон клиента.");
             }
 
-            if (value == _settings.Current.ReportTemplate)
-            {
-                _log.Debug($"Шаблон отчета не изменился: {value}.");
-                return;
-            }
-
-            _ = ApplySettingAsync(nameof(ReportTemplate), value, (s, v) => s.ReportTemplate = v);
+            // Старый код сохранен для возможного возврата к пользовательскому выбору.
+            // if (!Enum.IsDefined(typeof(ReportTemplate), value))
+            // {
+            //     _log.Warn($"Попытка установить неизвестный шаблон отчета: {value}.");
+            //     return;
+            // }
+            //
+            // if (value == _settings.Current.ReportTemplate)
+            // {
+            //     _log.Debug($"Шаблон отчета не изменился: {value}.");
+            //     return;
+            // }
+            //
+            // _ = ApplySettingAsync(nameof(ReportTemplate), value, (s, v) => s.ReportTemplate = v);
         }
     }
 
     public ReportRenderingMode ReportRenderingMode
     {
-        get => _settings.Current.ReportRenderingMode;
+        get => ReportRenderingMode.Legacy;
         set
         {
-            if (!Enum.IsDefined(typeof(ReportRenderingMode), value))
+            if (value != ReportRenderingMode.Legacy)
             {
-                _log.Warn($"Попытка установить неизвестный режим генерации отчетов: {value}.");
-                return;
+                _log.Warn("Выбор режима генерации PDF недоступен. Используется совместимый режим (Windows 7).");
             }
 
-            if (value == _settings.Current.ReportRenderingMode)
-            {
-                _log.Debug($"Режим генерации отчетов не изменился: {value}.");
-                return;
-            }
-
-            _reports.ApplyRenderingMode(value);
-            _ = ApplySettingAsync(nameof(ReportRenderingMode), value, (s, v) => s.ReportRenderingMode = v);
+            // Старый код сохранен для возможного возврата к пользовательскому выбору.
+            // if (!Enum.IsDefined(typeof(ReportRenderingMode), value))
+            // {
+            //     _log.Warn($"Попытка установить неизвестный режим генерации отчетов: {value}.");
+            //     return;
+            // }
+            //
+            // if (value == _settings.Current.ReportRenderingMode)
+            // {
+            //     _log.Debug($"Режим генерации отчетов не изменился: {value}.");
+            //     return;
+            // }
+            //
+            // _reports.ApplyRenderingMode(value);
+            // _ = ApplySettingAsync(nameof(ReportRenderingMode), value, (s, v) => s.ReportRenderingMode = v);
         }
     }
 

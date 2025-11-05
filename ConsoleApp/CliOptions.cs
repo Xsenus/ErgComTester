@@ -25,12 +25,12 @@ internal sealed class CliOptions
                 case "--pdf-out": o.PdfOutputPath = val; break;
                 case "--docx-out": o.DocxOutputPath = val; break;
                 case "--clinic": o.ClinicName = val; break;
-                case "--template":
-                    if (Enum.TryParse(val, true, out ReportTemplate template))
-                    {
-                        o.Template = template;
-                    }
-                    break;
+                // case "--template":
+                //     if (Enum.TryParse(val, true, out ReportTemplate template))
+                //     {
+                //         o.Template = template;
+                //     }
+                //     break;
                 case "--baud": if (int.TryParse(val, out var b)) o.BaudRate = b; break;
                 case "--retries": if (int.TryParse(val, out var r)) o.Retries = r; break;
                 case "--rtctime": o.Rtc = true; break;

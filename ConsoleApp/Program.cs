@@ -64,6 +64,7 @@ internal class Program
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
         var options = CliOptions.Parse(args);
+        RenderingSupport.Reload(ReportRenderingMode.Legacy);
         var sessionStamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         var baseDir = AppContext.BaseDirectory;
         var logDir = Path.Combine(baseDir, "logs");

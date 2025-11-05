@@ -56,8 +56,8 @@ public partial class MainForm : Form
         _viewModel.CheckUpdatesCommand.CanExecuteChanged += _checkUpdatesCanExecuteHandler;
         _viewModel.InstallUpdateCommand.CanExecuteChanged += _installUpdateCanExecuteHandler;
         AppServices.ExitRequested += OnExitRequested;
-        reportTemplateComboBox.SelectedValueChanged += OnReportTemplateChanged;
-        renderingModeComboBox.SelectedValueChanged += OnReportRenderingModeChanged;
+        // reportTemplateComboBox.SelectedValueChanged += OnReportTemplateChanged;
+        // renderingModeComboBox.SelectedValueChanged += OnReportRenderingModeChanged;
         UpdateAll();
         UpdateCommandState();
 
@@ -830,8 +830,8 @@ public partial class MainForm : Form
         _viewModel.Logs.CollectionChanged -= LogsOnCollectionChanged;
         _viewModel.CheckUpdatesCommand.CanExecuteChanged -= _checkUpdatesCanExecuteHandler;
         _viewModel.InstallUpdateCommand.CanExecuteChanged -= _installUpdateCanExecuteHandler;
-        reportTemplateComboBox.SelectedValueChanged -= OnReportTemplateChanged;
-        renderingModeComboBox.SelectedValueChanged -= OnReportRenderingModeChanged;
+        // reportTemplateComboBox.SelectedValueChanged -= OnReportTemplateChanged;
+        // renderingModeComboBox.SelectedValueChanged -= OnReportRenderingModeChanged;
         AppServices.ExitRequested -= OnExitRequested;
         trayIcon.Visible = false;
         base.OnFormClosed(e);

@@ -758,6 +758,7 @@ partial class MainForm
         reportTemplateLabel.Size = new Size(101, 15);
         reportTemplateLabel.TabIndex = 6;
         reportTemplateLabel.Text = "Шаблон отчетов:";
+        reportTemplateLabel.Visible = false;
         // 
         // reportTemplateComboBox
         // 
@@ -770,6 +771,8 @@ partial class MainForm
         reportTemplateComboBox.Name = "reportTemplateComboBox";
         reportTemplateComboBox.Size = new Size(192, 25);
         reportTemplateComboBox.TabIndex = 7;
+        reportTemplateComboBox.TabStop = false;
+        reportTemplateComboBox.Visible = false;
         // 
         // renderingModeLabel
         // 
@@ -782,6 +785,7 @@ partial class MainForm
         renderingModeLabel.Size = new Size(133, 15);
         renderingModeLabel.TabIndex = 8;
         renderingModeLabel.Text = "Режим генерации PDF:";
+        renderingModeLabel.Visible = false;
         // 
         // renderingModeComboBox
         // 
@@ -794,6 +798,8 @@ partial class MainForm
         renderingModeComboBox.Name = "renderingModeComboBox";
         renderingModeComboBox.Size = new Size(192, 25);
         renderingModeComboBox.TabIndex = 9;
+        renderingModeComboBox.TabStop = false;
+        renderingModeComboBox.Visible = false;
         // 
         // settingsButtonsPanel
         //
