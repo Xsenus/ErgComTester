@@ -395,7 +395,7 @@ partial class MainForm
         detailsLayout.RowStyles.Add(new RowStyle());
         detailsLayout.RowStyles.Add(new RowStyle());
         detailsLayout.RowStyles.Add(new RowStyle());
-        detailsLayout.Size = new Size(423, 1080);
+        detailsLayout.Size = new Size(423, 1029);
         detailsLayout.TabIndex = 0;
         // 
         // connectionGroup
@@ -628,7 +628,7 @@ partial class MainForm
         settingsGroup.Margin = new Padding(0, 0, 0, 16);
         settingsGroup.Name = "settingsGroup";
         settingsGroup.Padding = new Padding(16, 20, 16, 16);
-        settingsGroup.Size = new Size(423, 449);
+        settingsGroup.Size = new Size(423, 398);
         settingsGroup.TabIndex = 1;
         settingsGroup.TabStop = false;
         settingsGroup.Text = "Настройки опроса";
@@ -669,7 +669,7 @@ partial class MainForm
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
-        settingsLayout.Size = new Size(391, 395);
+        settingsLayout.Size = new Size(391, 344);
         settingsLayout.TabIndex = 0;
         // 
         // scanIntervalLabel
@@ -802,21 +802,21 @@ partial class MainForm
         renderingModeComboBox.Visible = false;
         // 
         // settingsButtonsPanel
-        //
+        // 
         settingsButtonsPanel.AutoSize = true;
         settingsButtonsPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         settingsLayout.SetColumnSpan(settingsButtonsPanel, 2);
         settingsButtonsPanel.Controls.Add(openSettingsButton);
         settingsButtonsPanel.Controls.Add(openReportsButton);
         settingsButtonsPanel.Controls.Add(convertBinButton);
-        settingsButtonsPanel.Location = new Point(0, 240);
+        settingsButtonsPanel.Location = new Point(0, 185);
         settingsButtonsPanel.Margin = new Padding(0, 16, 0, 0);
         settingsButtonsPanel.Name = "settingsButtonsPanel";
-        settingsButtonsPanel.Size = new Size(561, 37);
+        settingsButtonsPanel.Size = new Size(325, 74);
         settingsButtonsPanel.TabIndex = 12;
-        //
+        // 
         // openSettingsButton
-        //
+        // 
         openSettingsButton.AutoSize = true;
         openSettingsButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         openSettingsButton.BackColor = Color.FromArgb(239, 246, 249);
@@ -832,14 +832,14 @@ partial class MainForm
         openSettingsButton.MinimumSize = new Size(120, 36);
         openSettingsButton.Name = "openSettingsButton";
         openSettingsButton.Padding = new Padding(10, 6, 10, 6);
-        openSettingsButton.Size = new Size(133, 37);
+        openSettingsButton.Size = new Size(120, 37);
         openSettingsButton.TabIndex = 0;
         openSettingsButton.Text = "Настройки...";
         openSettingsButton.UseVisualStyleBackColor = false;
         openSettingsButton.Click += OnOpenSettingsClicked;
-        //
+        // 
         // openReportsButton
-        //
+        // 
         openReportsButton.AutoSize = true;
         openReportsButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         openReportsButton.BackColor = Color.FromArgb(239, 246, 249);
@@ -850,7 +850,7 @@ partial class MainForm
         openReportsButton.FlatStyle = FlatStyle.Flat;
         openReportsButton.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
         openReportsButton.ForeColor = Color.FromArgb(33, 37, 41);
-        openReportsButton.Location = new Point(145, 0);
+        openReportsButton.Location = new Point(132, 0);
         openReportsButton.Margin = new Padding(0, 0, 12, 0);
         openReportsButton.MinimumSize = new Size(140, 36);
         openReportsButton.Name = "openReportsButton";
@@ -873,7 +873,7 @@ partial class MainForm
         convertBinButton.FlatStyle = FlatStyle.Flat;
         convertBinButton.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
         convertBinButton.ForeColor = Color.White;
-        convertBinButton.Location = new Point(193, 0);
+        convertBinButton.Location = new Point(0, 37);
         convertBinButton.Margin = new Padding(0);
         convertBinButton.MinimumSize = new Size(140, 36);
         convertBinButton.Name = "convertBinButton";
@@ -897,7 +897,7 @@ partial class MainForm
         btnGraphTuner.FlatStyle = FlatStyle.Flat;
         btnGraphTuner.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
         btnGraphTuner.ForeColor = Color.White;
-        btnGraphTuner.Location = new Point(0, 330);
+        btnGraphTuner.Location = new Point(0, 279);
         btnGraphTuner.Margin = new Padding(0);
         btnGraphTuner.MinimumSize = new Size(140, 36);
         btnGraphTuner.Name = "btnGraphTuner";
@@ -917,7 +917,7 @@ partial class MainForm
         updatesGroup.Controls.Add(updatesLayout);
         updatesGroup.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
         updatesGroup.ForeColor = Color.FromArgb(33, 37, 41);
-        updatesGroup.Location = new Point(0, 803);
+        updatesGroup.Location = new Point(0, 752);
         updatesGroup.Margin = new Padding(0);
         updatesGroup.Name = "updatesGroup";
         updatesGroup.Padding = new Padding(16, 20, 16, 16);

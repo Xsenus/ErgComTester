@@ -29,6 +29,7 @@ partial class SettingsForm
 
     private void InitializeComponent()
     {
+        ComponentResourceManager resources = new ComponentResourceManager(typeof(SettingsForm));
         layout = new TableLayoutPanel();
         folderLabel = new Label();
         folderTextBox = new TextBox();
@@ -223,6 +224,7 @@ partial class SettingsForm
         ClientSize = new Size(584, 281);
         Controls.Add(layout);
         Font = new Font("Segoe UI", 9F);
+        Icon = (Icon)resources.GetObject("$this.Icon");
         Margin = new Padding(4, 3, 4, 3);
         MaximizeBox = false;
         MinimizeBox = false;

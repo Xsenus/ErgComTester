@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(GraphTunerForm));
             SuspendLayout();
             // 
             // GraphTunerForm
@@ -35,6 +36,7 @@
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1201, 681);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "GraphTunerForm";
             Text = "GraphTunerForm";
             ResumeLayout(false);
