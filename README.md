@@ -15,13 +15,15 @@
 - 📜 **Расширенное журналирование.** Все действия подробно протоколируются в файл и отображаются в окне «Журнал». Лог содержит информацию о настройках, сканировании портов, обмене данными и обновлениях.
 
 ## Системные требования
-- Windows 10/11 x64.
-- .NET 9 Desktop Runtime.
+- Windows 10/11 (x86 или x64).
+- .NET 8 Desktop Runtime (x86/x64).
 - Стандартный драйвер виртуального COM-порта FTDI (CDC/ACM), дополнительных драйверов не требуется.
 
 ## Сборка и запуск
 
 ### Консольный тестер
+> По умолчанию все проекты компилируются под архитектуру `x86`, поэтому одна и та же сборка подходит как для 32-битной, так и для 64-битной Windows. При необходимости можно переопределить целевую платформу параметром `-p:PlatformTarget=x64`.
+
 ```bash
 cd ConsoleApp
 dotnet build -c Release
@@ -43,7 +45,22 @@ cd DesktopClient
 dotnet build -c Release
 dotnet run -c Release
 ```
-После сборки исполняемый файл находится в `DesktopClient/bin/<Конфигурация>/net9.0-windows/`. Запуск производится через `MicroluxErgConnect.Desktop.exe`.
+После сборки исполняемый файл находится в `DesktopClient/bin/<Конфигурация>/net8.0-windows/`. Запуск производится через `MicroluxErgConnect.Desktop.exe`.
+
+### Публикация для 32-битной Windows
+Для поставки версии с встроенным 32-битным рантаймом можно выполнить самодостаточную публикацию:
+
+```bash
+dotnet publish DesktopClient/MicroluxErgConnect.Desktop.csproj -c Release -r win-x86 --self-contained true
+```
+
+Готовые файлы будут находиться в каталоге `DesktopClient/bin/Release/net8.0-windows/win-x86/publish/`. Для выпуска 64-битного варианта укажите идентификатор и платформу явно:
+
+```bash
+dotnet publish DesktopClient/MicroluxErgConnect.Desktop.csproj -c Release -r win-x64 -p:PlatformTarget=x64 --self-contained true
+```
+
+> ⚙️ Стандартный pipeline GitHub Actions (`dotnet build` + `dotnet publish` без явного указания RID) тоже выпускает x86-артефакт, потому что в `.csproj` по умолчанию прописаны `PlatformTarget=x86` и `RuntimeIdentifier=win-x86`. На 32-битных машинах достаточно установить [Desktop Runtime .NET 8 (x86)](https://dotnet.microsoft.com/ru-ru/download/dotnet/8.0), распаковать архив из CI и запустить `MicroluxErgConnect.Desktop.exe`.
 
 ## Обновления
 - URL манифеста и частоту проверки можно задать на вкладке «Обновления».
