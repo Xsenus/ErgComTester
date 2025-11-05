@@ -37,7 +37,8 @@ public static class AppServices
 
         Settings = new SettingsService();
         Settings.LoadAsync().GetAwaiter().GetResult();
-        RenderingSupport.Reload(Settings.Current.ReportRenderingMode);
+        // RenderingSupport.Reload(Settings.Current.ReportRenderingMode);
+        RenderingSupport.Reload(ReportRenderingMode.Legacy);
         ApplyGraphOptionsFromSettingsOrInitialize();
 
         Log = new LogService(Settings);
@@ -405,7 +406,7 @@ public static class AppServices
         Log.Info($"COM-параметры: DTR={(serial.DtrEnable ? "on" : "off")}, RTS={(serial.RtsEnable ? "on" : "off")}, toggle={(serial.ToggleLinesOnOpen ? "on" : "off")}, retries={serial.RetryCount}, minCI={serial.MinCommonInfoSize}, minPatient={serial.MinPatientBlockSize}");
         Log.Info($"COM-тайминги: probeTimeout={serial.ProbeTimeoutMs}мс, passiveDelay={serial.PassiveProbeDelayMs}мс, warmupAfterToggle={serial.WarmupAfterToggleMs}мс");
         Log.Info($"Дополнительно: RTC sync={(serial.EnableRtcSynchronization ? "вкл" : "выкл")}, получать пациентов={(serial.RequestPatientData ? "да" : "нет")}, ZIP={(serial.EnableZipPackaging ? "вкл" : "выкл")}");
-        Log.Info($"Отчеты: шаблон={s.ReportTemplate}, режим={s.ReportRenderingMode}, legacy={(RenderingSupport.UseLegacyPdfGeneration ? "да" : "нет")}, Word={(s.GenerateWordReports ? "да" : "нет")}");
+        Log.Info($"Отчеты: шаблон={ReportTemplate.Client} (принудительно), режим={ReportRenderingMode.Legacy} (принудительно), legacy={(RenderingSupport.UseLegacyPdfGeneration ? "да" : "нет")}, Word={(s.GenerateWordReports ? "да" : "нет")}");
         Log.Info($"Telegram: {s.Telegram?.DescribeSafety() ?? "<не настроен>"}");
     }
 

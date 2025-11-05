@@ -81,6 +81,18 @@ public sealed class SettingsService
             saveRequired = true;
         }
 
+        if (_settings.ReportTemplate != ReportTemplate.Client)
+        {
+            _settings.ReportTemplate = ReportTemplate.Client;
+            saveRequired = true;
+        }
+
+        if (_settings.ReportRenderingMode != ReportRenderingMode.Legacy)
+        {
+            _settings.ReportRenderingMode = ReportRenderingMode.Legacy;
+            saveRequired = true;
+        }
+
         Directory.CreateDirectory(_settings.LogsDirectory);
         Directory.CreateDirectory(_settings.ReportsDirectory);
 

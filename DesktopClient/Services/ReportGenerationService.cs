@@ -40,12 +40,15 @@ public sealed class ReportGenerationService : IDisposable
         _settings = settings;
         _log = log;
         _telegram = telegram;
-        ApplyRenderingMode(settings.Current.ReportRenderingMode);
+        // ApplyRenderingMode(settings.Current.ReportRenderingMode);
+        ApplyRenderingMode(ReportRenderingMode.Legacy);
     }
 
     public void ApplyRenderingMode(ReportRenderingMode mode)
     {
-        RenderingSupport.Reload(mode);
+        _ = mode; // параметр сохраняется для совместимости обработчиков
+        // RenderingSupport.Reload(mode);
+        RenderingSupport.Reload(ReportRenderingMode.Legacy);
         _pdfGenerationEnabled = RenderingSupport.PdfSupported;
         _pdfGenerationIssue = RenderingSupport.PdfIssue;
 
@@ -164,7 +167,8 @@ public sealed class ReportGenerationService : IDisposable
         int maxPatients = Math.Max(1, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 1);
         bool sessionAnnounced = false;
         int processedPatients = 0;
-        var template = _settings.Current.ReportTemplate;
+        // var template = _settings.Current.ReportTemplate;
+        var template = ReportTemplate.Client;
         var clinicHeader = GetClinicHeader();
 
         for (int index = 1; index <= maxPatients; index++)
@@ -776,7 +780,8 @@ public sealed class ReportGenerationService : IDisposable
             _log.Info($"Существующий PDF-отчет будет обновлен: {pdfPath}");
         }
 
-        var template = _settings.Current.ReportTemplate;
+        // var template = _settings.Current.ReportTemplate;
+        var template = ReportTemplate.Client;
         var clinicHeader = GetClinicHeader();
 
         try
