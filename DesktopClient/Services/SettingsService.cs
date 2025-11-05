@@ -32,16 +32,25 @@ public sealed class SettingsService
 
         if (File.Exists(SettingsPath))
         {
-            await using var fs = File.OpenRead(SettingsPath);
-            var loaded = await JsonSerializer.DeserializeAsync<AppSettings>(fs, JsonOptions).ConfigureAwait(false);
-            if (loaded != null)
+            var fs = File.OpenRead(SettingsPath);
+            try
             {
-                _settings = loaded;
+                var loaded = await JsonSerializer
+                    .DeserializeAsync<AppSettings>(fs, JsonOptions)
+                    .ConfigureAwait(false);
+                if (loaded != null)
+                {
+                    _settings = loaded;
+                }
+                else
+                {
+                    _settings = new AppSettings();
+                    saveRequired = true;
+                }
             }
-            else
+            finally
             {
-                _settings = new AppSettings();
-                saveRequired = true;
+                await fs.DisposeAsync().ConfigureAwait(false);
             }
         }
         else
@@ -75,6 +84,19 @@ public sealed class SettingsService
         Directory.CreateDirectory(_settings.LogsDirectory);
         Directory.CreateDirectory(_settings.ReportsDirectory);
 
+        if (_settings.Serial != null)
+        {
+            if (_settings.Serial.DtrEnable
+                || _settings.Serial.RtsEnable
+                || _settings.Serial.ToggleLinesOnOpen)
+            {
+                _settings.Serial.DtrEnable = false;
+                _settings.Serial.RtsEnable = false;
+                _settings.Serial.ToggleLinesOnOpen = false;
+                saveRequired = true;
+            }
+        }
+
         if (saveRequired)
         {
             await SaveAsync().ConfigureAwait(false);
@@ -83,27 +105,32 @@ public sealed class SettingsService
 
     public async Task SaveAsync(CancellationToken ct = default)
     {
-        // тайм-аут на всякий случай, чтобы никогда не зависать
+        // С‚Р°Р№Рј-Р°СѓС‚ РЅР° РІСЃСЏРєРёР№ СЃР»СѓС‡Р°Р№, С‡С‚РѕР±С‹ РЅРёРєРѕРіРґР° РЅРµ Р·Р°РІРёСЃР°С‚СЊ
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(5));
 
-        // пробуем захватить семафор с тайм-аутом
+        // РїСЂРѕР±СѓРµРј Р·Р°С…РІР°С‚РёС‚СЊ СЃРµРјР°С„РѕСЂ СЃ С‚Р°Р№Рј-Р°СѓС‚РѕРј
         await _mutex.WaitAsync(cts.Token).ConfigureAwait(false);
         try
         {
             Directory.CreateDirectory(BaseDirectory);
 
-            // реальный асинхронный файловый поток, чтобы не блокировать пул
-            await using var fs = new FileStream(
+            var fs = new FileStream(
                 SettingsPath,
                 FileMode.Create,
                 FileAccess.Write,
                 FileShare.Read,
                 bufferSize: 4096,
                 options: FileOptions.Asynchronous);
-
-            await JsonSerializer.SerializeAsync(fs, _settings, JsonOptions, cts.Token).ConfigureAwait(false);
-            await fs.FlushAsync(cts.Token).ConfigureAwait(false);
+            try
+            {
+                await JsonSerializer.SerializeAsync(fs, _settings, JsonOptions, cts.Token).ConfigureAwait(false);
+                await fs.FlushAsync(cts.Token).ConfigureAwait(false);
+            }
+            finally
+            {
+                await fs.DisposeAsync().ConfigureAwait(false);
+            }
         }
         finally
         {
@@ -113,7 +140,7 @@ public sealed class SettingsService
         _ = Task.Run(() =>
         {
             try { SettingsChanged?.Invoke(this, _settings); }
-            catch { /* не даём событию уронить сохранение */ }
+            catch { /* РЅРµ РґР°С‘Рј СЃРѕР±С‹С‚РёСЋ СѓСЂРѕРЅРёС‚СЊ СЃРѕС…СЂР°РЅРµРЅРёРµ */ }
         });
     }
 

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.IO.Ports;
@@ -23,6 +24,7 @@ public sealed class ReportGenerationService : IDisposable
     private bool _pdfGenerationEnabled;
     private string? _pdfGenerationIssue;
     private string? _lastPdfWarningMessage;
+    private int _activeSyncOperations;
 
     public event EventHandler<string>? ReportGenerated;
     public event EventHandler<string>? SyncStateChanged;
@@ -79,6 +81,15 @@ public sealed class ReportGenerationService : IDisposable
         }
     }
 
+    public bool IsPortBusy(string portName)
+    {
+        lock (_sync)
+        {
+            return string.Equals(_activePort, portName, StringComparison.OrdinalIgnoreCase)
+                && Volatile.Read(ref _activeSyncOperations) > 0;
+        }
+    }
+
     private string? GetClinicHeader()
     {
         var header = _settings.Current.ReportHeader;
@@ -105,7 +116,16 @@ public sealed class ReportGenerationService : IDisposable
         {
             try
             {
-                await SyncOnceAsync(portName, ct);
+                Interlocked.Increment(ref _activeSyncOperations);
+                try
+                {
+                    await SyncOnceAsync(portName, ct);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref _activeSyncOperations);
+                }
+
                 SyncStateChanged?.Invoke(this, $"Ожидание {_settings.Current.BackgroundSyncInterval.TotalMinutes:F0} мин. до следующей проверки");
                 await Task.Delay(_settings.Current.BackgroundSyncInterval, ct);
             }
@@ -151,6 +171,18 @@ public sealed class ReportGenerationService : IDisposable
             int attempt = 0;
             string? attemptPath = null;
             string? finalRawPath = null;
+            bool ackSent = false;
+
+            void EnsureAckSent()
+            {
+                if (ackSent)
+                {
+                    return;
+                }
+
+                SendContinueAck(port, portName, $"подтверждение получения пациента #{index}");
+                ackSent = true;
+            }
 
             while (!ct.IsCancellationRequested)
             {
@@ -228,6 +260,7 @@ public sealed class ReportGenerationService : IDisposable
                         _log.Error($"[{portName}] не удалось получить корректные данные пациента #{index} после {attempt} попыток. Используйте сохранённый дамп: {finalRawPath}");
                         _telegram?.NotifyPatientChecksumFailed(index, finalRawPath, attempt);
                         requestNextPatient = true;
+                        EnsureAckSent();
                         processedPatients++;
                         break;
                     }
@@ -238,6 +271,7 @@ public sealed class ReportGenerationService : IDisposable
                 }
 
                 finalRawPath = PromoteAttemptToFinal(sessionDir, index, attemptPath);
+                EnsureAckSent();
                 if (!ErgParser.TryParsePatientBlock(block, out var patient, out var err))
                 {
                     _log.Warn($"[{portName}] получены данные пациента #{index}, но разбор завершился ошибкой: {err}. Сырой дамп: {finalRawPath}");
@@ -322,9 +356,9 @@ public sealed class ReportGenerationService : IDisposable
                 break;
             }
 
-            if (requestNextPatient)
+            if (requestNextPatient && !ackSent)
             {
-                SendContinueAck(port, portName, $"подтверждение получения пациента #{index}");
+                EnsureAckSent();
             }
         }
 
