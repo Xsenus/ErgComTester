@@ -60,6 +60,8 @@ dotnet publish DesktopClient/MicroluxErgConnect.Desktop.csproj -c Release -r win
 dotnet publish DesktopClient/MicroluxErgConnect.Desktop.csproj -c Release -r win-x64 -p:PlatformTarget=x64 --self-contained true
 ```
 
+> ⚙️ Стандартный pipeline GitHub Actions (`dotnet build` + `dotnet publish` без явного указания RID) тоже выпускает x86-артефакт, потому что в `.csproj` по умолчанию прописаны `PlatformTarget=x86` и `RuntimeIdentifier=win-x86`. На 32-битных машинах достаточно установить [Desktop Runtime .NET 8 (x86)](https://dotnet.microsoft.com/ru-ru/download/dotnet/8.0), распаковать архив из CI и запустить `MicroluxErgConnect.Desktop.exe`.
+
 ## Обновления
 - URL манифеста и частоту проверки можно задать на вкладке «Обновления».
 - Манифест ожидается в формате JSON:
