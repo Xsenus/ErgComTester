@@ -13,6 +13,7 @@
     <SatelliteResourceLanguages>en;ru</SatelliteResourceLanguages>
     <PlatformTarget Condition="'$(PlatformTarget)' == ''">x86</PlatformTarget>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x86</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Autoupdater.NET.Official" Version="1.9.2" />
