@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.IO.Ports;
+using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using ErgData;
@@ -153,21 +155,12 @@ public sealed class ReportGenerationService : IDisposable
         var italic = Path.Combine(fontsDirectory, "ariali.ttf");
         var boldItalic = Path.Combine(fontsDirectory, "arialbi.ttf");
 
-        try
-        {
-            FontManager.RegisterFontTypefaces(
-                "Arial",
-                regular,
-                File.Exists(bold) ? bold : null,
-                File.Exists(italic) ? italic : null,
-                File.Exists(boldItalic) ? boldItalic : null);
-        }
-        catch (InvalidOperationException)
-        {
-            return true;
-        }
-
-        return true;
+        return QuestPdfFontRegistrar.TryRegisterFontFamily(
+            "Arial",
+            regular,
+            File.Exists(bold) ? bold : null,
+            File.Exists(italic) ? italic : null,
+            File.Exists(boldItalic) ? boldItalic : null);
     }
 
     private void RestartLoop()
@@ -1011,6 +1004,220 @@ public sealed class ReportGenerationService : IDisposable
         foreach (var warning in patient.Warnings)
         {
             _log.Warn($"{context}: {warning}");
+        }
+    }
+}
+
+internal static class QuestPdfFontRegistrar
+{
+    public static bool TryRegisterFontFamily(string familyName, string regularPath, string? boldPath, string? italicPath, string? boldItalicPath)
+    {
+        var fontManagerType = typeof(FontManager);
+
+        if (TryInvokeRegisterFontTypefaces(fontManagerType, familyName, regularPath, boldPath, italicPath, boldItalicPath))
+            return true;
+
+        if (TryRegisterUsingDescriptors(fontManagerType, familyName, regularPath, boldPath, italicPath, boldItalicPath))
+            return true;
+
+        return false;
+    }
+
+    private static bool TryInvokeRegisterFontTypefaces(Type fontManagerType, string familyName, string regularPath, string? boldPath, string? italicPath, string? boldItalicPath)
+    {
+        var method = fontManagerType.GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .FirstOrDefault(m => string.Equals(m.Name, "RegisterFontTypefaces", StringComparison.Ordinal));
+
+        if (method == null)
+            return false;
+
+        var parameters = method.GetParameters();
+        var args = new object?[parameters.Length];
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            args[i] = parameters[i].Name switch
+            {
+                "familyName" => familyName,
+                "regular" or "normal" => regularPath,
+                "bold" => boldPath,
+                "italic" => italicPath,
+                "boldItalic" or "bolditalic" or "bold_italic" => boldItalicPath,
+                _ => null
+            };
+        }
+
+        try
+        {
+            method.Invoke(null, args);
+            return true;
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is InvalidOperationException)
+        {
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryRegisterUsingDescriptors(Type fontManagerType, string familyName, string regularPath, string? boldPath, string? italicPath, string? boldItalicPath)
+    {
+        var assembly = fontManagerType.Assembly;
+        var collectionType = assembly.GetType("QuestPDF.Drawing.TypefaceCollection")
+            ?? assembly.GetType("QuestPDF.Drawing.FontDescriptor");
+
+        if (collectionType == null)
+            return false;
+
+        var registerMethod = fontManagerType.GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .FirstOrDefault(m => string.Equals(m.Name, "RegisterFont", StringComparison.Ordinal)
+                && m.GetParameters().Length == 1
+                && m.GetParameters()[0].ParameterType.IsAssignableFrom(collectionType));
+
+        if (registerMethod == null)
+            return false;
+
+        var collection = Activator.CreateInstance(collectionType);
+        if (collection == null)
+            return false;
+
+        SetProperty(collectionType, collection, "FamilyName", familyName);
+        SetProperty(collectionType, collection, "Name", familyName);
+
+        var typefaceType = DiscoverTypefaceType(collectionType);
+        if (typefaceType == null)
+            return false;
+
+        AssignFontSlot(collection, collectionType, typefaceType, new[] { "Regular", "Normal" }, regularPath, isBold: false, isItalic: false);
+        AssignFontSlot(collection, collectionType, typefaceType, new[] { "Bold" }, boldPath, isBold: true, isItalic: false);
+        AssignFontSlot(collection, collectionType, typefaceType, new[] { "Italic" }, italicPath, isBold: false, isItalic: true);
+        AssignFontSlot(collection, collectionType, typefaceType, new[] { "BoldItalic", "Bold_Italic", "Bolditalic" }, boldItalicPath, isBold: true, isItalic: true);
+
+        try
+        {
+            registerMethod.Invoke(null, new[] { collection });
+            return true;
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is InvalidOperationException)
+        {
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static Type? DiscoverTypefaceType(Type collectionType)
+    {
+        foreach (var property in collectionType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (!property.CanWrite)
+                continue;
+
+            var candidateName = property.Name;
+            if (candidateName.Equals("Regular", StringComparison.OrdinalIgnoreCase) || candidateName.Equals("Normal", StringComparison.OrdinalIgnoreCase))
+                return property.PropertyType;
+        }
+
+        return collectionType.Assembly.GetType("QuestPDF.Drawing.Typeface");
+    }
+
+    private static void AssignFontSlot(object collection, Type collectionType, Type typefaceType, IEnumerable<string> slotNames, string? path, bool isBold, bool isItalic)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return;
+
+        foreach (var slotName in slotNames)
+        {
+            var property = collectionType.GetProperty(slotName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+            if (property == null || !property.CanWrite)
+                continue;
+
+            var typeface = Activator.CreateInstance(typefaceType);
+            if (typeface == null)
+                continue;
+
+            if (!TryAssignTypefaceData(typeface, typefaceType, path))
+                continue;
+
+            ApplyEnum(typeface, typefaceType, "FontWeight", isBold ? "Bold" : "Regular");
+            ApplyEnum(typeface, typefaceType, "Weight", isBold ? "Bold" : "Regular");
+            ApplyEnum(typeface, typefaceType, "FontStyle", isItalic ? "Italic" : "Normal");
+            ApplyEnum(typeface, typefaceType, "Style", isItalic ? "Italic" : "Normal");
+
+            property.SetValue(collection, typeface);
+            break;
+        }
+    }
+
+    private static bool TryAssignTypefaceData(object typeface, Type typefaceType, string path)
+    {
+        foreach (var propertyName in new[] { "FilePath", "Path", "Location", "Source" })
+        {
+            var property = typefaceType.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+            if (property != null && property.CanWrite && property.PropertyType == typeof(string))
+            {
+                property.SetValue(typeface, path);
+                return true;
+            }
+        }
+
+        var dataProperty = typefaceType.GetProperty("Data", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (dataProperty != null && dataProperty.CanWrite)
+        {
+            var bytes = File.ReadAllBytes(path);
+
+            if (dataProperty.PropertyType == typeof(byte[]))
+            {
+                dataProperty.SetValue(typeface, bytes);
+                return true;
+            }
+
+            if (dataProperty.PropertyType == typeof(ReadOnlyMemory<byte>))
+            {
+                dataProperty.SetValue(typeface, new ReadOnlyMemory<byte>(bytes));
+                return true;
+            }
+        }
+
+        var streamProperty = typefaceType.GetProperty("Stream", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (streamProperty != null && streamProperty.CanWrite && typeof(Delegate).IsAssignableFrom(streamProperty.PropertyType))
+        {
+            var streamType = streamProperty.PropertyType;
+            if (streamType == typeof(Func<Stream>))
+            {
+                streamProperty.SetValue(typeface, (Func<Stream>)(() => File.OpenRead(path)));
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void ApplyEnum(object instance, Type type, string propertyName, string value)
+    {
+        var property = type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (property == null || !property.CanWrite || !property.PropertyType.IsEnum)
+            return;
+
+        if (Enum.TryParse(property.PropertyType, value, true, out var parsed))
+        {
+            property.SetValue(instance, parsed);
+        }
+    }
+
+    private static void SetProperty(Type type, object instance, string propertyName, object? value)
+    {
+        var property = type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (property != null && property.CanWrite)
+        {
+            property.SetValue(instance, value);
         }
     }
 }
