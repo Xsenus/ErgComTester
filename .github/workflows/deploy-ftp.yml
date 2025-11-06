@@ -1,4 +1,4 @@
-name: Build MicroluxErgConnect.Desktop - ZIP - FTP
+name: Build MicroluxErgConnect.Desktop - ZIP - FTP (self-contained)
 
 on:
   push:
@@ -9,6 +9,7 @@ jobs:
   deploy:
     runs-on: windows-latest
     env:
+      RID: win-x86
       OUT_DIR: publish
       ZIP_NAME: ErgComTester.Update.zip
       XML_NAME: ErgComTester.Update.xml
@@ -25,7 +26,6 @@ jobs:
             8.0.x
             6.0.x
 
-      # Ищем MicroluxErgConnect.Desktop.csproj
       - name: Locate project MicroluxErgConnect.Desktop.csproj
         shell: pwsh
         run: |
@@ -39,12 +39,10 @@ jobs:
           "PROJECT_PATH=$path" | Out-File -FilePath $env:GITHUB_ENV -Append
           Write-Host "Using project path: $path"
 
-      # Читаем версию: AssemblyVersion/FileVersion/Version (в таком порядке)
       - name: Read version from csproj
         shell: pwsh
         run: |
           $proj = "${{ env.PROJECT_PATH }}"
-          if (!(Test-Path $proj)) { throw "Project file not found: $proj" }
           [xml]$doc = Get-Content -Path $proj
           $asm   = $doc.SelectSingleNode("//AssemblyVersion")
           $file  = $doc.SelectSingleNode("//FileVersion")
@@ -57,33 +55,35 @@ jobs:
           "VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Append
           Write-Host "Detected version: $ver"
 
-      - name: Restore (win-x86)
+      - name: Restore (${{ env.RID }})
         shell: pwsh
-        run: dotnet restore "${{ env.PROJECT_PATH }}" -r win-x86
+        run: dotnet restore "${{ env.PROJECT_PATH }}" -r ${{ env.RID }}
 
-      - name: Build (Release, win-x86)
+      - name: Build (Release, ${{ env.RID }})
         shell: pwsh
-        run: dotnet build "${{ env.PROJECT_PATH }}" -c Release -r win-x86 --no-restore
+        run: dotnet build "${{ env.PROJECT_PATH }}" -c Release -r ${{ env.RID }} --no-restore
 
-      - name: Publish (Release, win-x86, lean)
+      - name: Publish self-contained single-file (Release, ${{ env.RID }})
         shell: pwsh
         run: |
-          dotnet publish "${{ env.PROJECT_PATH }}" -c Release -r win-x86 `
-            -p:SelfContained=false `
-            -p:PublishSingleFile=false `
+          dotnet publish "${{ env.PROJECT_PATH }}" -c Release -r ${{ env.RID }} `
+            -p:SelfContained=true `
+            -p:PublishSingleFile=true `
+            -p:PublishTrimmed=false `
             -p:PublishReadyToRun=false `
             -p:CopyOutputSymbolsToPublishDirectory=false `
             -p:CopyDocumentationFileToPublishDirectory=false `
             -p:DebugType=None `
             -o "${{ env.OUT_DIR }}"
 
-      # На всякий случай подчистим возможные .pdb
-      - name: Strip PDB from publish
+      - name: Make ZIP from publish output
         shell: pwsh
         run: |
-          Get-ChildItem -Path "${{ env.OUT_DIR }}" -Recurse -Include *.pdb | Remove-Item -Force -ErrorAction SilentlyContinue
+          if (Test-Path "${{ env.ZIP_NAME }}") { Remove-Item "${{ env.ZIP_NAME }}" -Force }
+          if (!(Test-Path "${{ env.OUT_DIR }}")) { throw "Publish output not found: $env:OUT_DIR" }
+          Compress-Archive -Path (Join-Path $env:OUT_DIR '*') -DestinationPath "${{ env.ZIP_NAME }}" -Force
+          Write-Host "ZIP created: $env:ZIP_NAME"
 
-      # Генерируем ErgComTester.Update.xml (URL строим из FTP_HOST/FTP_DIR)
       - name: Create ErgComTester.Update.xml
         shell: pwsh
         env:
@@ -96,13 +96,14 @@ jobs:
           $url = "ftp://$env:FTP_HOST$targetDir/${{ env.ZIP_NAME }}"
 
           $doc  = New-Object System.Xml.XmlDocument
-          $decl = $doc.CreateXmlDeclaration("1.0","UTF-8",$null)
-          [void]$doc.AppendChild($decl)
+          $decl = $doc.CreateXmlDeclaration("1.0","UTF-8",$null); [void]$doc.AppendChild($decl)
           $item = $doc.CreateElement("item"); [void]$doc.AppendChild($item)
-
-          $ver = $doc.CreateElement("version"); $ver.InnerText = $version; [void]$item.AppendChild($ver)
-          $u   = $doc.CreateElement("url");     $u.InnerText   = $url;     [void]$item.AppendChild($u)
-          $cl  = $doc.CreateElement("changelog"); $cl.InnerText = "";      [void]$item.AppendChild($cl)
+          foreach($n in @("version","url","changelog")) {
+            $el = $doc.CreateElement($n); [void]$item.AppendChild($el)
+          }
+          $item.version.InnerText = $version
+          $item.url.InnerText = $url
+          $item.changelog.InnerText = ""
 
           $mand = $doc.CreateElement("mandatory")
           $attr = $doc.CreateAttribute("mode"); $attr.Value = "1"; [void]$mand.Attributes.Append($attr)
@@ -111,16 +112,6 @@ jobs:
           $doc.Save("${{ env.XML_NAME }}")
           Write-Host "Created $($env:XML_NAME) with version $version and url $url"
 
-      # Упаковка publish в ZIP
-      - name: Make ZIP from publish output
-        shell: pwsh
-        run: |
-          if (Test-Path "${{ env.ZIP_NAME }}") { Remove-Item "${{ env.ZIP_NAME }}" -Force }
-          if (!(Test-Path "${{ env.OUT_DIR }}")) { throw "Publish output not found: $env:OUT_DIR" }
-          Compress-Archive -Path (Join-Path $env:OUT_DIR '*') -DestinationPath "${{ env.ZIP_NAME }}" -Force
-          Write-Host "ZIP created: $env:ZIP_NAME"
-
-      # Загрузка на FTP
       - name: Upload ZIP and XML to FTP
         shell: pwsh
         env:
