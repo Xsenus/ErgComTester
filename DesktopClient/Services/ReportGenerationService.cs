@@ -322,55 +322,15 @@ public sealed class ReportGenerationService : IDisposable
                         }
                         catch (IOException ex) when (IsFileInUse(ex))
                         {
-                            var fallback = TrySavePdfWithFallback(
-                                patient,
-                                finalRawPath,
-                                clinicHeader,
-                                template,
-                                candidatePdfPath,
-                                ex,
-                                $"[{portName}] пациент #{index}",
-                                path =>
-                                {
-                                    ReportGenerated?.Invoke(this, path);
-                                    generatedPdfReports.Add(path);
-                                });
-
-                            pdfPath = fallback.Path;
-                            if (pdfPath == null)
-                            {
-                                var reason = $"Не удалось создать PDF-отчет: {fallback.Error ?? ex.Message}";
-                                RenderingSupport.DisablePdf(reason);
-                                _pdfGenerationEnabled = false;
-                                _pdfGenerationIssue = RenderingSupport.PdfIssue ?? reason;
-                                LogPdfGenerationDisabled(portName);
-                            }
+                            var reason = HandleLockedPdfSave(candidatePdfPath, ex, $"[{portName}] пациент #{index}");
+                            pdfPath = null;
+                            _telegram?.NotifyMessage($"⚠️ {reason}");
                         }
                         catch (UnauthorizedAccessException ex)
                         {
-                            var fallback = TrySavePdfWithFallback(
-                                patient,
-                                finalRawPath,
-                                clinicHeader,
-                                template,
-                                candidatePdfPath,
-                                ex,
-                                $"[{portName}] пациент #{index}",
-                                path =>
-                                {
-                                    ReportGenerated?.Invoke(this, path);
-                                    generatedPdfReports.Add(path);
-                                });
-
-                            pdfPath = fallback.Path;
-                            if (pdfPath == null)
-                            {
-                                var reason = $"Не удалось создать PDF-отчет: {fallback.Error ?? ex.Message}";
-                                RenderingSupport.DisablePdf(reason);
-                                _pdfGenerationEnabled = false;
-                                _pdfGenerationIssue = RenderingSupport.PdfIssue ?? reason;
-                                LogPdfGenerationDisabled(portName);
-                            }
+                            var reason = HandleLockedPdfSave(candidatePdfPath, ex, $"[{portName}] пациент #{index}");
+                            pdfPath = null;
+                            _telegram?.NotifyMessage($"⚠️ {reason}");
                         }
                         catch (Exception ex)
                         {
@@ -838,51 +798,15 @@ public sealed class ReportGenerationService : IDisposable
         }
         catch (IOException ex) when (IsFileInUse(ex))
         {
-            var fallback = TrySavePdfWithFallback(
-                patient,
-                filePath,
-                clinicHeader,
-                template,
-                pdfPath,
-                ex,
-                $"[{Path.GetFileName(filePath)}]",
-                notifyTelegram: false);
-
-            if (fallback.Path is { } alternate)
-            {
-                pdfPath = alternate;
-            }
-            else
-            {
-                var reason = $"Ошибка генерации PDF: {fallback.Error ?? ex.Message}";
-                _log.Error($"[{filePath}] {reason}");
-                _telegram?.NotifyManualConversionFailed(filePath, reason);
-                return result with { ErrorMessage = reason, JsonPath = jsonPath };
-            }
+            var reason = HandleLockedPdfSave(pdfPath, ex, $"[{Path.GetFileName(filePath)}]");
+            _telegram?.NotifyManualConversionFailed(filePath, reason);
+            return result with { ErrorMessage = reason, JsonPath = jsonPath };
         }
         catch (UnauthorizedAccessException ex)
         {
-            var fallback = TrySavePdfWithFallback(
-                patient,
-                filePath,
-                clinicHeader,
-                template,
-                pdfPath,
-                ex,
-                $"[{Path.GetFileName(filePath)}]",
-                notifyTelegram: false);
-
-            if (fallback.Path is { } alternate)
-            {
-                pdfPath = alternate;
-            }
-            else
-            {
-                var reason = $"Ошибка генерации PDF: {fallback.Error ?? ex.Message}";
-                _log.Error($"[{filePath}] {reason}");
-                _telegram?.NotifyManualConversionFailed(filePath, reason);
-                return result with { ErrorMessage = reason, JsonPath = jsonPath };
-            }
+            var reason = HandleLockedPdfSave(pdfPath, ex, $"[{Path.GetFileName(filePath)}]");
+            _telegram?.NotifyManualConversionFailed(filePath, reason);
+            return result with { ErrorMessage = reason, JsonPath = jsonPath };
         }
         catch (Exception ex)
         {
@@ -928,68 +852,6 @@ public sealed class ReportGenerationService : IDisposable
         return result with { Success = true, JsonPath = jsonPath, PdfPath = pdfPath, DocxPath = docxPath, Patient = patient };
     }
 
-    private (string? Path, string? Error) TrySavePdfWithFallback(
-        ErgPatient patient,
-        string? finalRawPath,
-        string? clinicHeader,
-        ReportTemplate template,
-        string originalPath,
-        Exception reason,
-        string logContext,
-        Action<string>? onSuccess = null,
-        bool notifyTelegram = true)
-    {
-        var fallbackPath = CreateFileInUseFallbackPath(originalPath);
-        _log.Warn($"{logContext} не удалось сохранить PDF {originalPath}: {reason.Message}. Попытка записать новый файл: {fallbackPath}.");
-
-        try
-        {
-            ErgReportBuilder.BuildPatientReport(patient, fallbackPath, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: finalRawPath, template: template);
-            _log.Info($"{logContext} PDF-отчет сохранен: {fallbackPath}");
-            onSuccess?.Invoke(fallbackPath);
-            if (notifyTelegram)
-            {
-                _telegram?.NotifyMessage($"ℹ️ {logContext} сохранен как {Path.GetFileName(fallbackPath)}. Исходный файл был недоступен.");
-            }
-
-            return (fallbackPath, null);
-        }
-        catch (Exception fallbackEx)
-        {
-            var message = fallbackEx.Message;
-            _log.Error($"{logContext} не удалось сохранить PDF при повторной попытке: {message}");
-            if (notifyTelegram)
-            {
-                _telegram?.NotifyMessage($"⚠️ {logContext} не удалось сохранить PDF: {message}");
-            }
-
-            return (null, message);
-        }
-    }
-
-    private static string CreateFileInUseFallbackPath(string originalPath)
-    {
-        var directory = Path.GetDirectoryName(originalPath);
-        if (string.IsNullOrWhiteSpace(directory))
-        {
-            directory = Directory.GetCurrentDirectory();
-        }
-
-        var baseName = Path.GetFileNameWithoutExtension(originalPath);
-        var extension = Path.GetExtension(originalPath);
-        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        var suffix = $"opened_{timestamp}";
-        var candidate = Path.Combine(directory, $"{baseName}_{suffix}{extension}");
-        var counter = 1;
-
-        while (File.Exists(candidate))
-        {
-            candidate = Path.Combine(directory, $"{baseName}_{suffix}_{counter++}{extension}");
-        }
-
-        return candidate;
-    }
-
     private static bool IsFileInUse(IOException ex)
     {
         const int ErrorSharingViolation = 32;
@@ -998,6 +860,15 @@ public sealed class ReportGenerationService : IDisposable
 
         var code = ex.HResult & 0xFFFF;
         return code is ErrorSharingViolation or ErrorLockViolation or ErrorAccessDenied;
+    }
+
+    private string HandleLockedPdfSave(string targetPath, Exception ex, string context)
+    {
+        var fileName = Path.GetFileName(targetPath);
+        var displayName = string.IsNullOrWhiteSpace(fileName) ? targetPath : fileName;
+        var message = $"{context} не удалось сохранить PDF «{displayName}»: файл открыт или нет прав доступа. Закройте документ и повторите попытку.";
+        _log.Warn($"{message} Детали: {ex.Message}");
+        return message;
     }
 
     private void LogPatientWarnings(ErgPatient patient, string context)

@@ -47,6 +47,7 @@ public static class ErgReportBuilder
     private const double HeaderTitleSpacingPoints = 12d;
 
     private static SKTypeface? _skTypeface;
+    private static readonly FontFamily PreferredFontFamily = LoadPreferredFontFamily();
 
     static ErgReportBuilder()
     {
@@ -577,7 +578,7 @@ public static class ErgReportBuilder
                 var margin = 20f * mmToPoints;
                 page.Margin(margin);
                 page.PageColor(Colors.White);
-                page.DefaultTextStyle(t => t.FontFamily("Arial").FontSize(11));
+                page.DefaultTextStyle(t => t.FontFamily(PreferredFontFamily.Name).FontSize(11));
 
                 var clinicHeaderLines = PrepareClinicHeaderLines(BuildClinicHeaderLines(clinicName));
 
@@ -603,7 +604,7 @@ public static class ErgReportBuilder
                                     .AlignCenter().AlignMiddle()
                                     .Text(text =>
                                     {
-                                        text.DefaultTextStyle(style => style.FontFamily("Arial").FontSize(10));
+                                        text.DefaultTextStyle(style => style.FontFamily(PreferredFontFamily.Name).FontSize(10));
                                         text.AlignCenter();
                                         text.Span(string.IsNullOrWhiteSpace(line) ? "\u00A0" : line);
                                     });
@@ -2093,6 +2094,41 @@ public static class ErgReportBuilder
         return _skTypeface;
     }
 
+    private static FontFamily LoadPreferredFontFamily()
+    {
+        foreach (var name in new[] { "Arial", "Segoe UI", "Calibri", "Tahoma" })
+        {
+            try
+            {
+                var family = new FontFamily(name);
+                return family;
+            }
+            catch (ArgumentException)
+            {
+                // ignore missing font families
+            }
+        }
+
+        return FontFamily.GenericSansSerif;
+    }
+
+    private static DrawingFont CreateDrawingFont(float size, FontStyle style = FontStyle.Regular, GraphicsUnit unit = GraphicsUnit.Point)
+    {
+        var family = PreferredFontFamily;
+        var effectiveStyle = family.IsStyleAvailable(style) ? style : FontStyle.Regular;
+
+        try
+        {
+            return new DrawingFont(family, size, effectiveStyle, unit);
+        }
+        catch (ArgumentException)
+        {
+            var fallbackFamily = FontFamily.GenericSansSerif;
+            var fallbackStyle = fallbackFamily.IsStyleAvailable(effectiveStyle) ? effectiveStyle : FontStyle.Regular;
+            return new DrawingFont(fallbackFamily, size, fallbackStyle, unit);
+        }
+    }
+
     private static IEnumerable<(string PartName, string ContentType)> GetWellKnownOverrides()
     {
         yield return ("/docProps/core.xml", "application/vnd.openxmlformats-package.core-properties+xml");
@@ -2618,8 +2654,8 @@ public static class ErgReportBuilder
             // ===== подписи осей =====
             float labelPx = PointsToPixels(opt.LabelFontPt);
             float unitPx = PointsToPixels(opt.UnitsFontPt);
-            using var tickFont = new System.Drawing.Font("Arial", labelPx, FontStyle.Regular, GraphicsUnit.Pixel);
-            using var unitFont = new System.Drawing.Font("Arial", unitPx, FontStyle.Regular, GraphicsUnit.Pixel);
+            using var tickFont = CreateDrawingFont(labelPx, FontStyle.Regular, GraphicsUnit.Pixel);
+            using var unitFont = CreateDrawingFont(unitPx, FontStyle.Regular, GraphicsUnit.Pixel);
 
             const float minLabelGapY = 4f;
             float minLabelGapX = opt.MinLabelGapXPx;
@@ -3246,16 +3282,16 @@ public static class ErgReportBuilder
 
         private Bitmap? _bitmap;
 
-        private readonly DrawingFont _clinicFont = new("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly DrawingFont _clinicFont = CreateDrawingFont(10f);
 
         private readonly string[] _clinicHeaderLines;
         private readonly SolidBrush _descriptionBackgroundBrush = new(DrawingColor.FromArgb(245, 245, 245));
-        private readonly DrawingFont _descriptionFont = new("Arial", 10f, FontStyle.Regular, GraphicsUnit.Point);
-        private readonly DrawingFont _descriptionTitleFont = new("Arial", 12f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly DrawingFont _descriptionFont = CreateDrawingFont(10f);
+        private readonly DrawingFont _descriptionTitleFont = CreateDrawingFont(12f, FontStyle.Bold);
         private readonly string _descriptionTitleText;
         private readonly CommonInfo? _deviceInfo;
-        private readonly DrawingFont _eyeLabelFont = new("Arial", 11f, FontStyle.Bold, GraphicsUnit.Point);
-        private readonly DrawingFont _waveLabelFont = new("Arial", 11f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly DrawingFont _eyeLabelFont = CreateDrawingFont(11f, FontStyle.Bold);
+        private readonly DrawingFont _waveLabelFont = CreateDrawingFont(11f);
 
         private readonly StringFormat _formatCenter = new(StringFormatFlags.LineLimit)
         {
@@ -3286,9 +3322,9 @@ public static class ErgReportBuilder
         };
         private readonly float _graphGap = 0.12f * Dpi;
         private Graphics? _graphics;
-        private readonly DrawingFont _infoLabelFont = new("Arial", 11f, FontStyle.Bold, GraphicsUnit.Point);
-        private readonly DrawingFont _infoSmallFont = new("Arial", 9f, FontStyle.Regular, GraphicsUnit.Point);
-        private readonly DrawingFont _infoValueFont = new("Arial", 11f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly DrawingFont _infoLabelFont = CreateDrawingFont(11f, FontStyle.Bold);
+        private readonly DrawingFont _infoSmallFont = CreateDrawingFont(9f);
+        private readonly DrawingFont _infoValueFont = CreateDrawingFont(11f);
         private readonly float _marginBottom;
 
         private readonly float _marginLeft;
@@ -3296,15 +3332,15 @@ public static class ErgReportBuilder
         private readonly float _marginTop;
 
         private readonly SolidBrush _mutedBrush = new(DrawingColor.FromArgb(100, 100, 100));
-        private readonly DrawingFont _normFont = new("Arial", 9f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly DrawingFont _normFont = CreateDrawingFont(9f);
 
         private readonly List<byte[]> _pages = new();
 
         private readonly ErgPatient _patient;
         private readonly string _pdfPath;
-        private readonly DrawingFont _placeholderFont = new("Arial", 10f, FontStyle.Italic, GraphicsUnit.Point);
+        private readonly DrawingFont _placeholderFont = CreateDrawingFont(10f, FontStyle.Italic);
         private readonly string _reportTitle;
-        private readonly DrawingFont _reportTitleFont = new("Arial", 14f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly DrawingFont _reportTitleFont = CreateDrawingFont(14f, FontStyle.Bold);
         private readonly string? _reportVersion;
         private readonly float _spacingLarge = 0.18f * Dpi;
         private readonly float _spacingMedium = 0.11f * Dpi;
@@ -3313,10 +3349,10 @@ public static class ErgReportBuilder
         private readonly float _summarySpacingSmall = 0.05f * Dpi;
         private readonly ReportTemplate _template;
         private readonly SolidBrush _testHeaderBackgroundBrush = new(DrawingColor.FromArgb(0xCC, 0xCC, 0xCC));
-        private readonly DrawingFont _testTitleFont = new("Arial", 12f, FontStyle.Bold, GraphicsUnit.Point);
-        private readonly DrawingFont _unitFont = new("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
+        private readonly DrawingFont _testTitleFont = CreateDrawingFont(12f, FontStyle.Bold);
+        private readonly DrawingFont _unitFont = CreateDrawingFont(12f);
         private readonly bool _useDescriptionBackground;
-        private readonly DrawingFont _valueFont = new("Arial", 26f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly DrawingFont _valueFont = CreateDrawingFont(26f, FontStyle.Bold);
         private float _y;
 
         public LegacyPdfRenderer(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath, ReportTemplate template)
@@ -4029,8 +4065,9 @@ public static class ErgReportBuilder
             var totalPages = _pages.Count;
 
             var versionText = _reportVersion != null ? $"Версия отчета: {_reportVersion}" : null;
-            var versionFont = new XFont("Arial", 8, XFontStyle.Regular);
-            var pageFont = new XFont("Arial", 9, XFontStyle.Regular);
+            var fontOptions = new XPdfFontOptions(PdfFontEncoding.Unicode, PdfFontEmbedding.Always);
+            var versionFont = new XFont("Helvetica", 8, XFontStyle.Regular, fontOptions);
+            var pageFont = new XFont("Helvetica", 9, XFontStyle.Regular, fontOptions);
             var footerRectFormatLeft = new XStringFormat { Alignment = XStringAlignment.Near, LineAlignment = XLineAlignment.Center };
             var footerRectFormatRight = new XStringFormat { Alignment = XStringAlignment.Far, LineAlignment = XLineAlignment.Center };
             var footerHeight = MillimetersToPoints(20d);
