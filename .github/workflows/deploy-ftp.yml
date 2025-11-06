@@ -1,4 +1,4 @@
-name: Build MicroluxErgConnect.Desktop - ZIP - FTP (self-contained)
+name: Build MicroluxErgConnect.Desktop - ZIP - FTP (self-contained, trimmed)
 
 on:
   push:
@@ -66,14 +66,14 @@ jobs:
         shell: pwsh
         run: dotnet build "${{ env.PROJECT_PATH }}" -c Release -r ${{ env.RID }} --no-restore
 
-      # Self-contained + single-file чтобы на ПК не требовался установленный .NET
-      - name: Publish self-contained single-file (Release, ${{ env.RID }})
+      # Self-contained + single-file + trimmed (уменьшаем размер)
+      - name: Publish self-contained, trimmed (Release, ${{ env.RID }})
         shell: pwsh
         run: |
           dotnet publish "${{ env.PROJECT_PATH }}" -c Release -r ${{ env.RID }} `
             -p:SelfContained=true `
             -p:PublishSingleFile=true `
-            -p:PublishTrimmed=false `
+            -p:PublishTrimmed=true `
             -p:PublishReadyToRun=false `
             -p:CopyOutputSymbolsToPublishDirectory=false `
             -p:CopyDocumentationFileToPublishDirectory=false `
