@@ -1,3 +1,4 @@
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 using ErgData;
 using MicroluxErgConnect.Models;
 using MicroluxErgConnect.Utils;
+using QuestPDF.Drawing;
 
 namespace MicroluxErgConnect.Services;
 
@@ -25,6 +27,9 @@ public sealed class ReportGenerationService : IDisposable
     private string? _pdfGenerationIssue;
     private string? _lastPdfWarningMessage;
     private int _activeSyncOperations;
+    private static readonly object _pdfFontLock = new();
+    private static bool _pdfFontsRegistered;
+    private static bool _pdfFontRegistrationAttempted;
 
     public event EventHandler<string>? ReportGenerated;
     public event EventHandler<string>? SyncStateChanged;
@@ -40,6 +45,7 @@ public sealed class ReportGenerationService : IDisposable
         _settings = settings;
         _log = log;
         _telegram = telegram;
+        EnsurePdfFontsRegistered();
         // ApplyRenderingMode(settings.Current.ReportRenderingMode);
         ApplyRenderingMode(ReportRenderingMode.Legacy);
     }
@@ -100,6 +106,68 @@ public sealed class ReportGenerationService : IDisposable
             return null;
 
         return header;
+    }
+
+    private void EnsurePdfFontsRegistered()
+    {
+        if (_pdfFontsRegistered || _pdfFontRegistrationAttempted)
+            return;
+
+        lock (_pdfFontLock)
+        {
+            if (_pdfFontsRegistered || _pdfFontRegistrationAttempted)
+                return;
+
+            _pdfFontRegistrationAttempted = true;
+
+            try
+            {
+                if (TryRegisterWindowsPdfFonts())
+                {
+                    _pdfFontsRegistered = true;
+                    _log.Info("Шрифты Arial зарегистрированы для PDF-отчетов.");
+                }
+                else
+                {
+                    _log.Warn("Не удалось автоматически зарегистрировать шрифты Arial для PDF. Будут использованы шрифты по умолчанию.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Не удалось зарегистрировать шрифты Arial для PDF: {ex.Message}");
+            }
+        }
+    }
+
+    private static bool TryRegisterWindowsPdfFonts()
+    {
+        var fontsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
+        if (string.IsNullOrWhiteSpace(fontsDirectory))
+            return false;
+
+        var regular = Path.Combine(fontsDirectory, "arial.ttf");
+        if (!File.Exists(regular))
+            return false;
+
+        var bold = Path.Combine(fontsDirectory, "arialbd.ttf");
+        var italic = Path.Combine(fontsDirectory, "ariali.ttf");
+        var boldItalic = Path.Combine(fontsDirectory, "arialbi.ttf");
+
+        try
+        {
+            FontManager.RegisterFontTypefaces(
+                "Arial",
+                regular,
+                File.Exists(bold) ? bold : null,
+                File.Exists(italic) ? italic : null,
+                File.Exists(boldItalic) ? boldItalic : null);
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+
+        return true;
     }
 
     private void RestartLoop()
@@ -164,7 +232,8 @@ public sealed class ReportGenerationService : IDisposable
         {
             _log.Info("Генерация Word-отчетов отключена в настройках. DOCX-файлы создаваться не будут.");
         }
-        int maxPatients = Math.Max(1, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 1);
+        int? expectedPatients = _lastDeviceInfo?.DeviceInfo.TotalNumId;
+        int maxPatients = Math.Max(1, expectedPatients ?? 1);
         bool sessionAnnounced = false;
         int processedPatients = 0;
         // var template = _settings.Current.ReportTemplate;
@@ -321,24 +390,14 @@ public sealed class ReportGenerationService : IDisposable
                         }
                         catch (IOException ex) when (IsFileInUse(ex))
                         {
-                            var fallback = TrySavePdfWithFallback(
-                                patient,
-                                finalRawPath,
-                                clinicHeader,
-                                template,
+                            var failure = HandlePdfSaveFailure(
                                 candidatePdfPath,
                                 ex,
-                                $"[{portName}] пациент #{index}",
-                                path =>
-                                {
-                                    ReportGenerated?.Invoke(this, path);
-                                    generatedPdfReports.Add(path);
-                                });
+                                $"[{portName}] пациент #{index}");
 
-                            pdfPath = fallback.Path;
-                            if (pdfPath == null)
+                            if (!failure.ShouldRetryLater)
                             {
-                                var reason = $"Не удалось создать PDF-отчет: {fallback.Error ?? ex.Message}";
+                                var reason = $"Не удалось создать PDF-отчет: {failure.Reason}";
                                 RenderingSupport.DisablePdf(reason);
                                 _pdfGenerationEnabled = false;
                                 _pdfGenerationIssue = RenderingSupport.PdfIssue ?? reason;
@@ -347,24 +406,14 @@ public sealed class ReportGenerationService : IDisposable
                         }
                         catch (UnauthorizedAccessException ex)
                         {
-                            var fallback = TrySavePdfWithFallback(
-                                patient,
-                                finalRawPath,
-                                clinicHeader,
-                                template,
+                            var failure = HandlePdfSaveFailure(
                                 candidatePdfPath,
                                 ex,
-                                $"[{portName}] пациент #{index}",
-                                path =>
-                                {
-                                    ReportGenerated?.Invoke(this, path);
-                                    generatedPdfReports.Add(path);
-                                });
+                                $"[{portName}] пациент #{index}");
 
-                            pdfPath = fallback.Path;
-                            if (pdfPath == null)
+                            if (!failure.ShouldRetryLater)
                             {
-                                var reason = $"Не удалось создать PDF-отчет: {fallback.Error ?? ex.Message}";
+                                var reason = $"Не удалось создать PDF-отчет: {failure.Reason}";
                                 RenderingSupport.DisablePdf(reason);
                                 _pdfGenerationEnabled = false;
                                 _pdfGenerationIssue = RenderingSupport.PdfIssue ?? reason;
@@ -468,9 +517,42 @@ public sealed class ReportGenerationService : IDisposable
 
         if (options.EnableRtcSynchronization)
         {
-            var rtc = ErgProtocol.BuildRtcSet(DateTime.Now);
-            port.Write(rtc, 0, rtc.Length);
-            _log.Info("Часы прибора синхронизированы.");
+            if (!expectedPatients.HasValue)
+            {
+                _log.Warn($"[{portName}] синхронизация времени пропущена: нет данных о количестве пациентов в приборе.");
+            }
+            else
+            {
+                var expected = expectedPatients.Value;
+                var pdfCount = generatedPdfReports.Count;
+                var receivedCount = processedPatients;
+                bool countsMatch = pdfCount == expected && receivedCount == expected;
+
+                if (countsMatch)
+                {
+                    var rtc = ErgProtocol.BuildRtcSet(DateTime.Now);
+                    port.Write(rtc, 0, rtc.Length);
+                    _log.Info("Часы прибора синхронизированы.");
+                }
+                else
+                {
+                    var reasons = new List<string>();
+                    if (receivedCount != expected)
+                    {
+                        reasons.Add($"получено пациентов {receivedCount} из {expected}");
+                    }
+                    if (pdfCount != expected)
+                    {
+                        reasons.Add($"создано PDF {pdfCount} из {expected}");
+                    }
+
+                    var reasonText = reasons.Count > 0
+                        ? string.Join(", ", reasons)
+                        : $"обнаружено несоответствие данным прибора ({expected})";
+
+                    _log.Warn($"[{portName}] синхронизация времени пропущена: {reasonText}.");
+                }
+            }
         }
     }
 
@@ -804,51 +886,29 @@ public sealed class ReportGenerationService : IDisposable
         }
         catch (IOException ex) when (IsFileInUse(ex))
         {
-            var fallback = TrySavePdfWithFallback(
-                patient,
-                filePath,
-                clinicHeader,
-                template,
+            var failure = HandlePdfSaveFailure(
                 pdfPath,
                 ex,
                 $"[{Path.GetFileName(filePath)}]",
                 notifyTelegram: false);
 
-            if (fallback.Path is { } alternate)
-            {
-                pdfPath = alternate;
-            }
-            else
-            {
-                var reason = $"Ошибка генерации PDF: {fallback.Error ?? ex.Message}";
-                _log.Error($"[{filePath}] {reason}");
-                _telegram?.NotifyManualConversionFailed(filePath, reason);
-                return result with { ErrorMessage = reason, JsonPath = jsonPath };
-            }
+            var reason = $"Ошибка генерации PDF: {failure.Reason}";
+            _log.Error($"[{filePath}] {reason}");
+            _telegram?.NotifyManualConversionFailed(filePath, reason);
+            return result with { ErrorMessage = reason, JsonPath = jsonPath };
         }
         catch (UnauthorizedAccessException ex)
         {
-            var fallback = TrySavePdfWithFallback(
-                patient,
-                filePath,
-                clinicHeader,
-                template,
+            var failure = HandlePdfSaveFailure(
                 pdfPath,
                 ex,
                 $"[{Path.GetFileName(filePath)}]",
                 notifyTelegram: false);
 
-            if (fallback.Path is { } alternate)
-            {
-                pdfPath = alternate;
-            }
-            else
-            {
-                var reason = $"Ошибка генерации PDF: {fallback.Error ?? ex.Message}";
-                _log.Error($"[{filePath}] {reason}");
-                _telegram?.NotifyManualConversionFailed(filePath, reason);
-                return result with { ErrorMessage = reason, JsonPath = jsonPath };
-            }
+            var reason = $"Ошибка генерации PDF: {failure.Reason}";
+            _log.Error($"[{filePath}] {reason}");
+            _telegram?.NotifyManualConversionFailed(filePath, reason);
+            return result with { ErrorMessage = reason, JsonPath = jsonPath };
         }
         catch (Exception ex)
         {
@@ -894,65 +954,41 @@ public sealed class ReportGenerationService : IDisposable
         return result with { Success = true, JsonPath = jsonPath, PdfPath = pdfPath, DocxPath = docxPath, Patient = patient };
     }
 
-    private (string? Path, string? Error) TrySavePdfWithFallback(
-        ErgPatient patient,
-        string? finalRawPath,
-        string? clinicHeader,
-        ReportTemplate template,
+    private readonly record struct PdfSaveResult(bool ShouldRetryLater, string Reason);
+
+    private PdfSaveResult HandlePdfSaveFailure(
         string originalPath,
         Exception reason,
         string logContext,
-        Action<string>? onSuccess = null,
         bool notifyTelegram = true)
     {
-        var fallbackPath = CreateFileInUseFallbackPath(originalPath);
-        _log.Warn($"{logContext} не удалось сохранить PDF {originalPath}: {reason.Message}. Попытка записать новый файл: {fallbackPath}.");
+        var message = reason.Message;
+        bool isBusy = reason is IOException ioEx && IsFileInUse(ioEx);
+        bool isUnauthorized = reason is UnauthorizedAccessException;
 
-        try
+        if (isBusy || isUnauthorized)
         {
-            ErgReportBuilder.BuildPatientReport(patient, fallbackPath, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: finalRawPath, template: template);
-            _log.Info($"{logContext} PDF-отчет сохранен: {fallbackPath}");
-            onSuccess?.Invoke(fallbackPath);
+            var status = isUnauthorized
+                ? "файл недоступен: отказано в доступе"
+                : "файл занят другим процессом";
+            _log.Warn($"{logContext} не удалось сохранить PDF {originalPath}: {status} ({message}). Сохранение пропущено, повторим позже.");
+
             if (notifyTelegram)
             {
-                _telegram?.NotifyMessage($"ℹ️ {logContext} сохранен как {Path.GetFileName(fallbackPath)}. Исходный файл был недоступен.");
+                var fileName = Path.GetFileName(originalPath);
+                _telegram?.NotifyMessage($"⚠️ {logContext} не удалось сохранить PDF {fileName}: {status}. Закройте файл и повторите.");
             }
 
-            return (fallbackPath, null);
+            return new PdfSaveResult(true, status);
         }
-        catch (Exception fallbackEx)
+
+        _log.Error($"{logContext} не удалось сохранить PDF {originalPath}: {message}");
+        if (notifyTelegram)
         {
-            var message = fallbackEx.Message;
-            _log.Error($"{logContext} не удалось сохранить PDF при повторной попытке: {message}");
-            if (notifyTelegram)
-            {
-                _telegram?.NotifyMessage($"⚠️ {logContext} не удалось сохранить PDF: {message}");
-            }
-
-            return (null, message);
-        }
-    }
-
-    private static string CreateFileInUseFallbackPath(string originalPath)
-    {
-        var directory = Path.GetDirectoryName(originalPath);
-        if (string.IsNullOrWhiteSpace(directory))
-        {
-            directory = Directory.GetCurrentDirectory();
+            _telegram?.NotifyMessage($"⚠️ {logContext} не удалось сохранить PDF: {message}");
         }
 
-        var baseName = Path.GetFileNameWithoutExtension(originalPath);
-        var extension = Path.GetExtension(originalPath);
-        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        var candidate = Path.Combine(directory, $"{baseName}_{timestamp}{extension}");
-        var counter = 1;
-
-        while (File.Exists(candidate))
-        {
-            candidate = Path.Combine(directory, $"{baseName}_{timestamp}_{counter++}{extension}");
-        }
-
-        return candidate;
+        return new PdfSaveResult(false, message);
     }
 
     private static bool IsFileInUse(IOException ex)

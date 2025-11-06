@@ -1607,8 +1607,8 @@ public static class ErgReportBuilder
 
     private static int DetermineValueCount(EyeData eye)
     {
-        if (eye.ValueCount.HasValue)
-            return eye.ValueCount.Value;
+        if (eye.ValueCount is { } explicitCount && explicitCount > 0)
+            return explicitCount;
 
         int count = 0;
         count = Math.Max(count, eye.AWaveMs?.Length ?? 0);
@@ -1810,13 +1810,15 @@ public static class ErgReportBuilder
         if (eye.QualityIndex.HasValue && eye.QualityIndex.Value == 0)
             return false;
 
-        if (eye.ValueCount.HasValue && eye.ValueCount.Value == 0)
+        bool hasValues = HasEyeMeasurementValues(eye);
+
+        if (eye.ValueCount.HasValue && eye.ValueCount.Value == 0 && !hasValues)
             return false;
 
-        if (eye.GraphCount == 0)
+        if (eye.GraphCount == 0 && !hasValues)
             return false;
 
-        return HasEyeMeasurementValues(eye);
+        return hasValues;
     }
 
     private static string FormatAnimal(AnimalKind animal)
@@ -1920,7 +1922,7 @@ public static class ErgReportBuilder
 
     private static string FormatMarker(EyeData eye, byte? marker)
     {
-        int valueCount = eye.ValueCount ?? DetermineValueCount(eye);
+        int valueCount = DetermineValueCount(eye);
         if (valueCount <= 0)
             return "—";
         if (!marker.HasValue)
@@ -1930,7 +1932,7 @@ public static class ErgReportBuilder
 
     private static string? FormatMeasurement(EyeData eye, int index)
     {
-        int valueCount = eye.ValueCount ?? DetermineValueCount(eye);
+        int valueCount = DetermineValueCount(eye);
         if (index >= valueCount)
             return null;
 
