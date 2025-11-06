@@ -468,9 +468,21 @@ public sealed class ReportGenerationService : IDisposable
 
         if (options.EnableRtcSynchronization)
         {
-            var rtc = ErgProtocol.BuildRtcSet(DateTime.Now);
-            port.Write(rtc, 0, rtc.Length);
-            _log.Info("Часы прибора синхронизированы.");
+            int expectedPatients = Math.Max(0, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 0);
+            int savedPatients = generatedPdfReports.Count;
+            bool noPatientsExpected = expectedPatients == 0 && processedPatients == 0 && savedPatients == 0;
+            bool allPatientsSaved = expectedPatients > 0 && savedPatients == expectedPatients;
+
+            if (noPatientsExpected || allPatientsSaved)
+            {
+                var rtc = ErgProtocol.BuildRtcSet(DateTime.Now);
+                port.Write(rtc, 0, rtc.Length);
+                _log.Info("Часы прибора синхронизированы.");
+            }
+            else
+            {
+                _log.Warn($"[{portName}] синхронизация времени пропущена: ожидалось пациентов={expectedPatients}, сохранено отчетов={savedPatients}.");
+            }
         }
     }
 
@@ -944,12 +956,12 @@ public sealed class ReportGenerationService : IDisposable
         var baseName = Path.GetFileNameWithoutExtension(originalPath);
         var extension = Path.GetExtension(originalPath);
         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        var candidate = Path.Combine(directory, $"{baseName}_{timestamp}{extension}");
+        var candidate = Path.Combine(directory, $"{baseName}_locked_{timestamp}{extension}");
         var counter = 1;
 
         while (File.Exists(candidate))
         {
-            candidate = Path.Combine(directory, $"{baseName}_{timestamp}_{counter++}{extension}");
+            candidate = Path.Combine(directory, $"{baseName}_locked_{timestamp}_{counter++}{extension}");
         }
 
         return candidate;

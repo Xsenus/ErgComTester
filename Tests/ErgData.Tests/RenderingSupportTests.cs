@@ -3,10 +3,11 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Xml.Linq;
-using ErgData;
-using Xunit;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Validation;
+using ErgData;
+using UglyToad.PdfPig;
+using Xunit;
 
 public class RenderingSupportTests
 {
@@ -45,74 +46,8 @@ public class RenderingSupportTests
             Environment.SetEnvironmentVariable("ERG_FORCE_LEGACY_RENDERING", "1");
             RenderingSupport.Reload();
 
-            var patient = new ErgPatient
-            {
-                PatientId = 42,
-                Animal = AnimalKind.Dog,
-                TestDateTime = "01.01.2024 12:00",
-                TotalNumTests = 1,
-                Tests =
-                {
-                    new ErgTest
-                    {
-                        TestName = "Flash",
-                        GraphNumPoints = 10,
-                        GraphDt = 1,
-                        GraphDiscrPerMkV = 1,
-                        GraphFlashPosition = 5,
-                        GraphXValueStep = 1,
-                        GraphXLineStep = 1,
-                        GraphXScaleMin = 0,
-                        GraphXScaleMax = 9,
-                        GraphYValueStep = 1,
-                        GraphYLineStep = 1,
-                        GraphYScaleMin = -5,
-                        GraphYScaleMax = 5,
-                        AWaveExists = true,
-                        AWaveMsNormalMin = 1,
-                        AWaveMsNormalMax = 3,
-                        AWaveMkVNormalMin = 5,
-                        AWaveMkVNormalMax = 15,
-                        BWaveMsNormalMin = 5,
-                        BWaveMsNormalMax = 7,
-                        BWaveMkVNormalMin = 20,
-                        BWaveMkVNormalMax = 40,
-                        RightEye = new EyeData
-                        {
-                            QualityIndex = 2,
-                            GraphCount = 1,
-                            AWaveMs = new ushort?[] { 2 },
-                            AWaveMkV = new uint?[] { 10 },
-                            BWaveMs = new ushort?[] { 6 },
-                            BWaveMkV = new uint?[] { 30 },
-                            GraphsNormalized = new[]
-                            {
-                                Enumerable.Range(0, 10).Select(i => Math.Sin(i / 2.0)).ToArray()
-                            }
-                        },
-                        LeftEye = new EyeData
-                        {
-                            QualityIndex = 3,
-                            GraphCount = 1,
-                            AWaveMs = new ushort?[] { 2 },
-                            AWaveMkV = new uint?[] { 12 },
-                            BWaveMs = new ushort?[] { 6 },
-                            BWaveMkV = new uint?[] { 35 },
-                            GraphsNormalized = new[]
-                            {
-                                Enumerable.Range(0, 10).Select(i => Math.Cos(i / 2.0)).ToArray()
-                            }
-                        }
-                    }
-                }
-            };
-
-            var deviceInfo = new CommonInfo
-            {
-                ReportName = "Legacy layout",
-                DeviceName = "ERG-100",
-                SoftwareRev = "2.3"
-            };
+            var patient = CreateSamplePatient();
+            var deviceInfo = CreateSampleDeviceInfo("Legacy layout");
 
             ErgReportBuilder.BuildPatientReport(patient, outputPath, deviceInfo, "Ветклиника");
 
@@ -137,69 +72,11 @@ public class RenderingSupportTests
         var outputPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".docx");
         try
         {
-            var patient = new ErgPatient
-            {
-                PatientId = 99,
-                Animal = AnimalKind.Cat,
-                TestDateTime = "02.02.2024 09:30",
-                TotalNumTests = 1,
-                Description = "Краткое описание\nСостояние стабильное",
-                Tests =
-                {
-                    new ErgTest
-                    {
-                        TestName = "Flash",
-                        GraphNumPoints = 10,
-                        GraphDt = 1,
-                        GraphDiscrPerMkV = 1,
-                        GraphFlashPosition = 5,
-                        GraphXValueStep = 1,
-                        GraphXLineStep = 1,
-                        GraphXScaleMin = 0,
-                        GraphXScaleMax = 9,
-                        GraphYValueStep = 1,
-                        GraphYLineStep = 1,
-                        GraphYScaleMin = -5,
-                        GraphYScaleMax = 5,
-                        AWaveExists = true,
-                        AWaveMsNormalMin = 1,
-                        AWaveMsNormalMax = 3,
-                        AWaveMkVNormalMin = 5,
-                        AWaveMkVNormalMax = 15,
-                        BWaveMsNormalMin = 5,
-                        BWaveMsNormalMax = 7,
-                        BWaveMkVNormalMin = 20,
-                        BWaveMkVNormalMax = 40,
-                        RightEye = new EyeData
-                        {
-                            QualityIndex = 2,
-                            GraphCount = 1,
-                            AWaveMs = new ushort?[] { 2 },
-                            AWaveMkV = new uint?[] { 10 },
-                            BWaveMs = new ushort?[] { 6 },
-                            BWaveMkV = new uint?[] { 30 },
-                            GraphsNormalized = new[]
-                            {
-                                Enumerable.Range(0, 10).Select(i => Math.Sin(i / 2.0)).ToArray()
-                            }
-                        },
-                        LeftEye = new EyeData
-                        {
-                            QualityIndex = 3,
-                            GraphCount = 1,
-                            AWaveMs = new ushort?[] { 2 },
-                            AWaveMkV = new uint?[] { 12 },
-                            BWaveMs = new ushort?[] { 6 },
-                            BWaveMkV = new uint?[] { 35 },
-                            GraphsNormalized = new[]
-                            {
-                                Enumerable.Range(0, 10).Select(i => Math.Cos(i / 2.0)).ToArray()
-                            }
-                        }
-
-                    }
-                }
-            };
+            var patient = CreateSamplePatient();
+            patient.PatientId = 99;
+            patient.Animal = AnimalKind.Cat;
+            patient.TestDateTime = "02.02.2024 09:30";
+            patient.Description = "Краткое описание\nСостояние стабильное";
 
             var deviceInfo = new CommonInfo
             {
@@ -301,6 +178,39 @@ public class RenderingSupportTests
     }
 
     [Fact]
+    public void ClientPdfContainsWaveMeasurements()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".pdf");
+
+        try
+        {
+            RenderingSupport.Reload(ReportRenderingMode.Automatic);
+
+            var patient = CreateSamplePatient();
+            var deviceInfo = CreateSampleDeviceInfo();
+
+            ErgReportBuilder.BuildPatientReport(patient, outputPath, deviceInfo, "Ветклиника", template: ReportTemplate.Client);
+
+            using var document = PdfDocument.Open(outputPath);
+            var extracted = string.Join("\n", document.GetPages().Select(p => p.Text));
+
+            Assert.Contains("2 мс", extracted);
+            Assert.Contains("10 мкВ", extracted);
+            Assert.Contains("6 мс", extracted);
+            Assert.Contains("30 мкВ", extracted);
+        }
+        finally
+        {
+            if (File.Exists(outputPath))
+            {
+                File.Delete(outputPath);
+            }
+
+            RenderingSupport.Reload(ReportRenderingMode.Automatic);
+        }
+    }
+
+    [Fact]
     public void ManualRenderingModeOverridesDetection()
     {
         var original = Environment.GetEnvironmentVariable("ERG_FORCE_LEGACY_RENDERING");
@@ -323,6 +233,81 @@ public class RenderingSupportTests
             Environment.SetEnvironmentVariable("ERG_FORCE_LEGACY_RENDERING", original);
             RenderingSupport.Reload(ReportRenderingMode.Automatic);
         }
+    }
+
+    private static ErgPatient CreateSamplePatient()
+    {
+        var patient = new ErgPatient
+        {
+            PatientId = 42,
+            Animal = AnimalKind.Dog,
+            TestDateTime = "01.01.2024 12:00",
+            TotalNumTests = 1
+        };
+
+        patient.Tests.Add(new ErgTest
+        {
+            TestName = "Flash",
+            GraphNumPoints = 10,
+            GraphDt = 1,
+            GraphDiscrPerMkV = 1,
+            GraphFlashPosition = 5,
+            GraphXValueStep = 1,
+            GraphXLineStep = 1,
+            GraphXScaleMin = 0,
+            GraphXScaleMax = 9,
+            GraphYValueStep = 1,
+            GraphYLineStep = 1,
+            GraphYScaleMin = -5,
+            GraphYScaleMax = 5,
+            AWaveExists = true,
+            AWaveMsNormalMin = 1,
+            AWaveMsNormalMax = 3,
+            AWaveMkVNormalMin = 5,
+            AWaveMkVNormalMax = 15,
+            BWaveMsNormalMin = 5,
+            BWaveMsNormalMax = 7,
+            BWaveMkVNormalMin = 20,
+            BWaveMkVNormalMax = 40,
+            RightEye = new EyeData
+            {
+                QualityIndex = 2,
+                GraphCount = 1,
+                AWaveMs = new ushort?[] { 2 },
+                AWaveMkV = new uint?[] { 10 },
+                BWaveMs = new ushort?[] { 6 },
+                BWaveMkV = new uint?[] { 30 },
+                GraphsNormalized = new[]
+                {
+                    Enumerable.Range(0, 10).Select(i => Math.Sin(i / 2.0)).ToArray()
+                }
+            },
+            LeftEye = new EyeData
+            {
+                QualityIndex = 3,
+                GraphCount = 1,
+                AWaveMs = new ushort?[] { 2 },
+                AWaveMkV = new uint?[] { 12 },
+                BWaveMs = new ushort?[] { 6 },
+                BWaveMkV = new uint?[] { 35 },
+                GraphsNormalized = new[]
+                {
+                    Enumerable.Range(0, 10).Select(i => Math.Cos(i / 2.0)).ToArray()
+                }
+            }
+        });
+
+        return patient;
+    }
+
+    private static CommonInfo CreateSampleDeviceInfo(string? reportName = null)
+    {
+        return new CommonInfo
+        {
+            ReportName = reportName ?? "Legacy layout",
+            DeviceName = "ERG-100",
+            SoftwareRev = "2.3"
+        };
     }
 
     private static string NormalizeRelationshipTarget(string? target)

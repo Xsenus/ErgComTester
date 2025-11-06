@@ -4332,21 +4332,24 @@ public static class ErgReportBuilder
 
         private static void AppendMeasurement(ColumnDescriptor column, string value)
         {
-            column.Item().AlignCenter().Row(row =>
+            column.Item().AlignCenter().Text(text =>
             {
-                row.Spacing(2);
+                text.AlignCenter();
+                text.LineHeight(1);
 
                 if (value == "—")
                 {
-                    row.AutoItem().AlignBottom().Text(value).FontSize(26).SemiBold();
+                    text.Span(value).FontSize(26).SemiBold();
                     return;
                 }
 
                 var parts = SplitValueAndUnit(value);
-                row.AutoItem().AlignBottom().Text(parts.Value).FontSize(26).SemiBold();
+                text.Span(parts.Value).FontSize(26).SemiBold();
+
                 if (!string.IsNullOrEmpty(parts.Unit))
                 {
-                    row.AutoItem().AlignBottom().Text(parts.Unit).FontSize(12);
+                    text.Span(" ").FontSize(12);
+                    text.Span(parts.Unit).FontSize(12);
                 }
             });
         }
