@@ -164,7 +164,8 @@ public sealed class ReportGenerationService : IDisposable
         {
             _log.Info("Генерация Word-отчетов отключена в настройках. DOCX-файлы создаваться не будут.");
         }
-        int maxPatients = Math.Max(1, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 1);
+        int? expectedPatients = _lastDeviceInfo?.DeviceInfo.TotalNumId;
+        int maxPatients = Math.Max(1, expectedPatients ?? 1);
         bool sessionAnnounced = false;
         int processedPatients = 0;
         // var template = _settings.Current.ReportTemplate;
@@ -468,9 +469,23 @@ public sealed class ReportGenerationService : IDisposable
 
         if (options.EnableRtcSynchronization)
         {
-            var rtc = ErgProtocol.BuildRtcSet(DateTime.Now);
-            port.Write(rtc, 0, rtc.Length);
-            _log.Info("Часы прибора синхронизированы.");
+            if (expectedPatients.HasValue && generatedPdfReports.Count == expectedPatients.Value)
+            {
+                var rtc = ErgProtocol.BuildRtcSet(DateTime.Now);
+                port.Write(rtc, 0, rtc.Length);
+                _log.Info("Часы прибора синхронизированы.");
+            }
+            else
+            {
+                if (!expectedPatients.HasValue)
+                {
+                    _log.Warn($"[{portName}] синхронизация времени пропущена: нет данных о количестве пациентов в приборе.");
+                }
+                else
+                {
+                    _log.Warn($"[{portName}] синхронизация времени пропущена: в приборе {expectedPatients.Value}, успешно сохранено {generatedPdfReports.Count} PDF-отчет(ов).");
+                }
+            }
         }
     }
 
