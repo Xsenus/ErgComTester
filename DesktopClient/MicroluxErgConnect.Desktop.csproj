@@ -7,8 +7,8 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>MicroluxErgConnect</AssemblyName>
     <RootNamespace>MicroluxErgConnect</RootNamespace>
-    <AssemblyVersion>1.0.0.42</AssemblyVersion>
-    <FileVersion>1.0.0.42</FileVersion>
+    <AssemblyVersion>1.0.0.43</AssemblyVersion>
+    <FileVersion>1.0.0.43</FileVersion>
     <ApplicationIcon Condition="Exists('Resources\microlux-connect.ico')">Resources\microlux-connect.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en;ru</SatelliteResourceLanguages>
     <PlatformTarget Condition="'$(PlatformTarget)' == ''">x86</PlatformTarget>

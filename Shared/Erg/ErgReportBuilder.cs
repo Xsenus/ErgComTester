@@ -3314,7 +3314,7 @@ public static class ErgReportBuilder
         private readonly DrawingFont _testTitleFont = new("Arial", 12f, FontStyle.Bold, GraphicsUnit.Point);
         private readonly DrawingFont _unitFont = new("Arial", 12f, FontStyle.Regular, GraphicsUnit.Point);
         private readonly bool _useDescriptionBackground;
-        private readonly DrawingFont _valueFont = new("Arial", 26f, FontStyle.Bold, GraphicsUnit.Point);
+        private readonly DrawingFont _valueFont = new("Arial", 24f, FontStyle.Bold, GraphicsUnit.Point);
         private float _y;
 
         public LegacyPdfRenderer(ErgPatient patient, string pdfPath, CommonInfo? deviceInfo, string? clinicName, string? rawFilePath, ReportTemplate template)
