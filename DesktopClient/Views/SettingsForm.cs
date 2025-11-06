@@ -1,104 +1,101 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 using MicroluxErgConnect.Infrastructure;
 using MicroluxErgConnect.Utils;
 using MicroluxErgConnect.ViewModels;
 
-namespace MicroluxErgConnect.Views;
-
-public partial class SettingsForm : Form
+namespace MicroluxErgConnect.Views
 {
-    private readonly MainViewModel _viewModel;
-
-    public SettingsForm()
+    public partial class SettingsForm : Form
     {
-        InitializeComponent();
-        _viewModel = AppServices.MainViewModel;
-    }
+        private readonly MainViewModel _viewModel;
 
-    protected override void OnLoad(EventArgs e)
-    {
-        base.OnLoad(e);
-        folderTextBox.Text = _viewModel.ReportsDirectory;
-        headerTextBox.Text = ReportHeaderFormatter.JoinForEditor(ReportHeaderFormatter.Split(_viewModel.ReportHeader));
-    }
-
-    private void OnBrowseClicked(object? sender, EventArgs e)
-    {
-        using var dialog = new FolderBrowserDialog
+        public SettingsForm()
         {
-            SelectedPath = ResolveInitialFolder(),
-            Description = "Выберите папку для сохранения PDF-отчетов"
-        };
-
-        if (dialog.ShowDialog(this) == DialogResult.OK)
-        {
-            folderTextBox.Text = dialog.SelectedPath;
+            InitializeComponent();
+            _viewModel = AppServices.MainViewModel;
         }
-    }
 
-    private async void OnSaveClicked(object? sender, EventArgs e)
-    {
-        await ApplySettingsAsync();
-    }
-
-    private async Task ApplySettingsAsync()
-    {
-        ToggleControls(false);
-        try
+        private async Task ApplySettingsAsync()
         {
-            var (success, error) = await _viewModel.TryUpdateReportsDirectoryAsync(folderTextBox.Text);
-            if (!success)
+            ToggleControls(false);
+            try
             {
-                var message = string.IsNullOrWhiteSpace(error) ? "Не удалось обновить каталог отчетов." : error;
-                MessageBox.Show(this, message, "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
+                var (success, error) = await _viewModel.TryUpdateReportsDirectoryAsync(folderTextBox.Text);
+                if (!success)
+                {
+                    var message = string.IsNullOrWhiteSpace(error) ? "Не удалось обновить каталог отчетов." : error;
+                    MessageBox.Show(this, message, "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
 
-            var normalizedHeader = ReportHeaderFormatter.Normalize(headerTextBox.Text);
-            if (!string.Equals(normalizedHeader, _viewModel.ReportHeader, StringComparison.Ordinal))
+                var normalizedHeader = ReportHeaderFormatter.Normalize(headerTextBox.Text);
+                if (!string.Equals(normalizedHeader, _viewModel.ReportHeader, StringComparison.Ordinal))
+                {
+                    AppServices.Log.Info("Шапка отчета обновлена через окно настроек.");
+                    _viewModel.ReportHeader = normalizedHeader;
+                }
+
+                DialogResult = DialogResult.OK;
+                Close();
+            }
+            finally
             {
-                AppServices.Log.Info("Шапка отчета обновлена через окно настроек.");
-                _viewModel.ReportHeader = normalizedHeader;
+                ToggleControls(true);
             }
+        }
 
-            DialogResult = DialogResult.OK;
+        private void OnBrowseClicked(object? sender, EventArgs e)
+        {
+            using var dialog = new FolderBrowserDialog
+            {
+                SelectedPath = ResolveInitialFolder(),
+                Description = "Выберите папку для сохранения PDF-отчетов"
+            };
+
+            if (dialog.ShowDialog(this) == DialogResult.OK)
+            {
+                folderTextBox.Text = dialog.SelectedPath;
+            }
+        }
+
+        private void OnCancelClicked(object? sender, EventArgs e)
+        {
+            DialogResult = DialogResult.Cancel;
             Close();
         }
-        finally
+
+        private async void OnSaveClicked(object? sender, EventArgs e)
         {
-            ToggleControls(true);
-        }
-    }
-
-    private void ToggleControls(bool enabled)
-    {
-        browseButton.Enabled = enabled;
-        saveButton.Enabled = enabled;
-        cancelButton.Enabled = enabled;
-    }
-
-    private void OnCancelClicked(object? sender, EventArgs e)
-    {
-        DialogResult = DialogResult.Cancel;
-        Close();
-    }
-
-    private string? ResolveInitialFolder()
-    {
-        var current = folderTextBox.Text?.Trim();
-        if (!string.IsNullOrEmpty(current) && Directory.Exists(current))
-        {
-            return current;
+            await ApplySettingsAsync();
         }
 
-        if (!string.IsNullOrEmpty(_viewModel.ReportsDirectory) && Directory.Exists(_viewModel.ReportsDirectory))
+        private void ToggleControls(bool enabled)
         {
-            return _viewModel.ReportsDirectory;
+            browseButton.Enabled = enabled;
+            saveButton.Enabled = enabled;
+            cancelButton.Enabled = enabled;
         }
 
-        return AppContext.BaseDirectory;
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            folderTextBox.Text = _viewModel.ReportsDirectory;
+            headerTextBox.Text = ReportHeaderFormatter.JoinForEditor(ReportHeaderFormatter.Split(_viewModel.ReportHeader));
+        }
+
+        public string? ResolveInitialFolder()
+        {
+            var current = folderTextBox.Text?.Trim();
+            if (!string.IsNullOrEmpty(current) && Directory.Exists(current))
+            {
+                return current;
+            }
+
+            if (!string.IsNullOrEmpty(_viewModel.ReportsDirectory) && Directory.Exists(_viewModel.ReportsDirectory))
+            {
+                return _viewModel.ReportsDirectory;
+            }
+
+            return AppContext.BaseDirectory;
+        }
     }
 }

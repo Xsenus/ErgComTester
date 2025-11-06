@@ -6,7 +6,7 @@ using MicroluxErgConnect.Models;
 
 namespace MicroluxErgConnect.Views;
 
-partial class MainForm
+partial class MainForm_TEST
 {
     private IContainer components = null!;
     private TableLayoutPanel mainLayout;
@@ -83,8 +83,8 @@ partial class MainForm
     private void InitializeComponent()
     {
         components = new Container();
+        ComponentResourceManager resources = new ComponentResourceManager(typeof(MainForm_TEST));
         DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
-        ComponentResourceManager resources = new ComponentResourceManager(typeof(MainForm));
         mainLayout = new TableLayoutPanel();
         headerPanel = new Panel();
         headerLayout = new TableLayoutPanel();
@@ -100,6 +100,20 @@ partial class MainForm
         contentLayout = new TableLayoutPanel();
         detailsContainer = new Panel();
         detailsLayout = new TableLayoutPanel();
+        connectionGroup = new GroupBox();
+        connectionLayout = new TableLayoutPanel();
+        statusCaptionLabel = new Label();
+        statusValueLabel = new Label();
+        portCaptionLabel = new Label();
+        portValueLabel = new Label();
+        deviceCaptionLabel = new Label();
+        deviceValueLabel = new Label();
+        softwareCaptionLabel = new Label();
+        softwareValueLabel = new Label();
+        reportCaptionLabel = new Label();
+        reportValueLabel = new Label();
+        syncStatusLabel = new Label();
+        resetPortButton = new Button();
         settingsGroup = new GroupBox();
         settingsLayout = new TableLayoutPanel();
         scanIntervalLabel = new Label();
@@ -129,44 +143,16 @@ partial class MainForm
         manifestUrlLabel = new Label();
         manifestUrlTextBox = new TextBox();
         openLogsButton = new Button();
-        resetPortButton = new Button();
-        syncStatusLabel = new Label();
         logsGroup = new GroupBox();
         logGridView = new DataGridView();
         logsBindingSource = new BindingSource(components);
         mainStatusStrip = new StatusStrip();
         appNameStatusLabel = new ToolStripStatusLabel();
         versionStatusLabel = new ToolStripStatusLabel();
-        connectionGroup = new GroupBox();
-        connectionLayout = new TableLayoutPanel();
-        textBoxCaption4 = new TextBox();
-        panelPath = new Panel();
-        labelPath = new Label();
-        buttonSetPathFolder = new Button();
-        textBoxCaption3 = new TextBox();
-        textBoxCaption2 = new TextBox();
-        textBoxCaption1 = new TextBox();
-        labelInfoPath = new Label();
-        statusCaptionLabel = new Label();
-        statusValueLabel = new Label();
-        portCaptionLabel = new Label();
-        portValueLabel = new Label();
-        deviceCaptionLabel = new Label();
-        deviceValueLabel = new Label();
-        softwareCaptionLabel = new Label();
-        softwareValueLabel = new Label();
-        reportCaptionLabel = new Label();
-        reportValueLabel = new Label();
         trayIcon = new NotifyIcon(components);
         trayMenu = new ContextMenuStrip(components);
         trayOpenMenuItem = new ToolStripMenuItem();
         trayExitMenuItem = new ToolStripMenuItem();
-        tableLayoutPanelMain = new TableLayoutPanel();
-        panelFooter = new Panel();
-        buttonClosed = new Button();
-        pictureBox = new PictureBox();
-        panelHeader = new Panel();
-        labelHeader = new Label();
         mainLayout.SuspendLayout();
         headerPanel.SuspendLayout();
         headerLayout.SuspendLayout();
@@ -176,6 +162,8 @@ partial class MainForm
         contentLayout.SuspendLayout();
         detailsContainer.SuspendLayout();
         detailsLayout.SuspendLayout();
+        connectionGroup.SuspendLayout();
+        connectionLayout.SuspendLayout();
         settingsGroup.SuspendLayout();
         settingsLayout.SuspendLayout();
         settingsButtonsPanel.SuspendLayout();
@@ -186,14 +174,7 @@ partial class MainForm
         ((ISupportInitialize)logGridView).BeginInit();
         ((ISupportInitialize)logsBindingSource).BeginInit();
         mainStatusStrip.SuspendLayout();
-        connectionGroup.SuspendLayout();
-        connectionLayout.SuspendLayout();
-        panelPath.SuspendLayout();
         trayMenu.SuspendLayout();
-        tableLayoutPanelMain.SuspendLayout();
-        panelFooter.SuspendLayout();
-        ((ISupportInitialize)pictureBox).BeginInit();
-        panelHeader.SuspendLayout();
         SuspendLayout();
         // 
         // mainLayout
@@ -204,16 +185,16 @@ partial class MainForm
         mainLayout.Controls.Add(headerPanel, 0, 0);
         mainLayout.Controls.Add(contentLayout, 0, 1);
         mainLayout.Controls.Add(mainStatusStrip, 0, 2);
-        mainLayout.Location = new Point(12, 12);
+        mainLayout.Dock = DockStyle.Fill;
+        mainLayout.Location = new Point(0, 0);
         mainLayout.Name = "mainLayout";
         mainLayout.Padding = new Padding(20, 20, 20, 12);
         mainLayout.RowCount = 3;
         mainLayout.RowStyles.Add(new RowStyle());
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 26F));
-        mainLayout.Size = new Size(460, 485);
+        mainLayout.Size = new Size(1200, 720);
         mainLayout.TabIndex = 1;
-        mainLayout.Visible = false;
         // 
         // headerPanel
         // 
@@ -224,7 +205,7 @@ partial class MainForm
         headerPanel.Margin = new Padding(0, 0, 0, 16);
         headerPanel.Name = "headerPanel";
         headerPanel.Padding = new Padding(24, 18, 24, 18);
-        headerPanel.Size = new Size(420, 124);
+        headerPanel.Size = new Size(1160, 124);
         headerPanel.TabIndex = 0;
         // 
         // headerLayout
@@ -240,11 +221,12 @@ partial class MainForm
         headerLayout.Name = "headerLayout";
         headerLayout.RowCount = 1;
         headerLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        headerLayout.Size = new Size(372, 88);
+        headerLayout.Size = new Size(1112, 88);
         headerLayout.TabIndex = 0;
         // 
         // headerIconPictureBox
         // 
+        headerIconPictureBox.Image = (Image)resources.GetObject("headerIconPictureBox.Image");
         headerIconPictureBox.Location = new Point(0, 0);
         headerIconPictureBox.Margin = new Padding(0, 0, 24, 0);
         headerIconPictureBox.Name = "headerIconPictureBox";
@@ -268,7 +250,7 @@ partial class MainForm
         headerTextLayout.RowStyles.Add(new RowStyle());
         headerTextLayout.RowStyles.Add(new RowStyle());
         headerTextLayout.RowStyles.Add(new RowStyle());
-        headerTextLayout.Size = new Size(260, 88);
+        headerTextLayout.Size = new Size(1000, 88);
         headerTextLayout.TabIndex = 1;
         // 
         // headerTitleLabel
@@ -279,7 +261,7 @@ partial class MainForm
         headerTitleLabel.Location = new Point(0, 0);
         headerTitleLabel.Margin = new Padding(0);
         headerTitleLabel.Name = "headerTitleLabel";
-        headerTitleLabel.Size = new Size(180, 74);
+        headerTitleLabel.Size = new Size(295, 37);
         headerTitleLabel.TabIndex = 0;
         headerTitleLabel.Text = "Microlux ERG-Connect";
         // 
@@ -288,10 +270,10 @@ partial class MainForm
         headerSubtitleLabel.AutoSize = true;
         headerSubtitleLabel.Font = new Font("Segoe UI", 11F);
         headerSubtitleLabel.ForeColor = Color.FromArgb(189, 206, 223);
-        headerSubtitleLabel.Location = new Point(0, 80);
+        headerSubtitleLabel.Location = new Point(0, 43);
         headerSubtitleLabel.Margin = new Padding(0, 6, 0, 12);
         headerSubtitleLabel.Name = "headerSubtitleLabel";
-        headerSubtitleLabel.Size = new Size(227, 40);
+        headerSubtitleLabel.Size = new Size(390, 20);
         headerSubtitleLabel.TabIndex = 1;
         headerSubtitleLabel.Text = "Мониторинг и синхронизация оборудования Microlux";
         // 
@@ -304,10 +286,10 @@ partial class MainForm
         headerBadgesPanel.Controls.Add(headerPortLabel);
         headerBadgesPanel.Controls.Add(headerSyncLabel);
         headerBadgesPanel.Dock = DockStyle.Fill;
-        headerBadgesPanel.Location = new Point(0, 142);
+        headerBadgesPanel.Location = new Point(0, 85);
         headerBadgesPanel.Margin = new Padding(0, 10, 0, 0);
         headerBadgesPanel.Name = "headerBadgesPanel";
-        headerBadgesPanel.Size = new Size(260, 70);
+        headerBadgesPanel.Size = new Size(1000, 35);
         headerBadgesPanel.TabIndex = 2;
         // 
         // headerStatusLabel
@@ -344,7 +326,7 @@ partial class MainForm
         headerPortLabel.BackColor = Color.FromArgb(74, 102, 135);
         headerPortLabel.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
         headerPortLabel.ForeColor = Color.White;
-        headerPortLabel.Location = new Point(0, 35);
+        headerPortLabel.Location = new Point(206, 0);
         headerPortLabel.Margin = new Padding(0, 0, 12, 8);
         headerPortLabel.Name = "headerPortLabel";
         headerPortLabel.Padding = new Padding(12, 6, 12, 6);
@@ -358,7 +340,7 @@ partial class MainForm
         headerSyncLabel.BackColor = Color.FromArgb(48, 149, 177);
         headerSyncLabel.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
         headerSyncLabel.ForeColor = Color.White;
-        headerSyncLabel.Location = new Point(82, 35);
+        headerSyncLabel.Location = new Point(288, 0);
         headerSyncLabel.Margin = new Padding(0, 0, 12, 8);
         headerSyncLabel.Name = "headerSyncLabel";
         headerSyncLabel.Padding = new Padding(12, 6, 12, 6);
@@ -380,7 +362,7 @@ partial class MainForm
         contentLayout.Name = "contentLayout";
         contentLayout.RowCount = 1;
         contentLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        contentLayout.Size = new Size(420, 271);
+        contentLayout.Size = new Size(1160, 506);
         contentLayout.TabIndex = 1;
         // 
         // detailsContainer
@@ -388,14 +370,12 @@ partial class MainForm
         detailsContainer.AutoScroll = true;
         detailsContainer.AutoScrollMargin = new Size(0, 16);
         detailsContainer.Controls.Add(detailsLayout);
-        detailsContainer.Controls.Add(resetPortButton);
-        detailsContainer.Controls.Add(syncStatusLabel);
         detailsContainer.Dock = DockStyle.Fill;
         detailsContainer.Location = new Point(0, 0);
         detailsContainer.Margin = new Padding(0);
         detailsContainer.MinimumSize = new Size(320, 0);
         detailsContainer.Name = "detailsContainer";
-        detailsContainer.Size = new Size(320, 271);
+        detailsContainer.Size = new Size(440, 506);
         detailsContainer.TabIndex = 0;
         // 
         // detailsLayout
@@ -404,6 +384,7 @@ partial class MainForm
         detailsLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         detailsLayout.ColumnCount = 1;
         detailsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        detailsLayout.Controls.Add(connectionGroup, 0, 0);
         detailsLayout.Controls.Add(settingsGroup, 0, 1);
         detailsLayout.Controls.Add(updatesGroup, 0, 2);
         detailsLayout.Dock = DockStyle.Top;
@@ -414,8 +395,225 @@ partial class MainForm
         detailsLayout.RowStyles.Add(new RowStyle());
         detailsLayout.RowStyles.Add(new RowStyle());
         detailsLayout.RowStyles.Add(new RowStyle());
-        detailsLayout.Size = new Size(303, 724);
+        detailsLayout.Size = new Size(423, 1029);
         detailsLayout.TabIndex = 0;
+        // 
+        // connectionGroup
+        // 
+        connectionGroup.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        connectionGroup.AutoSize = true;
+        connectionGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        connectionGroup.BackColor = Color.White;
+        connectionGroup.Controls.Add(connectionLayout);
+        connectionGroup.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
+        connectionGroup.ForeColor = Color.FromArgb(33, 37, 41);
+        connectionGroup.Location = new Point(0, 0);
+        connectionGroup.Margin = new Padding(0, 0, 0, 16);
+        connectionGroup.Name = "connectionGroup";
+        connectionGroup.Padding = new Padding(16, 20, 16, 16);
+        connectionGroup.Size = new Size(423, 322);
+        connectionGroup.TabIndex = 0;
+        connectionGroup.TabStop = false;
+        connectionGroup.Text = "Подключение";
+        // 
+        // connectionLayout
+        // 
+        connectionLayout.AutoSize = true;
+        connectionLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        connectionLayout.BackColor = Color.White;
+        connectionLayout.ColumnCount = 2;
+        connectionLayout.ColumnStyles.Add(new ColumnStyle());
+        connectionLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        connectionLayout.Controls.Add(statusCaptionLabel, 0, 0);
+        connectionLayout.Controls.Add(statusValueLabel, 1, 0);
+        connectionLayout.Controls.Add(portCaptionLabel, 0, 1);
+        connectionLayout.Controls.Add(portValueLabel, 1, 1);
+        connectionLayout.Controls.Add(deviceCaptionLabel, 0, 2);
+        connectionLayout.Controls.Add(deviceValueLabel, 1, 2);
+        connectionLayout.Controls.Add(softwareCaptionLabel, 0, 3);
+        connectionLayout.Controls.Add(softwareValueLabel, 1, 3);
+        connectionLayout.Controls.Add(reportCaptionLabel, 0, 4);
+        connectionLayout.Controls.Add(reportValueLabel, 1, 4);
+        connectionLayout.Controls.Add(syncStatusLabel, 0, 5);
+        connectionLayout.Controls.Add(resetPortButton, 0, 6);
+        connectionLayout.Dock = DockStyle.Fill;
+        connectionLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
+        connectionLayout.Location = new Point(16, 38);
+        connectionLayout.Margin = new Padding(0);
+        connectionLayout.Name = "connectionLayout";
+        connectionLayout.Padding = new Padding(0, 4, 0, 8);
+        connectionLayout.RowCount = 7;
+        connectionLayout.RowStyles.Add(new RowStyle());
+        connectionLayout.RowStyles.Add(new RowStyle());
+        connectionLayout.RowStyles.Add(new RowStyle());
+        connectionLayout.RowStyles.Add(new RowStyle());
+        connectionLayout.RowStyles.Add(new RowStyle());
+        connectionLayout.RowStyles.Add(new RowStyle());
+        connectionLayout.RowStyles.Add(new RowStyle());
+        connectionLayout.Size = new Size(391, 268);
+        connectionLayout.TabIndex = 0;
+        // 
+        // statusCaptionLabel
+        // 
+        statusCaptionLabel.AutoSize = true;
+        statusCaptionLabel.Font = new Font("Segoe UI", 9F);
+        statusCaptionLabel.ForeColor = Color.FromArgb(120, 128, 145);
+        statusCaptionLabel.Location = new Point(0, 4);
+        statusCaptionLabel.Margin = new Padding(0, 0, 16, 0);
+        statusCaptionLabel.Name = "statusCaptionLabel";
+        statusCaptionLabel.Size = new Size(46, 15);
+        statusCaptionLabel.TabIndex = 0;
+        statusCaptionLabel.Text = "Статус:";
+        // 
+        // statusValueLabel
+        // 
+        statusValueLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        statusValueLabel.AutoSize = true;
+        statusValueLabel.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
+        statusValueLabel.ForeColor = Color.FromArgb(34, 158, 189);
+        statusValueLabel.Location = new Point(78, 10);
+        statusValueLabel.Margin = new Padding(8, 6, 0, 4);
+        statusValueLabel.MinimumSize = new Size(0, 24);
+        statusValueLabel.Name = "statusValueLabel";
+        statusValueLabel.Size = new Size(313, 24);
+        statusValueLabel.TabIndex = 1;
+        // 
+        // portCaptionLabel
+        // 
+        portCaptionLabel.AutoSize = true;
+        portCaptionLabel.Font = new Font("Segoe UI", 9F);
+        portCaptionLabel.ForeColor = Color.FromArgb(120, 128, 145);
+        portCaptionLabel.Location = new Point(0, 38);
+        portCaptionLabel.Margin = new Padding(0, 0, 16, 0);
+        portCaptionLabel.Name = "portCaptionLabel";
+        portCaptionLabel.Size = new Size(38, 15);
+        portCaptionLabel.TabIndex = 2;
+        portCaptionLabel.Text = "Порт:";
+        // 
+        // portValueLabel
+        // 
+        portValueLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        portValueLabel.AutoSize = true;
+        portValueLabel.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
+        portValueLabel.ForeColor = Color.FromArgb(33, 37, 41);
+        portValueLabel.Location = new Point(78, 44);
+        portValueLabel.Margin = new Padding(8, 6, 0, 4);
+        portValueLabel.MinimumSize = new Size(0, 24);
+        portValueLabel.Name = "portValueLabel";
+        portValueLabel.Size = new Size(313, 24);
+        portValueLabel.TabIndex = 3;
+        // 
+        // deviceCaptionLabel
+        // 
+        deviceCaptionLabel.AutoSize = true;
+        deviceCaptionLabel.Font = new Font("Segoe UI", 9F);
+        deviceCaptionLabel.ForeColor = Color.FromArgb(120, 128, 145);
+        deviceCaptionLabel.Location = new Point(0, 72);
+        deviceCaptionLabel.Margin = new Padding(0, 0, 16, 0);
+        deviceCaptionLabel.Name = "deviceCaptionLabel";
+        deviceCaptionLabel.Size = new Size(54, 15);
+        deviceCaptionLabel.TabIndex = 4;
+        deviceCaptionLabel.Text = "Прибор:";
+        // 
+        // deviceValueLabel
+        // 
+        deviceValueLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        deviceValueLabel.AutoSize = true;
+        deviceValueLabel.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
+        deviceValueLabel.ForeColor = Color.FromArgb(33, 37, 41);
+        deviceValueLabel.Location = new Point(78, 78);
+        deviceValueLabel.Margin = new Padding(8, 6, 0, 4);
+        deviceValueLabel.MinimumSize = new Size(0, 24);
+        deviceValueLabel.Name = "deviceValueLabel";
+        deviceValueLabel.Size = new Size(313, 24);
+        deviceValueLabel.TabIndex = 5;
+        // 
+        // softwareCaptionLabel
+        // 
+        softwareCaptionLabel.AutoSize = true;
+        softwareCaptionLabel.Font = new Font("Segoe UI", 9F);
+        softwareCaptionLabel.ForeColor = Color.FromArgb(120, 128, 145);
+        softwareCaptionLabel.Location = new Point(0, 106);
+        softwareCaptionLabel.Margin = new Padding(0, 0, 16, 0);
+        softwareCaptionLabel.Name = "softwareCaptionLabel";
+        softwareCaptionLabel.Size = new Size(28, 15);
+        softwareCaptionLabel.TabIndex = 6;
+        softwareCaptionLabel.Text = "ПО:";
+        // 
+        // softwareValueLabel
+        // 
+        softwareValueLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        softwareValueLabel.AutoSize = true;
+        softwareValueLabel.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
+        softwareValueLabel.ForeColor = Color.FromArgb(33, 37, 41);
+        softwareValueLabel.Location = new Point(78, 112);
+        softwareValueLabel.Margin = new Padding(8, 6, 0, 4);
+        softwareValueLabel.MinimumSize = new Size(0, 24);
+        softwareValueLabel.Name = "softwareValueLabel";
+        softwareValueLabel.Size = new Size(313, 24);
+        softwareValueLabel.TabIndex = 7;
+        // 
+        // reportCaptionLabel
+        // 
+        reportCaptionLabel.AutoSize = true;
+        reportCaptionLabel.Font = new Font("Segoe UI", 9F);
+        reportCaptionLabel.ForeColor = Color.FromArgb(120, 128, 145);
+        reportCaptionLabel.Location = new Point(0, 140);
+        reportCaptionLabel.Margin = new Padding(0, 0, 16, 0);
+        reportCaptionLabel.Name = "reportCaptionLabel";
+        reportCaptionLabel.Size = new Size(42, 15);
+        reportCaptionLabel.TabIndex = 8;
+        reportCaptionLabel.Text = "Отчет:";
+        // 
+        // reportValueLabel
+        // 
+        reportValueLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        reportValueLabel.AutoSize = true;
+        reportValueLabel.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
+        reportValueLabel.ForeColor = Color.FromArgb(33, 37, 41);
+        reportValueLabel.Location = new Point(78, 146);
+        reportValueLabel.Margin = new Padding(8, 6, 0, 4);
+        reportValueLabel.MinimumSize = new Size(0, 24);
+        reportValueLabel.Name = "reportValueLabel";
+        reportValueLabel.Size = new Size(313, 24);
+        reportValueLabel.TabIndex = 9;
+        // 
+        // syncStatusLabel
+        // 
+        syncStatusLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        syncStatusLabel.AutoSize = true;
+        connectionLayout.SetColumnSpan(syncStatusLabel, 2);
+        syncStatusLabel.Font = new Font("Segoe UI", 9F);
+        syncStatusLabel.ForeColor = Color.FromArgb(54, 127, 151);
+        syncStatusLabel.Location = new Point(0, 188);
+        syncStatusLabel.Margin = new Padding(0, 14, 0, 4);
+        syncStatusLabel.Name = "syncStatusLabel";
+        syncStatusLabel.Size = new Size(391, 15);
+        syncStatusLabel.TabIndex = 10;
+        // 
+        // resetPortButton
+        // 
+        resetPortButton.AutoSize = true;
+        resetPortButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        resetPortButton.BackColor = Color.FromArgb(34, 158, 189);
+        connectionLayout.SetColumnSpan(resetPortButton, 2);
+        resetPortButton.Cursor = Cursors.Hand;
+        resetPortButton.FlatAppearance.BorderSize = 0;
+        resetPortButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(24, 138, 166);
+        resetPortButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(44, 182, 214);
+        resetPortButton.FlatStyle = FlatStyle.Flat;
+        resetPortButton.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
+        resetPortButton.ForeColor = Color.White;
+        resetPortButton.Location = new Point(0, 223);
+        resetPortButton.Margin = new Padding(0, 16, 0, 0);
+        resetPortButton.MinimumSize = new Size(140, 36);
+        resetPortButton.Name = "resetPortButton";
+        resetPortButton.Padding = new Padding(10, 6, 10, 6);
+        resetPortButton.Size = new Size(140, 37);
+        resetPortButton.TabIndex = 11;
+        resetPortButton.Text = "Сбросить порт";
+        resetPortButton.UseVisualStyleBackColor = false;
+        resetPortButton.Click += OnResetPortClicked;
         // 
         // settingsGroup
         // 
@@ -426,11 +624,11 @@ partial class MainForm
         settingsGroup.Controls.Add(settingsLayout);
         settingsGroup.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
         settingsGroup.ForeColor = Color.FromArgb(33, 37, 41);
-        settingsGroup.Location = new Point(0, 0);
+        settingsGroup.Location = new Point(0, 338);
         settingsGroup.Margin = new Padding(0, 0, 0, 16);
         settingsGroup.Name = "settingsGroup";
         settingsGroup.Padding = new Padding(16, 20, 16, 16);
-        settingsGroup.Size = new Size(303, 431);
+        settingsGroup.Size = new Size(423, 398);
         settingsGroup.TabIndex = 1;
         settingsGroup.TabStop = false;
         settingsGroup.Text = "Настройки опроса";
@@ -471,7 +669,7 @@ partial class MainForm
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
         settingsLayout.RowStyles.Add(new RowStyle());
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
-        settingsLayout.Size = new Size(271, 377);
+        settingsLayout.Size = new Size(391, 344);
         settingsLayout.TabIndex = 0;
         // 
         // scanIntervalLabel
@@ -493,7 +691,7 @@ partial class MainForm
         scanIntervalTextBox.Location = new Point(195, 8);
         scanIntervalTextBox.Margin = new Padding(4);
         scanIntervalTextBox.Name = "scanIntervalTextBox";
-        scanIntervalTextBox.Size = new Size(72, 25);
+        scanIntervalTextBox.Size = new Size(192, 25);
         scanIntervalTextBox.TabIndex = 1;
         scanIntervalTextBox.TextAlign = HorizontalAlignment.Center;
         scanIntervalTextBox.Validating += OnNumericTextBoxValidating;
@@ -518,7 +716,7 @@ partial class MainForm
         reconnectDelayTextBox.Location = new Point(195, 41);
         reconnectDelayTextBox.Margin = new Padding(4);
         reconnectDelayTextBox.Name = "reconnectDelayTextBox";
-        reconnectDelayTextBox.Size = new Size(72, 25);
+        reconnectDelayTextBox.Size = new Size(192, 25);
         reconnectDelayTextBox.TabIndex = 3;
         reconnectDelayTextBox.TextAlign = HorizontalAlignment.Center;
         reconnectDelayTextBox.Validating += OnNumericTextBoxValidating;
@@ -543,7 +741,7 @@ partial class MainForm
         backgroundSyncTextBox.Location = new Point(195, 74);
         backgroundSyncTextBox.Margin = new Padding(4);
         backgroundSyncTextBox.Name = "backgroundSyncTextBox";
-        backgroundSyncTextBox.Size = new Size(72, 25);
+        backgroundSyncTextBox.Size = new Size(192, 25);
         backgroundSyncTextBox.TabIndex = 5;
         backgroundSyncTextBox.TextAlign = HorizontalAlignment.Center;
         backgroundSyncTextBox.Validating += OnNumericTextBoxValidating;
@@ -571,7 +769,7 @@ partial class MainForm
         reportTemplateComboBox.Margin = new Padding(4);
         reportTemplateComboBox.MinimumSize = new Size(120, 0);
         reportTemplateComboBox.Name = "reportTemplateComboBox";
-        reportTemplateComboBox.Size = new Size(120, 25);
+        reportTemplateComboBox.Size = new Size(192, 25);
         reportTemplateComboBox.TabIndex = 7;
         reportTemplateComboBox.TabStop = false;
         reportTemplateComboBox.Visible = false;
@@ -581,7 +779,7 @@ partial class MainForm
         renderingModeLabel.AutoSize = true;
         renderingModeLabel.Font = new Font("Segoe UI", 9F);
         renderingModeLabel.ForeColor = Color.FromArgb(120, 128, 145);
-        renderingModeLabel.Location = new Point(0, 144);
+        renderingModeLabel.Location = new Point(0, 146);
         renderingModeLabel.Margin = new Padding(0, 10, 16, 0);
         renderingModeLabel.Name = "renderingModeLabel";
         renderingModeLabel.Size = new Size(133, 15);
@@ -594,11 +792,11 @@ partial class MainForm
         renderingModeComboBox.Dock = DockStyle.Fill;
         renderingModeComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
         renderingModeComboBox.FormattingEnabled = true;
-        renderingModeComboBox.Location = new Point(195, 138);
+        renderingModeComboBox.Location = new Point(195, 140);
         renderingModeComboBox.Margin = new Padding(4);
         renderingModeComboBox.MinimumSize = new Size(120, 0);
         renderingModeComboBox.Name = "renderingModeComboBox";
-        renderingModeComboBox.Size = new Size(120, 25);
+        renderingModeComboBox.Size = new Size(192, 25);
         renderingModeComboBox.TabIndex = 9;
         renderingModeComboBox.TabStop = false;
         renderingModeComboBox.Visible = false;
@@ -611,10 +809,10 @@ partial class MainForm
         settingsButtonsPanel.Controls.Add(openSettingsButton);
         settingsButtonsPanel.Controls.Add(openReportsButton);
         settingsButtonsPanel.Controls.Add(convertBinButton);
-        settingsButtonsPanel.Location = new Point(0, 181);
+        settingsButtonsPanel.Location = new Point(0, 185);
         settingsButtonsPanel.Margin = new Padding(0, 16, 0, 0);
         settingsButtonsPanel.Name = "settingsButtonsPanel";
-        settingsButtonsPanel.Size = new Size(194, 111);
+        settingsButtonsPanel.Size = new Size(325, 74);
         settingsButtonsPanel.TabIndex = 12;
         // 
         // openSettingsButton
@@ -652,7 +850,7 @@ partial class MainForm
         openReportsButton.FlatStyle = FlatStyle.Flat;
         openReportsButton.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
         openReportsButton.ForeColor = Color.FromArgb(33, 37, 41);
-        openReportsButton.Location = new Point(0, 37);
+        openReportsButton.Location = new Point(132, 0);
         openReportsButton.Margin = new Padding(0, 0, 12, 0);
         openReportsButton.MinimumSize = new Size(140, 36);
         openReportsButton.Name = "openReportsButton";
@@ -675,7 +873,7 @@ partial class MainForm
         convertBinButton.FlatStyle = FlatStyle.Flat;
         convertBinButton.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
         convertBinButton.ForeColor = Color.White;
-        convertBinButton.Location = new Point(0, 74);
+        convertBinButton.Location = new Point(0, 37);
         convertBinButton.Margin = new Padding(0);
         convertBinButton.MinimumSize = new Size(140, 36);
         convertBinButton.Name = "convertBinButton";
@@ -699,7 +897,7 @@ partial class MainForm
         btnGraphTuner.FlatStyle = FlatStyle.Flat;
         btnGraphTuner.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
         btnGraphTuner.ForeColor = Color.White;
-        btnGraphTuner.Location = new Point(0, 312);
+        btnGraphTuner.Location = new Point(0, 279);
         btnGraphTuner.Margin = new Padding(0);
         btnGraphTuner.MinimumSize = new Size(140, 36);
         btnGraphTuner.Name = "btnGraphTuner";
@@ -719,11 +917,11 @@ partial class MainForm
         updatesGroup.Controls.Add(updatesLayout);
         updatesGroup.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
         updatesGroup.ForeColor = Color.FromArgb(33, 37, 41);
-        updatesGroup.Location = new Point(0, 447);
+        updatesGroup.Location = new Point(0, 752);
         updatesGroup.Margin = new Padding(0);
         updatesGroup.Name = "updatesGroup";
         updatesGroup.Padding = new Padding(16, 20, 16, 16);
-        updatesGroup.Size = new Size(303, 277);
+        updatesGroup.Size = new Size(423, 277);
         updatesGroup.TabIndex = 2;
         updatesGroup.TabStop = false;
         updatesGroup.Text = "Обновления";
@@ -757,7 +955,7 @@ partial class MainForm
         updatesLayout.RowStyles.Add(new RowStyle());
         updatesLayout.RowStyles.Add(new RowStyle());
         updatesLayout.RowStyles.Add(new RowStyle());
-        updatesLayout.Size = new Size(271, 223);
+        updatesLayout.Size = new Size(391, 223);
         updatesLayout.TabIndex = 0;
         // 
         // updateStatusCaptionLabel
@@ -784,7 +982,7 @@ partial class MainForm
         updateStatusValueLabel.MaximumSize = new Size(0, 24);
         updateStatusValueLabel.MinimumSize = new Size(0, 24);
         updateStatusValueLabel.Name = "updateStatusValueLabel";
-        updateStatusValueLabel.Size = new Size(271, 24);
+        updateStatusValueLabel.Size = new Size(391, 24);
         updateStatusValueLabel.TabIndex = 1;
         updateStatusValueLabel.TextAlign = ContentAlignment.MiddleLeft;
         // 
@@ -798,7 +996,7 @@ partial class MainForm
         updatesButtonsPanel.Location = new Point(0, 63);
         updatesButtonsPanel.Margin = new Padding(0, 10, 0, 6);
         updatesButtonsPanel.Name = "updatesButtonsPanel";
-        updatesButtonsPanel.Size = new Size(152, 74);
+        updatesButtonsPanel.Size = new Size(292, 37);
         updatesButtonsPanel.TabIndex = 2;
         // 
         // checkUpdatesButton
@@ -836,7 +1034,7 @@ partial class MainForm
         installUpdateButton.FlatStyle = FlatStyle.Flat;
         installUpdateButton.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
         installUpdateButton.ForeColor = Color.White;
-        installUpdateButton.Location = new Point(0, 37);
+        installUpdateButton.Location = new Point(152, 0);
         installUpdateButton.Margin = new Padding(0);
         installUpdateButton.MinimumSize = new Size(140, 36);
         installUpdateButton.Name = "installUpdateButton";
@@ -853,7 +1051,7 @@ partial class MainForm
         updateIntervalLabel.AutoSize = true;
         updateIntervalLabel.Font = new Font("Segoe UI", 9F);
         updateIntervalLabel.ForeColor = Color.FromArgb(120, 128, 145);
-        updateIntervalLabel.Location = new Point(0, 155);
+        updateIntervalLabel.Location = new Point(0, 118);
         updateIntervalLabel.Margin = new Padding(0, 12, 16, 0);
         updateIntervalLabel.Name = "updateIntervalLabel";
         updateIntervalLabel.Size = new Size(153, 15);
@@ -863,7 +1061,7 @@ partial class MainForm
         // updateIntervalTextBox
         // 
         updateIntervalTextBox.BorderStyle = BorderStyle.FixedSingle;
-        updateIntervalTextBox.Location = new Point(169, 147);
+        updateIntervalTextBox.Location = new Point(169, 110);
         updateIntervalTextBox.Margin = new Padding(0, 4, 0, 0);
         updateIntervalTextBox.MinimumSize = new Size(180, 2);
         updateIntervalTextBox.Name = "updateIntervalTextBox";
@@ -878,7 +1076,7 @@ partial class MainForm
         manifestUrlLabel.AutoSize = true;
         manifestUrlLabel.Font = new Font("Segoe UI", 9F);
         manifestUrlLabel.ForeColor = Color.FromArgb(120, 128, 145);
-        manifestUrlLabel.Location = new Point(0, 184);
+        manifestUrlLabel.Location = new Point(0, 147);
         manifestUrlLabel.Margin = new Padding(0, 12, 16, 0);
         manifestUrlLabel.Name = "manifestUrlLabel";
         manifestUrlLabel.Size = new Size(95, 15);
@@ -889,11 +1087,11 @@ partial class MainForm
         // 
         manifestUrlTextBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         manifestUrlTextBox.BorderStyle = BorderStyle.FixedSingle;
-        manifestUrlTextBox.Location = new Point(169, 176);
+        manifestUrlTextBox.Location = new Point(169, 139);
         manifestUrlTextBox.Margin = new Padding(0, 4, 0, 0);
         manifestUrlTextBox.MinimumSize = new Size(180, 2);
         manifestUrlTextBox.Name = "manifestUrlTextBox";
-        manifestUrlTextBox.Size = new Size(180, 25);
+        manifestUrlTextBox.Size = new Size(222, 25);
         manifestUrlTextBox.TabIndex = 6;
         manifestUrlTextBox.Validated += OnManifestUrlValidated;
         // 
@@ -910,7 +1108,7 @@ partial class MainForm
         openLogsButton.FlatStyle = FlatStyle.Flat;
         openLogsButton.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
         openLogsButton.ForeColor = Color.FromArgb(33, 37, 41);
-        openLogsButton.Location = new Point(0, 215);
+        openLogsButton.Location = new Point(0, 178);
         openLogsButton.Margin = new Padding(0, 14, 0, 0);
         openLogsButton.MinimumSize = new Size(140, 36);
         openLogsButton.Name = "openLogsButton";
@@ -921,41 +1119,6 @@ partial class MainForm
         openLogsButton.UseVisualStyleBackColor = false;
         openLogsButton.Click += OnOpenLogsClicked;
         // 
-        // resetPortButton
-        // 
-        resetPortButton.AutoSize = true;
-        resetPortButton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        resetPortButton.BackColor = Color.FromArgb(34, 158, 189);
-        resetPortButton.Cursor = Cursors.Hand;
-        resetPortButton.FlatAppearance.BorderSize = 0;
-        resetPortButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(24, 138, 166);
-        resetPortButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(44, 182, 214);
-        resetPortButton.FlatStyle = FlatStyle.Flat;
-        resetPortButton.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
-        resetPortButton.ForeColor = Color.White;
-        resetPortButton.Location = new Point(51, 719);
-        resetPortButton.Margin = new Padding(0, 16, 0, 0);
-        resetPortButton.MinimumSize = new Size(140, 36);
-        resetPortButton.Name = "resetPortButton";
-        resetPortButton.Padding = new Padding(10, 6, 10, 6);
-        resetPortButton.Size = new Size(140, 37);
-        resetPortButton.TabIndex = 11;
-        resetPortButton.Text = "Сбросить порт";
-        resetPortButton.UseVisualStyleBackColor = false;
-        resetPortButton.Click += OnResetPortClicked;
-        // 
-        // syncStatusLabel
-        // 
-        syncStatusLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-        syncStatusLabel.AutoSize = true;
-        syncStatusLabel.Font = new Font("Segoe UI", 9F);
-        syncStatusLabel.ForeColor = Color.FromArgb(54, 127, 151);
-        syncStatusLabel.Location = new Point(24, 757);
-        syncStatusLabel.Margin = new Padding(0, 14, 0, 4);
-        syncStatusLabel.Name = "syncStatusLabel";
-        syncStatusLabel.Size = new Size(0, 15);
-        syncStatusLabel.TabIndex = 10;
-        // 
         // logsGroup
         // 
         logsGroup.BackColor = Color.White;
@@ -963,11 +1126,11 @@ partial class MainForm
         logsGroup.Dock = DockStyle.Fill;
         logsGroup.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
         logsGroup.ForeColor = Color.FromArgb(33, 37, 41);
-        logsGroup.Location = new Point(183, 0);
+        logsGroup.Location = new Point(464, 0);
         logsGroup.Margin = new Padding(24, 0, 0, 0);
         logsGroup.Name = "logsGroup";
         logsGroup.Padding = new Padding(16, 20, 16, 16);
-        logsGroup.Size = new Size(237, 271);
+        logsGroup.Size = new Size(696, 506);
         logsGroup.TabIndex = 1;
         logsGroup.TabStop = false;
         logsGroup.Text = "Журнал";
@@ -1001,7 +1164,7 @@ partial class MainForm
         logGridView.ShowCellErrors = false;
         logGridView.ShowEditingIcon = false;
         logGridView.ShowRowErrors = false;
-        logGridView.Size = new Size(205, 217);
+        logGridView.Size = new Size(664, 452);
         logGridView.TabIndex = 0;
         // 
         // mainStatusStrip
@@ -1012,10 +1175,10 @@ partial class MainForm
         mainStatusStrip.ForeColor = Color.White;
         mainStatusStrip.ImageScalingSize = new Size(20, 20);
         mainStatusStrip.Items.AddRange(new ToolStripItem[] { appNameStatusLabel, versionStatusLabel });
-        mainStatusStrip.Location = new Point(20, 447);
+        mainStatusStrip.Location = new Point(20, 682);
         mainStatusStrip.Name = "mainStatusStrip";
         mainStatusStrip.Padding = new Padding(12, 0, 12, 0);
-        mainStatusStrip.Size = new Size(420, 26);
+        mainStatusStrip.Size = new Size(1160, 26);
         mainStatusStrip.SizingGrip = false;
         mainStatusStrip.TabIndex = 2;
         // 
@@ -1024,7 +1187,7 @@ partial class MainForm
         appNameStatusLabel.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
         appNameStatusLabel.ForeColor = Color.White;
         appNameStatusLabel.Name = "appNameStatusLabel";
-        appNameStatusLabel.Size = new Size(347, 21);
+        appNameStatusLabel.Size = new Size(1087, 21);
         appNameStatusLabel.Spring = true;
         appNameStatusLabel.Text = "Microlux ERG-Connect";
         // 
@@ -1034,301 +1197,6 @@ partial class MainForm
         versionStatusLabel.Name = "versionStatusLabel";
         versionStatusLabel.Size = new Size(49, 21);
         versionStatusLabel.Text = "Версия:";
-        // 
-        // connectionGroup
-        // 
-        connectionGroup.AutoSize = true;
-        connectionGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        connectionGroup.BackColor = Color.White;
-        connectionGroup.Controls.Add(connectionLayout);
-        connectionGroup.Dock = DockStyle.Fill;
-        connectionGroup.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
-        connectionGroup.ForeColor = Color.FromArgb(33, 37, 41);
-        connectionGroup.Location = new Point(212, 66);
-        connectionGroup.Margin = new Padding(5);
-        connectionGroup.Name = "connectionGroup";
-        connectionGroup.Padding = new Padding(10);
-        connectionGroup.Size = new Size(483, 378);
-        connectionGroup.TabIndex = 0;
-        connectionGroup.TabStop = false;
-        connectionGroup.Text = "Реквизиты";
-        // 
-        // connectionLayout
-        // 
-        connectionLayout.AutoSize = true;
-        connectionLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        connectionLayout.BackColor = Color.White;
-        connectionLayout.ColumnCount = 1;
-        connectionLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        connectionLayout.Controls.Add(textBoxCaption4, 0, 7);
-        connectionLayout.Controls.Add(panelPath, 0, 10);
-        connectionLayout.Controls.Add(textBoxCaption3, 0, 5);
-        connectionLayout.Controls.Add(textBoxCaption2, 0, 3);
-        connectionLayout.Controls.Add(textBoxCaption1, 0, 1);
-        connectionLayout.Controls.Add(labelInfoPath, 0, 9);
-        connectionLayout.Dock = DockStyle.Fill;
-        connectionLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
-        connectionLayout.Location = new Point(10, 28);
-        connectionLayout.Margin = new Padding(0);
-        connectionLayout.Name = "connectionLayout";
-        connectionLayout.Padding = new Padding(0, 4, 0, 8);
-        connectionLayout.RowCount = 11;
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 10F));
-        connectionLayout.RowStyles.Add(new RowStyle());
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 10F));
-        connectionLayout.RowStyles.Add(new RowStyle());
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 10F));
-        connectionLayout.RowStyles.Add(new RowStyle());
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 10F));
-        connectionLayout.RowStyles.Add(new RowStyle());
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 35F));
-        connectionLayout.RowStyles.Add(new RowStyle());
-        connectionLayout.RowStyles.Add(new RowStyle());
-        connectionLayout.Size = new Size(463, 340);
-        connectionLayout.TabIndex = 0;
-        // 
-        // textBoxCaption4
-        // 
-        textBoxCaption4.BorderStyle = BorderStyle.FixedSingle;
-        textBoxCaption4.Dock = DockStyle.Fill;
-        textBoxCaption4.Location = new Point(3, 140);
-        textBoxCaption4.Name = "textBoxCaption4";
-        textBoxCaption4.Size = new Size(457, 25);
-        textBoxCaption4.TabIndex = 11;
-        textBoxCaption4.TabStop = false;
-        textBoxCaption4.Text = "Caption4";
-        textBoxCaption4.TextAlign = HorizontalAlignment.Center;
-        // 
-        // panelPath
-        // 
-        panelPath.Controls.Add(labelPath);
-        panelPath.Controls.Add(buttonSetPathFolder);
-        panelPath.Dock = DockStyle.Fill;
-        panelPath.Location = new Point(3, 236);
-        panelPath.MaximumSize = new Size(0, 35);
-        panelPath.MinimumSize = new Size(150, 35);
-        panelPath.Name = "panelPath";
-        panelPath.Size = new Size(457, 35);
-        panelPath.TabIndex = 5;
-        // 
-        // labelPath
-        // 
-        labelPath.BackColor = Color.White;
-        labelPath.Dock = DockStyle.Fill;
-        labelPath.Font = new Font("Segoe UI", 9F);
-        labelPath.Location = new Point(0, 0);
-        labelPath.Name = "labelPath";
-        labelPath.Size = new Size(427, 35);
-        labelPath.TabIndex = 6;
-        labelPath.Text = "Папка с отчетами";
-        labelPath.TextAlign = ContentAlignment.MiddleLeft;
-        // 
-        // buttonSetPathFolder
-        // 
-        buttonSetPathFolder.AutoSize = true;
-        buttonSetPathFolder.BackColor = Color.White;
-        buttonSetPathFolder.Dock = DockStyle.Right;
-        buttonSetPathFolder.FlatAppearance.BorderSize = 0;
-        buttonSetPathFolder.FlatStyle = FlatStyle.Flat;
-        buttonSetPathFolder.Location = new Point(427, 0);
-        buttonSetPathFolder.Margin = new Padding(1);
-        buttonSetPathFolder.MaximumSize = new Size(30, 0);
-        buttonSetPathFolder.MinimumSize = new Size(30, 0);
-        buttonSetPathFolder.Name = "buttonSetPathFolder";
-        buttonSetPathFolder.Size = new Size(30, 35);
-        buttonSetPathFolder.TabIndex = 4;
-        buttonSetPathFolder.Text = "...";
-        buttonSetPathFolder.UseVisualStyleBackColor = false;
-        buttonSetPathFolder.Click += buttonSetPathFolder_Click;
-        // 
-        // textBoxCaption3
-        // 
-        textBoxCaption3.BorderStyle = BorderStyle.FixedSingle;
-        textBoxCaption3.Dock = DockStyle.Fill;
-        textBoxCaption3.Location = new Point(3, 99);
-        textBoxCaption3.Name = "textBoxCaption3";
-        textBoxCaption3.Size = new Size(457, 25);
-        textBoxCaption3.TabIndex = 12;
-        textBoxCaption3.TabStop = false;
-        textBoxCaption3.Text = "Caption3";
-        textBoxCaption3.TextAlign = HorizontalAlignment.Center;
-        // 
-        // textBoxCaption2
-        // 
-        textBoxCaption2.BorderStyle = BorderStyle.FixedSingle;
-        textBoxCaption2.Dock = DockStyle.Fill;
-        textBoxCaption2.Location = new Point(3, 58);
-        textBoxCaption2.Name = "textBoxCaption2";
-        textBoxCaption2.Size = new Size(457, 25);
-        textBoxCaption2.TabIndex = 13;
-        textBoxCaption2.TabStop = false;
-        textBoxCaption2.Text = "Caption2";
-        textBoxCaption2.TextAlign = HorizontalAlignment.Center;
-        // 
-        // textBoxCaption1
-        // 
-        textBoxCaption1.BorderStyle = BorderStyle.FixedSingle;
-        textBoxCaption1.Dock = DockStyle.Fill;
-        textBoxCaption1.Location = new Point(3, 17);
-        textBoxCaption1.Name = "textBoxCaption1";
-        textBoxCaption1.Size = new Size(457, 25);
-        textBoxCaption1.TabIndex = 10;
-        textBoxCaption1.TabStop = false;
-        textBoxCaption1.Text = "Caption1";
-        textBoxCaption1.TextAlign = HorizontalAlignment.Center;
-        // 
-        // labelInfoPath
-        // 
-        labelInfoPath.Dock = DockStyle.Fill;
-        labelInfoPath.Font = new Font("Segoe UI", 9F);
-        labelInfoPath.ForeColor = Color.FromArgb(120, 128, 145);
-        labelInfoPath.Location = new Point(3, 206);
-        labelInfoPath.Margin = new Padding(3);
-        labelInfoPath.Name = "labelInfoPath";
-        labelInfoPath.Size = new Size(457, 24);
-        labelInfoPath.TabIndex = 9;
-        labelInfoPath.Text = "Каталог с отчетами";
-        labelInfoPath.TextAlign = ContentAlignment.MiddleLeft;
-        // 
-        // statusCaptionLabel
-        // 
-        statusCaptionLabel.Font = new Font("Segoe UI", 9F);
-        statusCaptionLabel.ForeColor = Color.FromArgb(120, 128, 145);
-        statusCaptionLabel.Location = new Point(12, 505);
-        statusCaptionLabel.Margin = new Padding(3);
-        statusCaptionLabel.Name = "statusCaptionLabel";
-        statusCaptionLabel.Size = new Size(54, 34);
-        statusCaptionLabel.TabIndex = 0;
-        statusCaptionLabel.Text = "Статус";
-        statusCaptionLabel.TextAlign = ContentAlignment.MiddleRight;
-        statusCaptionLabel.Visible = false;
-        // 
-        // statusValueLabel
-        // 
-        statusValueLabel.AutoSize = true;
-        statusValueLabel.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
-        statusValueLabel.ForeColor = Color.FromArgb(34, 158, 189);
-        statusValueLabel.Location = new Point(72, 505);
-        statusValueLabel.Margin = new Padding(3);
-        statusValueLabel.MinimumSize = new Size(0, 24);
-        statusValueLabel.Name = "statusValueLabel";
-        statusValueLabel.Size = new Size(15, 24);
-        statusValueLabel.TabIndex = 1;
-        statusValueLabel.Text = "1";
-        statusValueLabel.TextAlign = ContentAlignment.MiddleLeft;
-        statusValueLabel.Visible = false;
-        // 
-        // portCaptionLabel
-        // 
-        portCaptionLabel.Font = new Font("Segoe UI", 9F);
-        portCaptionLabel.ForeColor = Color.FromArgb(120, 128, 145);
-        portCaptionLabel.Location = new Point(12, 545);
-        portCaptionLabel.Margin = new Padding(3);
-        portCaptionLabel.Name = "portCaptionLabel";
-        portCaptionLabel.Size = new Size(54, 34);
-        portCaptionLabel.TabIndex = 2;
-        portCaptionLabel.Text = "Порт";
-        portCaptionLabel.TextAlign = ContentAlignment.MiddleRight;
-        portCaptionLabel.Visible = false;
-        // 
-        // portValueLabel
-        // 
-        portValueLabel.AutoSize = true;
-        portValueLabel.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
-        portValueLabel.ForeColor = Color.FromArgb(33, 37, 41);
-        portValueLabel.Location = new Point(72, 545);
-        portValueLabel.Margin = new Padding(3);
-        portValueLabel.MinimumSize = new Size(0, 24);
-        portValueLabel.Name = "portValueLabel";
-        portValueLabel.Size = new Size(17, 24);
-        portValueLabel.TabIndex = 3;
-        portValueLabel.Text = "2";
-        portValueLabel.TextAlign = ContentAlignment.MiddleLeft;
-        portValueLabel.Visible = false;
-        // 
-        // deviceCaptionLabel
-        // 
-        deviceCaptionLabel.Font = new Font("Segoe UI", 9F);
-        deviceCaptionLabel.ForeColor = Color.FromArgb(120, 128, 145);
-        deviceCaptionLabel.Location = new Point(12, 585);
-        deviceCaptionLabel.Margin = new Padding(3);
-        deviceCaptionLabel.Name = "deviceCaptionLabel";
-        deviceCaptionLabel.Size = new Size(54, 34);
-        deviceCaptionLabel.TabIndex = 4;
-        deviceCaptionLabel.Text = "Прибор";
-        deviceCaptionLabel.TextAlign = ContentAlignment.MiddleRight;
-        deviceCaptionLabel.Visible = false;
-        // 
-        // deviceValueLabel
-        // 
-        deviceValueLabel.AutoSize = true;
-        deviceValueLabel.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
-        deviceValueLabel.ForeColor = Color.FromArgb(33, 37, 41);
-        deviceValueLabel.Location = new Point(72, 585);
-        deviceValueLabel.Margin = new Padding(3);
-        deviceValueLabel.MinimumSize = new Size(0, 24);
-        deviceValueLabel.Name = "deviceValueLabel";
-        deviceValueLabel.Size = new Size(17, 24);
-        deviceValueLabel.TabIndex = 5;
-        deviceValueLabel.Text = "3";
-        deviceValueLabel.TextAlign = ContentAlignment.MiddleLeft;
-        deviceValueLabel.Visible = false;
-        // 
-        // softwareCaptionLabel
-        // 
-        softwareCaptionLabel.Font = new Font("Segoe UI", 9F);
-        softwareCaptionLabel.ForeColor = Color.FromArgb(120, 128, 145);
-        softwareCaptionLabel.Location = new Point(12, 625);
-        softwareCaptionLabel.Margin = new Padding(3);
-        softwareCaptionLabel.Name = "softwareCaptionLabel";
-        softwareCaptionLabel.Size = new Size(54, 34);
-        softwareCaptionLabel.TabIndex = 6;
-        softwareCaptionLabel.Text = "ПО";
-        softwareCaptionLabel.TextAlign = ContentAlignment.MiddleRight;
-        softwareCaptionLabel.Visible = false;
-        // 
-        // softwareValueLabel
-        // 
-        softwareValueLabel.AutoSize = true;
-        softwareValueLabel.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
-        softwareValueLabel.ForeColor = Color.FromArgb(33, 37, 41);
-        softwareValueLabel.Location = new Point(72, 625);
-        softwareValueLabel.Margin = new Padding(3);
-        softwareValueLabel.MinimumSize = new Size(0, 24);
-        softwareValueLabel.Name = "softwareValueLabel";
-        softwareValueLabel.Size = new Size(17, 24);
-        softwareValueLabel.TabIndex = 7;
-        softwareValueLabel.Text = "4";
-        softwareValueLabel.TextAlign = ContentAlignment.MiddleLeft;
-        softwareValueLabel.Visible = false;
-        // 
-        // reportCaptionLabel
-        // 
-        reportCaptionLabel.Font = new Font("Segoe UI", 9F);
-        reportCaptionLabel.ForeColor = Color.FromArgb(120, 128, 145);
-        reportCaptionLabel.Location = new Point(12, 665);
-        reportCaptionLabel.Margin = new Padding(3);
-        reportCaptionLabel.Name = "reportCaptionLabel";
-        reportCaptionLabel.Size = new Size(54, 34);
-        reportCaptionLabel.TabIndex = 8;
-        reportCaptionLabel.Text = "Отчет";
-        reportCaptionLabel.TextAlign = ContentAlignment.MiddleRight;
-        reportCaptionLabel.Visible = false;
-        // 
-        // reportValueLabel
-        // 
-        reportValueLabel.AutoSize = true;
-        reportValueLabel.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
-        reportValueLabel.ForeColor = Color.FromArgb(33, 37, 41);
-        reportValueLabel.Location = new Point(72, 665);
-        reportValueLabel.Margin = new Padding(3);
-        reportValueLabel.MinimumSize = new Size(0, 24);
-        reportValueLabel.Name = "reportValueLabel";
-        reportValueLabel.Size = new Size(17, 24);
-        reportValueLabel.TabIndex = 9;
-        reportValueLabel.Text = "5";
-        reportValueLabel.TextAlign = ContentAlignment.MiddleLeft;
-        reportValueLabel.Visible = false;
         // 
         // trayIcon
         // 
@@ -1359,117 +1227,17 @@ partial class MainForm
         trayExitMenuItem.Text = "Выход";
         trayExitMenuItem.Click += TrayExitMenuItem_Click;
         // 
-        // tableLayoutPanelMain
-        // 
-        tableLayoutPanelMain.BackColor = Color.White;
-        tableLayoutPanelMain.ColumnCount = 2;
-        tableLayoutPanelMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 29.57486F));
-        tableLayoutPanelMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70.42514F));
-        tableLayoutPanelMain.Controls.Add(connectionGroup, 1, 1);
-        tableLayoutPanelMain.Controls.Add(panelFooter, 0, 2);
-        tableLayoutPanelMain.Controls.Add(pictureBox, 0, 1);
-        tableLayoutPanelMain.Controls.Add(panelHeader, 0, 0);
-        tableLayoutPanelMain.Dock = DockStyle.Fill;
-        tableLayoutPanelMain.Location = new Point(0, 0);
-        tableLayoutPanelMain.Name = "tableLayoutPanelMain";
-        tableLayoutPanelMain.RowCount = 3;
-        tableLayoutPanelMain.RowStyles.Add(new RowStyle());
-        tableLayoutPanelMain.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        tableLayoutPanelMain.RowStyles.Add(new RowStyle());
-        tableLayoutPanelMain.Size = new Size(700, 500);
-        tableLayoutPanelMain.TabIndex = 2;
-        // 
-        // panelFooter
-        // 
-        panelFooter.BackColor = Color.FromArgb(26, 38, 55);
-        tableLayoutPanelMain.SetColumnSpan(panelFooter, 3);
-        panelFooter.Controls.Add(buttonClosed);
-        panelFooter.Dock = DockStyle.Fill;
-        panelFooter.Location = new Point(3, 452);
-        panelFooter.MaximumSize = new Size(0, 45);
-        panelFooter.MinimumSize = new Size(0, 45);
-        panelFooter.Name = "panelFooter";
-        panelFooter.Padding = new Padding(5);
-        panelFooter.Size = new Size(694, 45);
-        panelFooter.TabIndex = 3;
-        // 
-        // buttonClosed
-        // 
-        buttonClosed.BackColor = Color.White;
-        buttonClosed.Dock = DockStyle.Right;
-        buttonClosed.FlatStyle = FlatStyle.Flat;
-        buttonClosed.Location = new Point(589, 5);
-        buttonClosed.Margin = new Padding(0);
-        buttonClosed.MaximumSize = new Size(100, 0);
-        buttonClosed.MinimumSize = new Size(100, 0);
-        buttonClosed.Name = "buttonClosed";
-        buttonClosed.Size = new Size(100, 35);
-        buttonClosed.TabIndex = 4;
-        buttonClosed.TabStop = false;
-        buttonClosed.Text = "Закрыть";
-        buttonClosed.UseVisualStyleBackColor = false;
-        buttonClosed.Click += buttonClosed_Click;
-        // 
-        // pictureBox
-        // 
-        pictureBox.Dock = DockStyle.Fill;
-        pictureBox.Image = Properties.Resources.ML_210_Total_256_256;
-        pictureBox.Location = new Point(0, 61);
-        pictureBox.Margin = new Padding(0);
-        pictureBox.Name = "pictureBox";
-        pictureBox.Size = new Size(207, 388);
-        pictureBox.SizeMode = PictureBoxSizeMode.Zoom;
-        pictureBox.TabIndex = 3;
-        pictureBox.TabStop = false;
-        // 
-        // panelHeader
-        // 
-        panelHeader.BackColor = Color.FromArgb(26, 38, 55);
-        tableLayoutPanelMain.SetColumnSpan(panelHeader, 2);
-        panelHeader.Controls.Add(labelHeader);
-        panelHeader.Dock = DockStyle.Fill;
-        panelHeader.Location = new Point(3, 3);
-        panelHeader.MaximumSize = new Size(0, 55);
-        panelHeader.MinimumSize = new Size(350, 55);
-        panelHeader.Name = "panelHeader";
-        panelHeader.Size = new Size(694, 55);
-        panelHeader.TabIndex = 3;
-        // 
-        // labelHeader
-        // 
-        labelHeader.BackColor = Color.FromArgb(26, 38, 55);
-        labelHeader.Dock = DockStyle.Fill;
-        labelHeader.Font = new Font("Segoe UI Semibold", 20F, FontStyle.Bold);
-        labelHeader.ForeColor = Color.White;
-        labelHeader.Location = new Point(0, 0);
-        labelHeader.Name = "labelHeader";
-        labelHeader.Size = new Size(694, 55);
-        labelHeader.TabIndex = 4;
-        labelHeader.Text = "Microlux ERG-Connect";
-        labelHeader.TextAlign = ContentAlignment.MiddleLeft;
-        // 
-        // MainForm
+        // MainForm_TEST
         // 
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(700, 500);
-        Controls.Add(tableLayoutPanelMain);
+        BackColor = Color.FromArgb(245, 248, 252);
+        ClientSize = new Size(1200, 720);
         Controls.Add(mainLayout);
-        Controls.Add(statusCaptionLabel);
-        Controls.Add(statusValueLabel);
-        Controls.Add(portCaptionLabel);
-        Controls.Add(portValueLabel);
-        Controls.Add(reportValueLabel);
-        Controls.Add(deviceCaptionLabel);
-        Controls.Add(reportCaptionLabel);
-        Controls.Add(deviceValueLabel);
-        Controls.Add(softwareValueLabel);
-        Controls.Add(softwareCaptionLabel);
         Font = new Font("Segoe UI", 9F);
-        FormBorderStyle = FormBorderStyle.None;
         Icon = (Icon)resources.GetObject("$this.Icon");
-        MinimumSize = new Size(700, 500);
-        Name = "MainForm";
+        MinimumSize = new Size(960, 618);
+        Name = "MainForm_TEST";
         StartPosition = FormStartPosition.CenterScreen;
         Text = "Microlux ERG-Connect";
         FormClosing += OnFormClosing;
@@ -1489,6 +1257,10 @@ partial class MainForm
         detailsContainer.PerformLayout();
         detailsLayout.ResumeLayout(false);
         detailsLayout.PerformLayout();
+        connectionGroup.ResumeLayout(false);
+        connectionGroup.PerformLayout();
+        connectionLayout.ResumeLayout(false);
+        connectionLayout.PerformLayout();
         settingsGroup.ResumeLayout(false);
         settingsGroup.PerformLayout();
         settingsLayout.ResumeLayout(false);
@@ -1506,20 +1278,8 @@ partial class MainForm
         ((ISupportInitialize)logsBindingSource).EndInit();
         mainStatusStrip.ResumeLayout(false);
         mainStatusStrip.PerformLayout();
-        connectionGroup.ResumeLayout(false);
-        connectionGroup.PerformLayout();
-        connectionLayout.ResumeLayout(false);
-        connectionLayout.PerformLayout();
-        panelPath.ResumeLayout(false);
-        panelPath.PerformLayout();
         trayMenu.ResumeLayout(false);
-        tableLayoutPanelMain.ResumeLayout(false);
-        tableLayoutPanelMain.PerformLayout();
-        panelFooter.ResumeLayout(false);
-        ((ISupportInitialize)pictureBox).EndInit();
-        panelHeader.ResumeLayout(false);
         ResumeLayout(false);
-        PerformLayout();
     }
 
     protected override void Dispose(bool disposing)
@@ -1531,18 +1291,4 @@ partial class MainForm
         base.Dispose(disposing);
     }
     private Button btnGraphTuner;
-    private TableLayoutPanel tableLayoutPanelMain;
-    private Panel panelHeader;
-    private Label labelHeader;
-    private PictureBox pictureBox;
-    private Panel panelFooter;
-    private Button buttonClosed;
-    private Label labelInfoPath;
-    private Button buttonSetPathFolder;
-    private Panel panelPath;
-    private Label labelPath;
-    private TextBox textBoxCaption4;
-    private TextBox textBoxCaption3;
-    private TextBox textBoxCaption2;
-    private TextBox textBoxCaption1;
 }
