@@ -1,4 +1,4 @@
-name: Build MicroluxErgConnect.Desktop - ZIP - FTP (self-contained, trimmed)
+name: Build MicroluxErgConnect.Desktop - ZIP - FTP
 
 on:
   push:
@@ -7,9 +7,8 @@ on:
 
 jobs:
   deploy:
-    runs-on: windows-latest
+    runs-on: windows-latest   # <-- важно: Windows runner для WinForms/WPF
     env:
-      RID: win-x86                 # поменяй на win-x64 при необходимости
       OUT_DIR: publish
       ZIP_NAME: ErgComTester.Update.zip
       XML_NAME: ErgComTester.Update.xml
@@ -26,7 +25,7 @@ jobs:
             8.0.x
             6.0.x
 
-      # Ищем MicroluxErgConnect.Desktop.csproj
+      # Поиск файла MicroluxErgConnect.Desktop.csproj в репозитории
       - name: Locate project MicroluxErgConnect.Desktop.csproj
         shell: pwsh
         run: |
@@ -36,11 +35,11 @@ jobs:
             Get-ChildItem -Recurse -Filter *.csproj | ForEach-Object { Write-Host "Found csproj: $($_.FullName)" }
             exit 1
           }
-          $path = $match.FullName -replace '\\','/'
+          $path = $match.FullName -replace '\\','/'   # нормализуем слэши
           "PROJECT_PATH=$path" | Out-File -FilePath $env:GITHUB_ENV -Append
           Write-Host "Using project path: $path"
 
-      # Читаем версию: AssemblyVersion/FileVersion/Version (в таком порядке)
+      # Читаем версию из csproj: сначала AssemblyVersion, иначе FileVersion
       - name: Read version from csproj
         shell: pwsh
         run: |
@@ -49,78 +48,50 @@ jobs:
           [xml]$doc = Get-Content -Path $proj
           $asm   = $doc.SelectSingleNode("//AssemblyVersion")
           $file  = $doc.SelectSingleNode("//FileVersion")
-          $verEl = $doc.SelectSingleNode("//Version")
           $asmV  = if ($asm ) { $asm.InnerText }  else { "" }
           $fileV = if ($file) { $file.InnerText } else { "" }
-          $versV = if ($verEl) { $verEl.InnerText } else { "" }
-          $ver   = @($asmV,$fileV,$versV) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
-          if ([string]::IsNullOrWhiteSpace($ver)) { throw "No AssemblyVersion/FileVersion/Version found in $proj" }
+          $ver   = if ([string]::IsNullOrWhiteSpace($asmV)) { $fileV } else { $asmV }
+          if ([string]::IsNullOrWhiteSpace($ver)) { throw "No AssemblyVersion/FileVersion found in $proj" }
           "VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Append
           Write-Host "Detected version: $ver"
 
-      - name: Restore (${{ env.RID }})
+      - name: Restore
         shell: pwsh
-        run: dotnet restore "${{ env.PROJECT_PATH }}" -r ${{ env.RID }}
+        run: dotnet restore "${{ env.PROJECT_PATH }}"
 
-      - name: Build (Release, ${{ env.RID }})
+      - name: Build (Release)
         shell: pwsh
-        run: dotnet build "${{ env.PROJECT_PATH }}" -c Release -r ${{ env.RID }} --no-restore
+        run: dotnet build "${{ env.PROJECT_PATH }}" -c Release --no-restore
 
-      # Self-contained + single-file + trimmed (уменьшаем размер)
-      - name: Publish self-contained, trimmed (Release, ${{ env.RID }})
+      - name: Publish (Release)
         shell: pwsh
-        run: |
-          dotnet publish "${{ env.PROJECT_PATH }}" -c Release -r ${{ env.RID }} `
-            -p:SelfContained=true `
-            -p:PublishSingleFile=true `
-            -p:PublishTrimmed=true `
-            -p:PublishReadyToRun=false `
-            -p:CopyOutputSymbolsToPublishDirectory=false `
-            -p:CopyDocumentationFileToPublishDirectory=false `
-            -p:DebugType=None `
-            -o "${{ env.OUT_DIR }}"
+        run: dotnet publish "${{ env.PROJECT_PATH }}" -c Release -o "${{ env.OUT_DIR }}" --no-build
 
-      # На всякий случай удалим .pdb, если вдруг появились
-      - name: Strip PDB from publish
-        shell: pwsh
-        run: |
-          Get-ChildItem -Path "${{ env.OUT_DIR }}" -Recurse -Include *.pdb | Remove-Item -Force -ErrorAction SilentlyContinue
-
-      # Генерируем ErgComTester.Update.xml (исправленная работа с XmlDocument)
+      # Генерируем ErgComTester.Update.xml программно (без here-строк)
       - name: Create ErgComTester.Update.xml
         shell: pwsh
-        env:
-          FTP_HOST: ${{ secrets.FTP_HOST }}
-          FTP_DIR:  ${{ secrets.FTP_DIR }}
         run: |
           $version = "${{ env.VERSION }}"
-
-          # Собираем целевой путь из секретов
-          $targetDir = if ($env:FTP_DIR) { $env:FTP_DIR } else { "/other/ErgComTester/" }
-          $targetDir = $targetDir.TrimEnd('/')
-          if ($targetDir -notmatch '^/') { $targetDir = "/$targetDir" } # гарантируем ведущий слэш
-
-          $url = "ftp://$env:FTP_HOST$targetDir/${{ env.ZIP_NAME }}"
+          $url = "ftp://90.189.149.59/other/ErgComTester/ErgComTester.Update.zip"
 
           $doc  = New-Object System.Xml.XmlDocument
-          $null = $doc.AppendChild($doc.CreateXmlDeclaration("1.0","UTF-8",$null))
+          $decl = $doc.CreateXmlDeclaration("1.0","UTF-8",$null)
+          [void]$doc.AppendChild($decl)
 
-          $item = $doc.CreateElement("item")
-          $null = $doc.AppendChild($item)
+          $item = $doc.CreateElement("item"); [void]$doc.AppendChild($item)
 
-          $verEl = $doc.CreateElement("version");   $verEl.InnerText = $version; $null = $item.AppendChild($verEl)
-          $urlEl = $doc.CreateElement("url");       $urlEl.InnerText = $url;     $null = $item.AppendChild($urlEl)
-          $clEl  = $doc.CreateElement("changelog"); $clEl.InnerText  = "";       $null = $item.AppendChild($clEl)
+          $ver = $doc.CreateElement("version"); $ver.InnerText = $version; [void]$item.AppendChild($ver)
+          $u   = $doc.CreateElement("url");     $u.InnerText   = $url;     [void]$item.AppendChild($u)
+          $cl  = $doc.CreateElement("changelog"); $cl.InnerText = "";      [void]$item.AppendChild($cl)
 
           $mand = $doc.CreateElement("mandatory")
-          $attr = $doc.CreateAttribute("mode"); $attr.Value = "1"; $null = $mand.Attributes.Append($attr)
-          $mand.InnerText = "true"
-          $null = $item.AppendChild($mand)
+          $attr = $doc.CreateAttribute("mode"); $attr.Value = "1"; [void]$mand.Attributes.Append($attr)
+          $mand.InnerText = "true"; [void]$item.AppendChild($mand)
 
           $doc.Save("${{ env.XML_NAME }}")
-          Write-Host "Created $($env:XML_NAME) with version $version and url $url"
+          Write-Host "Created $($env:XML_NAME) with version $version"
 
-      # Упаковка publish в ZIP
+      # Упаковка publish в ZIP на Windows
       - name: Make ZIP from publish output
         shell: pwsh
         run: |
@@ -140,7 +111,6 @@ jobs:
         run: |
           $targetDir = if ("${{ env.FTP_DIR }}") { "${{ env.FTP_DIR }}" } else { "/other/ErgComTester/" }
           $targetDir = $targetDir.TrimEnd('/')
-          if ($targetDir -notmatch '^/') { $targetDir = "/$targetDir" }
 
           Write-Host "Uploading to ftp://$env:FTP_HOST$targetDir"
 
