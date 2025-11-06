@@ -9,7 +9,7 @@ jobs:
   deploy:
     runs-on: windows-latest
     env:
-      RID: win-x86
+      RID: win-x86                 # поменяй на win-x64 при необходимости
       OUT_DIR: publish
       ZIP_NAME: ErgComTester.Update.zip
       XML_NAME: ErgComTester.Update.xml
@@ -26,6 +26,7 @@ jobs:
             8.0.x
             6.0.x
 
+      # Ищем MicroluxErgConnect.Desktop.csproj
       - name: Locate project MicroluxErgConnect.Desktop.csproj
         shell: pwsh
         run: |
@@ -39,10 +40,12 @@ jobs:
           "PROJECT_PATH=$path" | Out-File -FilePath $env:GITHUB_ENV -Append
           Write-Host "Using project path: $path"
 
+      # Читаем версию: AssemblyVersion/FileVersion/Version (в таком порядке)
       - name: Read version from csproj
         shell: pwsh
         run: |
           $proj = "${{ env.PROJECT_PATH }}"
+          if (!(Test-Path $proj)) { throw "Project file not found: $proj" }
           [xml]$doc = Get-Content -Path $proj
           $asm   = $doc.SelectSingleNode("//AssemblyVersion")
           $file  = $doc.SelectSingleNode("//FileVersion")
@@ -63,6 +66,7 @@ jobs:
         shell: pwsh
         run: dotnet build "${{ env.PROJECT_PATH }}" -c Release -r ${{ env.RID }} --no-restore
 
+      # Self-contained + single-file чтобы на ПК не требовался установленный .NET
       - name: Publish self-contained single-file (Release, ${{ env.RID }})
         shell: pwsh
         run: |
@@ -76,6 +80,47 @@ jobs:
             -p:DebugType=None `
             -o "${{ env.OUT_DIR }}"
 
+      # На всякий случай удалим .pdb, если вдруг появились
+      - name: Strip PDB from publish
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path "${{ env.OUT_DIR }}" -Recurse -Include *.pdb | Remove-Item -Force -ErrorAction SilentlyContinue
+
+      # Генерируем ErgComTester.Update.xml (исправленная работа с XmlDocument)
+      - name: Create ErgComTester.Update.xml
+        shell: pwsh
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_DIR:  ${{ secrets.FTP_DIR }}
+        run: |
+          $version = "${{ env.VERSION }}"
+
+          # Собираем целевой путь из секретов
+          $targetDir = if ($env:FTP_DIR) { $env:FTP_DIR } else { "/other/ErgComTester/" }
+          $targetDir = $targetDir.TrimEnd('/')
+          if ($targetDir -notmatch '^/') { $targetDir = "/$targetDir" } # гарантируем ведущий слэш
+
+          $url = "ftp://$env:FTP_HOST$targetDir/${{ env.ZIP_NAME }}"
+
+          $doc  = New-Object System.Xml.XmlDocument
+          $null = $doc.AppendChild($doc.CreateXmlDeclaration("1.0","UTF-8",$null))
+
+          $item = $doc.CreateElement("item")
+          $null = $doc.AppendChild($item)
+
+          $verEl = $doc.CreateElement("version");   $verEl.InnerText = $version; $null = $item.AppendChild($verEl)
+          $urlEl = $doc.CreateElement("url");       $urlEl.InnerText = $url;     $null = $item.AppendChild($urlEl)
+          $clEl  = $doc.CreateElement("changelog"); $clEl.InnerText  = "";       $null = $item.AppendChild($clEl)
+
+          $mand = $doc.CreateElement("mandatory")
+          $attr = $doc.CreateAttribute("mode"); $attr.Value = "1"; $null = $mand.Attributes.Append($attr)
+          $mand.InnerText = "true"
+          $null = $item.AppendChild($mand)
+
+          $doc.Save("${{ env.XML_NAME }}")
+          Write-Host "Created $($env:XML_NAME) with version $version and url $url"
+
+      # Упаковка publish в ZIP
       - name: Make ZIP from publish output
         shell: pwsh
         run: |
@@ -84,34 +129,7 @@ jobs:
           Compress-Archive -Path (Join-Path $env:OUT_DIR '*') -DestinationPath "${{ env.ZIP_NAME }}" -Force
           Write-Host "ZIP created: $env:ZIP_NAME"
 
-      - name: Create ErgComTester.Update.xml
-        shell: pwsh
-        env:
-          FTP_HOST: ${{ secrets.FTP_HOST }}
-          FTP_DIR:  ${{ secrets.FTP_DIR }}
-        run: |
-          $version = "${{ env.VERSION }}"
-          $targetDir = if ("$env:FTP_DIR") { "$env:FTP_DIR" } else { "/other/ErgComTester/" }
-          $targetDir = $targetDir.TrimEnd('/')
-          $url = "ftp://$env:FTP_HOST$targetDir/${{ env.ZIP_NAME }}"
-
-          $doc  = New-Object System.Xml.XmlDocument
-          $decl = $doc.CreateXmlDeclaration("1.0","UTF-8",$null); [void]$doc.AppendChild($decl)
-          $item = $doc.CreateElement("item"); [void]$doc.AppendChild($item)
-          foreach($n in @("version","url","changelog")) {
-            $el = $doc.CreateElement($n); [void]$item.AppendChild($el)
-          }
-          $item.version.InnerText = $version
-          $item.url.InnerText = $url
-          $item.changelog.InnerText = ""
-
-          $mand = $doc.CreateElement("mandatory")
-          $attr = $doc.CreateAttribute("mode"); $attr.Value = "1"; [void]$mand.Attributes.Append($attr)
-          $mand.InnerText = "true"; [void]$item.AppendChild($mand)
-
-          $doc.Save("${{ env.XML_NAME }}")
-          Write-Host "Created $($env:XML_NAME) with version $version and url $url"
-
+      # Загрузка на FTP
       - name: Upload ZIP and XML to FTP
         shell: pwsh
         env:
@@ -122,6 +140,7 @@ jobs:
         run: |
           $targetDir = if ("${{ env.FTP_DIR }}") { "${{ env.FTP_DIR }}" } else { "/other/ErgComTester/" }
           $targetDir = $targetDir.TrimEnd('/')
+          if ($targetDir -notmatch '^/') { $targetDir = "/$targetDir" }
 
           Write-Host "Uploading to ftp://$env:FTP_HOST$targetDir"
 
