@@ -1810,13 +1810,15 @@ public static class ErgReportBuilder
         if (eye.QualityIndex.HasValue && eye.QualityIndex.Value == 0)
             return false;
 
-        if (eye.ValueCount.HasValue && eye.ValueCount.Value == 0 && !HasEyeMeasurementValues(eye))
+        bool hasValues = HasEyeMeasurementValues(eye);
+
+        if (eye.ValueCount.HasValue && eye.ValueCount.Value == 0 && !hasValues)
             return false;
 
-        if (eye.GraphCount == 0)
+        if (eye.GraphCount == 0 && !hasValues)
             return false;
 
-        return HasEyeMeasurementValues(eye);
+        return hasValues;
     }
 
     private static string FormatAnimal(AnimalKind animal)

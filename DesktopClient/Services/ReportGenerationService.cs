@@ -469,21 +469,40 @@ public sealed class ReportGenerationService : IDisposable
 
         if (options.EnableRtcSynchronization)
         {
-            if (expectedPatients.HasValue && generatedPdfReports.Count == expectedPatients.Value)
+            if (!expectedPatients.HasValue)
             {
-                var rtc = ErgProtocol.BuildRtcSet(DateTime.Now);
-                port.Write(rtc, 0, rtc.Length);
-                _log.Info("Часы прибора синхронизированы.");
+                _log.Warn($"[{portName}] синхронизация времени пропущена: нет данных о количестве пациентов в приборе.");
             }
             else
             {
-                if (!expectedPatients.HasValue)
+                var expected = expectedPatients.Value;
+                var pdfCount = generatedPdfReports.Count;
+                var receivedCount = processedPatients;
+                bool countsMatch = pdfCount == expected && receivedCount == expected;
+
+                if (countsMatch)
                 {
-                    _log.Warn($"[{portName}] синхронизация времени пропущена: нет данных о количестве пациентов в приборе.");
+                    var rtc = ErgProtocol.BuildRtcSet(DateTime.Now);
+                    port.Write(rtc, 0, rtc.Length);
+                    _log.Info("Часы прибора синхронизированы.");
                 }
                 else
                 {
-                    _log.Warn($"[{portName}] синхронизация времени пропущена: в приборе {expectedPatients.Value}, успешно сохранено {generatedPdfReports.Count} PDF-отчет(ов).");
+                    var reasons = new List<string>();
+                    if (receivedCount != expected)
+                    {
+                        reasons.Add($"получено пациентов {receivedCount} из {expected}");
+                    }
+                    if (pdfCount != expected)
+                    {
+                        reasons.Add($"создано PDF {pdfCount} из {expected}");
+                    }
+
+                    var reasonText = reasons.Count > 0
+                        ? string.Join(", ", reasons)
+                        : $"обнаружено несоответствие данным прибора ({expected})";
+
+                    _log.Warn($"[{portName}] синхронизация времени пропущена: {reasonText}.");
                 }
             }
         }
@@ -959,12 +978,13 @@ public sealed class ReportGenerationService : IDisposable
         var baseName = Path.GetFileNameWithoutExtension(originalPath);
         var extension = Path.GetExtension(originalPath);
         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        var candidate = Path.Combine(directory, $"{baseName}_{timestamp}{extension}");
+        var suffix = $"opened_{timestamp}";
+        var candidate = Path.Combine(directory, $"{baseName}_{suffix}{extension}");
         var counter = 1;
 
         while (File.Exists(candidate))
         {
-            candidate = Path.Combine(directory, $"{baseName}_{timestamp}_{counter++}{extension}");
+            candidate = Path.Combine(directory, $"{baseName}_{suffix}_{counter++}{extension}");
         }
 
         return candidate;
