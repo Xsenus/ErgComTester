@@ -165,6 +165,9 @@ public sealed class ReportGenerationService : IDisposable
             _log.Info("Генерация Word-отчетов отключена в настройках. DOCX-файлы создаваться не будут.");
         }
         int maxPatients = Math.Max(1, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 1);
+        int expectedPatients = Math.Max(0, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 0);
+        int successfullySavedPatients = 0;
+        bool hasFailedPatients = false;
         bool sessionAnnounced = false;
         int processedPatients = 0;
         // var template = _settings.Current.ReportTemplate;
@@ -286,6 +289,7 @@ public sealed class ReportGenerationService : IDisposable
                     _log.Warn($"[{portName}] получены данные пациента #{index}, но разбор завершился ошибкой: {err}. Сырой дамп: {finalRawPath}");
                     _telegram?.NotifyPatientParseFailed(index, finalRawPath, err ?? "Неизвестная ошибка");
                     processedPatients++;
+                    hasFailedPatients = true;
                 }
                 else
                 {
@@ -297,6 +301,8 @@ public sealed class ReportGenerationService : IDisposable
                     _log.Debug($"Структурированные данные пациента #{index} сохранены: {jsonPath}");
 
                     string? pdfPath = null;
+                    bool pdfRequiredForSuccess = _pdfGenerationEnabled;
+                    bool pdfSavedSuccessfully = !pdfRequiredForSuccess;
                     if (_pdfGenerationEnabled)
                     {
                         var pdfNameInfo = ReportFileNaming.CreatePdfFileName(patient, DateTime.Now);
@@ -316,34 +322,15 @@ public sealed class ReportGenerationService : IDisposable
                             ErgReportBuilder.BuildPatientReport(patient, candidatePdfPath, _lastDeviceInfo?.DeviceInfo, clinicName: clinicHeader, rawFilePath: finalRawPath, template: template);
                             _log.Info($"PDF-отчет для пациента #{index} создан: {candidatePdfPath}");
                             pdfPath = candidatePdfPath;
+                            pdfSavedSuccessfully = true;
                             ReportGenerated?.Invoke(this, pdfPath);
                             generatedPdfReports.Add(pdfPath);
                         }
                         catch (IOException ex) when (IsFileInUse(ex))
                         {
-                            var fallback = TrySavePdfWithFallback(
-                                patient,
-                                finalRawPath,
-                                clinicHeader,
-                                template,
-                                candidatePdfPath,
-                                ex,
-                                $"[{portName}] пациент #{index}",
-                                path =>
-                                {
-                                    ReportGenerated?.Invoke(this, path);
-                                    generatedPdfReports.Add(path);
-                                });
-
-                            pdfPath = fallback.Path;
-                            if (pdfPath == null)
-                            {
-                                var reason = $"Не удалось создать PDF-отчет: {fallback.Error ?? ex.Message}";
-                                RenderingSupport.DisablePdf(reason);
-                                _pdfGenerationEnabled = false;
-                                _pdfGenerationIssue = RenderingSupport.PdfIssue ?? reason;
-                                LogPdfGenerationDisabled(portName);
-                            }
+                            pdfSavedSuccessfully = false;
+                            _log.Warn($"[{portName}] пациент #{index}: файл {candidatePdfPath} занят другим процессом, PDF-отчет не создан.");
+                            _telegram?.NotifyMessage($"⚠️ [{portName}] пациент #{index:000}: не удалось сохранить PDF {Path.GetFileName(candidatePdfPath)} — файл занят. Отчет будет сформирован при следующей синхронизации.");
                         }
                         catch (UnauthorizedAccessException ex)
                         {
@@ -369,6 +356,10 @@ public sealed class ReportGenerationService : IDisposable
                                 _pdfGenerationEnabled = false;
                                 _pdfGenerationIssue = RenderingSupport.PdfIssue ?? reason;
                                 LogPdfGenerationDisabled(portName);
+                            }
+                            else
+                            {
+                                pdfSavedSuccessfully = true;
                             }
                         }
                         catch (Exception ex)
@@ -405,7 +396,16 @@ public sealed class ReportGenerationService : IDisposable
                         }
                     }
 
+                    if (pdfRequiredForSuccess && !pdfSavedSuccessfully)
+                    {
+                        hasFailedPatients = true;
+                    }
+
                     processedPatients++;
+                    if (!pdfRequiredForSuccess || pdfSavedSuccessfully)
+                    {
+                        successfullySavedPatients++;
+                    }
                     var pdfPathForNotification = pdfPath ?? "<не создан>";
                     string? docxPathForNotification = null;
                     if (wordGenerationEnabled)
@@ -468,9 +468,16 @@ public sealed class ReportGenerationService : IDisposable
 
         if (options.EnableRtcSynchronization)
         {
-            var rtc = ErgProtocol.BuildRtcSet(DateTime.Now);
-            port.Write(rtc, 0, rtc.Length);
-            _log.Info("Часы прибора синхронизированы.");
+            if (expectedPatients == successfullySavedPatients && !hasFailedPatients)
+            {
+                var rtc = ErgProtocol.BuildRtcSet(DateTime.Now);
+                port.Write(rtc, 0, rtc.Length);
+                _log.Info("Часы прибора синхронизированы.");
+            }
+            else
+            {
+                _log.Warn($"[{portName}] синхронизация времени пропущена: ожидалось пациентов {expectedPatients}, успешно сохранено {successfullySavedPatients}.");
+            }
         }
     }
 
