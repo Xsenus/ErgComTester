@@ -74,6 +74,7 @@ jobs:
         run: |
           if (Test-Path "${{ env.OUT_DIR }}") { Remove-Item -Recurse -Force "${{ env.OUT_DIR }}" }
 
+      # Self-contained + single-file + сжатие, БЕЗ InvariantGlobalization
       - name: Publish self-contained single-file (Release, ${{ env.RID }})
         shell: pwsh
         run: |
@@ -86,8 +87,6 @@ jobs:
             -p:CopyOutputSymbolsToPublishDirectory=false `
             -p:CopyDocumentationFileToPublishDirectory=false `
             -p:DebugType=None `
-            -p:SatelliteResourceLanguages=ru `
-            -p:InvariantGlobalization=true `
             -o "${{ env.OUT_DIR }}"
 
       - name: Strip PDB from publish

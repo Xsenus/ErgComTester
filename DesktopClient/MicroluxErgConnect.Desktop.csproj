@@ -5,17 +5,34 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWindowsForms>true</UseWindowsForms>
+
     <AssemblyName>MicroluxErgConnect</AssemblyName>
     <RootNamespace>MicroluxErgConnect</RootNamespace>
-    <AssemblyVersion>1.0.0.44</AssemblyVersion>
-    <FileVersion>1.0.0.44</FileVersion>
-    <ApplicationIcon Condition="Exists('Resources\microlux-connect.ico')">Resources\microlux-connect.ico</ApplicationIcon>
-    <SatelliteResourceLanguages>en;ru</SatelliteResourceLanguages>
+
+    <AssemblyVersion>1.0.0.45</AssemblyVersion>
+    <FileVersion>1.0.0.45</FileVersion>
+
+    <!-- Платформа/рид -->
     <PlatformTarget Condition="'$(PlatformTarget)' == ''">x86</PlatformTarget>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x86</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
+
+    <!-- Single-file c сжатием, без R2R -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <DebugType>none</DebugType>
+
+    <!-- Языковые ресурсы -->
+    <SatelliteResourceLanguages>en;ru</SatelliteResourceLanguages>
+
+    <!-- Явно выключаем инвариантную глобализацию -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <!-- Оставляем один ApplicationIcon (убрали дубликат) -->
     <ApplicationIcon>Microlux_Logo.ico</ApplicationIcon>
   </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Autoupdater.NET.Official" Version="1.9.2" />
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.3.0" />
@@ -25,10 +42,12 @@
     <PackageReference Include="PdfSharpCore" Version="1.3.67" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
   </ItemGroup>
+
   <ItemGroup>
     <EmbeddedResource Include="Resources\microlux-connect.ico" Condition="Exists('Resources\microlux-connect.ico')" />
     <EmbeddedResource Include="Resources\microlux-connect.png" Condition="Exists('Resources\microlux-connect.png')" />
   </ItemGroup>
+
   <ItemGroup>
     <Compile Include="../Shared/ILog.cs" Link="Logging/ILog.cs" />
     <Compile Include="../Shared/Erg/ErgDataModels.cs" Link="Erg/ErgDataModels.cs" />
@@ -39,9 +58,11 @@
     <Compile Include="../Shared/Erg/ReportRenderingMode.cs" Link="Erg/ReportRenderingMode.cs" />
     <Compile Include="../Shared/Erg/RenderingSupport.cs" Link="Erg/RenderingSupport.cs" />
   </ItemGroup>
+
   <ItemGroup>
     <Content Include="Microlux_Logo.ico" />
   </ItemGroup>
+
   <ItemGroup>
     <Compile Update="Properties\Resources.Designer.cs">
       <DesignTime>True</DesignTime>
@@ -52,6 +73,7 @@
       <SubType>Form</SubType>
     </Compile>
   </ItemGroup>
+
   <ItemGroup>
     <EmbeddedResource Update="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
