@@ -9,17 +9,16 @@
     <AssemblyName>MicroluxErgConnect</AssemblyName>
     <RootNamespace>MicroluxErgConnect</RootNamespace>
 
-    <AssemblyVersion>1.0.0.45</AssemblyVersion>
-    <FileVersion>1.0.0.45</FileVersion>
+    <AssemblyVersion>1.0.0.46</AssemblyVersion>
+    <FileVersion>1.0.0.46</FileVersion>
 
     <!-- Платформа/рид -->
     <PlatformTarget Condition="'$(PlatformTarget)' == ''">x86</PlatformTarget>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x86</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
 
-    <!-- Single-file c сжатием, без R2R -->
-    <PublishSingleFile>true</PublishSingleFile>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <!-- Отключаем single-file для более компактного exe -->
+    <PublishSingleFile>false</PublishSingleFile>
     <PublishReadyToRun>false</PublishReadyToRun>
     <DebugType>none</DebugType>
 
