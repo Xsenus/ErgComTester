@@ -28,6 +28,7 @@ public sealed class ReportGenerationService : IDisposable
 
     public event EventHandler<string>? ReportGenerated;
     public event EventHandler<string>? SyncStateChanged;
+    public event EventHandler<ReportsBatchCompletedEventArgs>? ReportsBatchCompleted;
 
     static ReportGenerationService()
     {
@@ -462,6 +463,7 @@ public sealed class ReportGenerationService : IDisposable
             }
 
             _log.Info(summary);
+            ReportsBatchCompleted?.Invoke(this, new ReportsBatchCompletedEventArgs(generatedPdfReports.Count, generatedWordReports.Count, sessionDir));
             TryPlayNotificationSound();
             _telegram?.NotifySessionCompleted(portName, sessionDir, processedPatients, totalReports);
         }
@@ -984,4 +986,19 @@ public sealed class ReportGenerationService : IDisposable
             _log.Warn($"{context}: {warning}");
         }
     }
+}
+
+public sealed class ReportsBatchCompletedEventArgs : EventArgs
+{
+    public ReportsBatchCompletedEventArgs(int pdfCount, int wordCount, string? outputDirectory)
+    {
+        PdfCount = pdfCount;
+        WordCount = wordCount;
+        OutputDirectory = outputDirectory;
+    }
+
+    public int PdfCount { get; }
+    public int WordCount { get; }
+    public int TotalReports => PdfCount + WordCount;
+    public string? OutputDirectory { get; }
 }

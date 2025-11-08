@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
 using System.Xml.Linq;
 using AutoUpdaterDotNET;
 using ErgData;
@@ -37,11 +38,23 @@ public static class AppServices
 
         Settings = new SettingsService();
         Settings.LoadAsync().GetAwaiter().GetResult();
+        var graphPresetImport = TryImportGraphPreset();
         // RenderingSupport.Reload(Settings.Current.ReportRenderingMode);
         RenderingSupport.Reload(ReportRenderingMode.Legacy);
         ApplyGraphOptionsFromSettingsOrInitialize();
 
         Log = new LogService(Settings);
+        if (graphPresetImport.Attempted)
+        {
+            if (graphPresetImport.Applied && !string.IsNullOrEmpty(graphPresetImport.Path))
+            {
+                Log.Info($"Настройки графиков импортированы из файла {graphPresetImport.Path}.");
+            }
+            else if (!string.IsNullOrWhiteSpace(graphPresetImport.Error) && !string.IsNullOrEmpty(graphPresetImport.Path))
+            {
+                Log.Warn($"Не удалось импортировать настройки графиков из файла {graphPresetImport.Path}: {graphPresetImport.Error}.");
+            }
+        }
         Log.Section("Microlux ERG-Connect Desktop");
         var version = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0, 0);
         Log.Info($"Версия приложения: {version}");
@@ -146,6 +159,43 @@ public static class AppServices
         var dto = Settings.Current.GraphOptions;
         if (dto is not null)
             dto.ApplyTo(ErgReportBuilder.GraphOptions);
+    }
+
+    private static GraphPresetImportResult TryImportGraphPreset()
+    {
+        var baseDir = AppContext.BaseDirectory ?? Environment.CurrentDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(baseDir, "graph_settings.json"),
+            Path.Combine(baseDir, "graph_settigns.json")
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (!File.Exists(candidate))
+            {
+                continue;
+            }
+
+            try
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var dto = JsonSerializer.Deserialize<GraphRenderOptionsDto>(File.ReadAllText(candidate), options);
+                if (dto is null)
+                {
+                    return GraphPresetImportResult.Failure(candidate, "файл не содержит корректных данных");
+                }
+
+                Settings.UpdateAsync(s => s.GraphOptions = dto).GetAwaiter().GetResult();
+                return GraphPresetImportResult.Success(candidate);
+            }
+            catch (Exception ex)
+            {
+                return GraphPresetImportResult.Failure(candidate, ex.Message);
+            }
+        }
+
+        return GraphPresetImportResult.NotFound;
     }
 
 
@@ -422,6 +472,26 @@ public static class AppServices
         }
 
         ExitRequested?.Invoke(null, new ExitRequestedEventArgs(reason));
+    }
+
+    private readonly struct GraphPresetImportResult
+    {
+        private GraphPresetImportResult(bool attempted, bool applied, string? path, string? error)
+        {
+            Attempted = attempted;
+            Applied = applied;
+            Path = path;
+            Error = error;
+        }
+
+        public bool Attempted { get; }
+        public bool Applied { get; }
+        public string? Path { get; }
+        public string? Error { get; }
+
+        public static GraphPresetImportResult NotFound => new(false, false, null, null);
+        public static GraphPresetImportResult Success(string path) => new(true, true, path, null);
+        public static GraphPresetImportResult Failure(string path, string error) => new(true, false, path, error);
     }
 
     public sealed class ExitRequestedEventArgs : EventArgs

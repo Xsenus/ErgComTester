@@ -1,6 +1,7 @@
 using ErgData;
 using MicroluxErgConnect.Infrastructure;
 using MicroluxErgConnect.Models;
+using MicroluxErgConnect.Services;
 using MicroluxErgConnect.Utils;
 using MicroluxErgConnect.ViewModels;
 using System.Collections.Specialized;
@@ -26,23 +27,19 @@ namespace MicroluxErgConnect.Views
             "Например: Название клиники",
             "Например: Контактный телефон"
         };
-        private readonly Color _headerPlaceholderColor = Color.FromArgb(160, 168, 176);
         private TextBox[] _headerTextBoxes = Array.Empty<TextBox>();
-        private Color _headerTextColor;
-        private bool _headerPlaceholdersVisible;
+        private bool _startupMinimized;
 
         public MainForm()
         {
             _viewModel = AppServices.MainViewModel;
             InitializeComponent();
             _headerTextBoxes = new[] { textBoxCaption1, textBoxCaption2, textBoxCaption3, textBoxCaption4 };
-            _headerTextColor = textBoxCaption1.ForeColor;
             foreach (var textBox in _headerTextBoxes)
             {
-                textBox.Enter += OnHeaderInputEnter;
-                textBox.Leave += OnHeaderInputLeave;
                 textBox.TextChanged += OnHeaderLineValidated;
             }
+            UpdateHeaderPlaceholders();
             DoubleBuffered = true;
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
             UpdateStyles();
@@ -70,6 +67,7 @@ namespace MicroluxErgConnect.Views
             _viewModel.CheckUpdatesCommand.CanExecuteChanged += _checkUpdatesCanExecuteHandler;
             _viewModel.InstallUpdateCommand.CanExecuteChanged += _installUpdateCanExecuteHandler;
             AppServices.ExitRequested += OnExitRequested;
+            AppServices.Reports.ReportsBatchCompleted += OnReportsBatchCompleted;
             UpdateAll();
             UpdateCommandState();
 
@@ -86,103 +84,29 @@ namespace MicroluxErgConnect.Views
             try
             {
                 var lines = ReportHeaderFormatter.Split(_viewModel.ReportHeader);
-                if (lines.All(string.IsNullOrWhiteSpace))
+                for (var i = 0; i < _headerTextBoxes.Length && i < lines.Length; i++)
                 {
-                    foreach (var textBox in _headerTextBoxes)
-                    {
-                        textBox.Clear();
-                    }
-                    SetHeaderPlaceholdersVisible(true);
-                }
-                else
-                {
-                    SetHeaderPlaceholdersVisible(false);
-                    textBoxCaption1.Text = lines[0];
-                    textBoxCaption2.Text = lines[1];
-                    textBoxCaption3.Text = lines[2];
-                    textBoxCaption4.Text = lines[3];
+                    _headerTextBoxes[i].Text = lines[i];
                 }
             }
             finally
             {
                 _isApplyingHeaderInputs = false;
+                UpdateHeaderPlaceholders();
             }
         }
 
-        private void EnsureHeaderPlaceholders()
+        private void UpdateHeaderPlaceholders()
         {
             if (_headerTextBoxes.Length == 0)
             {
                 return;
             }
 
-            if (_headerPlaceholdersVisible)
+            var showPlaceholders = _headerTextBoxes.All(tb => string.IsNullOrWhiteSpace(tb.Text));
+            for (var i = 0; i < _headerTextBoxes.Length; i++)
             {
-                if (!string.IsNullOrWhiteSpace(_viewModel.ReportHeader))
-                {
-                    SetHeaderPlaceholdersVisible(false);
-                }
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(_viewModel.ReportHeader) &&
-                _headerTextBoxes.All(tb => string.IsNullOrWhiteSpace(tb.Text)))
-            {
-                SetHeaderPlaceholdersVisible(true);
-            }
-        }
-
-        private void OnHeaderInputEnter(object? sender, EventArgs e)
-        {
-            if (_headerPlaceholdersVisible)
-            {
-                SetHeaderPlaceholdersVisible(false);
-            }
-        }
-
-        private void OnHeaderInputLeave(object? sender, EventArgs e)
-        {
-            if (!_headerPlaceholdersVisible &&
-                string.IsNullOrWhiteSpace(_viewModel.ReportHeader) &&
-                _headerTextBoxes.All(tb => string.IsNullOrWhiteSpace(tb.Text)))
-            {
-                SetHeaderPlaceholdersVisible(true);
-            }
-        }
-
-        private void SetHeaderPlaceholdersVisible(bool visible)
-        {
-            if (_headerPlaceholdersVisible == visible || _headerTextBoxes.Length == 0)
-            {
-                return;
-            }
-
-            var previousApplying = _isApplyingHeaderInputs;
-            _isApplyingHeaderInputs = true;
-            try
-            {
-                _headerPlaceholdersVisible = visible;
-                for (var i = 0; i < _headerTextBoxes.Length; i++)
-                {
-                    var textBox = _headerTextBoxes[i];
-                    if (visible)
-                    {
-                        textBox.ForeColor = _headerPlaceholderColor;
-                        textBox.Text = _headerPlaceholders[i];
-                    }
-                    else
-                    {
-                        if (string.Equals(textBox.Text, _headerPlaceholders[i], StringComparison.Ordinal))
-                        {
-                            textBox.Clear();
-                        }
-                        textBox.ForeColor = _headerTextColor;
-                    }
-                }
-            }
-            finally
-            {
-                _isApplyingHeaderInputs = previousApplying;
+                _headerTextBoxes[i].PlaceholderText = showPlaceholders ? _headerPlaceholders[i] : string.Empty;
             }
         }
 
@@ -724,40 +648,63 @@ namespace MicroluxErgConnect.Views
             PopulateLogs();
             ApplySettingsToInputs();
 
-            var settings = AppServices.Settings.Current;
-            if (settings.StartMinimized && !settings.MinimizeToTray)
-            {
-                AppServices.Log.Info("Старт в свернутом состоянии по настройкам пользователя.");
-                WindowState = FormWindowState.Minimized;
-                return;
-            }
-
-            if (WindowState != FormWindowState.Normal)
-            {
-                WindowState = FormWindowState.Normal;
-            }
-
-            Activate();
-            AppServices.Log.Info("Главное окно отображено при запуске приложения.");
-
             labelPath.Text = string.IsNullOrWhiteSpace(_viewModel.ReportsDirectory)
                 ? "Папка с отчетами"
                 : _viewModel.ReportsDirectory;
+
+            HideToTrayOnStartup();
         }
 
         private void OnFormResized(object? sender, EventArgs e)
         {
-            if (WindowState == FormWindowState.Minimized && AppServices.Settings.Current.MinimizeToTray)
+            if (WindowState == FormWindowState.Minimized)
             {
                 Hide();
-                AppServices.Log.Info("Окно свернуто в трей.");
+                if (_startupMinimized)
+                {
+                    _startupMinimized = false;
+                }
+                else
+                {
+                    AppServices.Log.Info("Окно свернуто в трей.");
+                }
             }
+        }
+
+        private void HideToTrayOnStartup()
+        {
+            _startupMinimized = true;
+            WindowState = FormWindowState.Minimized;
+            Hide();
+            AppServices.Log.Info("Приложение запущено свернутым в системный трей.");
+        }
+
+        private void OnReportsBatchCompleted(object? sender, ReportsBatchCompletedEventArgs e)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action<object?, ReportsBatchCompletedEventArgs>(OnReportsBatchCompleted), sender, e);
+                return;
+            }
+
+            var total = e.TotalReports;
+            if (total <= 0)
+            {
+                return;
+            }
+
+            var message = $"Сохранено {total} ЭРГ-отчёт(а/ов).";
+            trayIcon.BalloonTipTitle = "Microlux ERG-Connect";
+            trayIcon.BalloonTipText = message;
+            trayIcon.BalloonTipIcon = ToolTipIcon.Info;
+            trayIcon.Visible = true;
+            trayIcon.ShowBalloonTip(5000);
         }
 
         private void OnHeaderLineValidated(object? sender, EventArgs e)
         {
             SaveHeaderFromInputs();
-            EnsureHeaderPlaceholders();
+            UpdateHeaderPlaceholders();
         }
 
         private void OnInstallUpdateClicked(object? sender, EventArgs e)
@@ -929,6 +876,7 @@ namespace MicroluxErgConnect.Views
             Show();
             WindowState = FormWindowState.Normal;
             Activate();
+            _startupMinimized = false;
             AppServices.Log.Info("Окно восстановлено из трея.");
         }
 
@@ -936,23 +884,8 @@ namespace MicroluxErgConnect.Views
         {
             if (_isApplyingHeaderInputs) return;
 
-            if (_headerPlaceholdersVisible)
-            {
-                if (!string.IsNullOrEmpty(_viewModel.ReportHeader))
-                {
-                    _viewModel.ReportHeader = string.Empty;
-                }
-                return;
-            }
-
             var lines = _headerTextBoxes
-                .Select((tb, index) =>
-                {
-                    var value = tb.Text ?? string.Empty;
-                    return string.Equals(value, _headerPlaceholders[index], StringComparison.Ordinal)
-                        ? string.Empty
-                        : value;
-                })
+                .Select(tb => tb.Text ?? string.Empty)
                 .ToArray();
 
             var normalized = ReportHeaderFormatter.Normalize(string.Join('\n', ReportHeaderFormatter.EnsureLineCount(lines)));
@@ -1105,6 +1038,7 @@ namespace MicroluxErgConnect.Views
             _viewModel.CheckUpdatesCommand.CanExecuteChanged -= _checkUpdatesCanExecuteHandler;
             _viewModel.InstallUpdateCommand.CanExecuteChanged -= _installUpdateCanExecuteHandler;
             AppServices.ExitRequested -= OnExitRequested;
+            AppServices.Reports.ReportsBatchCompleted -= OnReportsBatchCompleted;
             trayIcon.Visible = false;
             base.OnFormClosed(e);
         }
@@ -1112,17 +1046,28 @@ namespace MicroluxErgConnect.Views
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
-            AppServices.Log.Info("Главное окно отображено пользователю.");
+            if (Visible && WindowState == FormWindowState.Normal)
+            {
+                AppServices.Log.Info("Главное окно отображено пользователю.");
+            }
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            // Ctrl + Alt + Shift + D
-            if ((keyData & (Keys.Control | Keys.Alt | Keys.Shift)) == (Keys.Control | Keys.Alt | Keys.Shift) &&
-                (keyData & Keys.KeyCode) == Keys.D)
+            if ((keyData & (Keys.Control | Keys.Alt | Keys.Shift)) == (Keys.Control | Keys.Alt | Keys.Shift))
             {
-                OnConvertBinClicked(this, EventArgs.Empty);
-                return true;
+                var keyCode = keyData & Keys.KeyCode;
+                if (keyCode == Keys.D)
+                {
+                    OnConvertBinClicked(this, EventArgs.Empty);
+                    return true;
+                }
+
+                if (keyCode == Keys.S)
+                {
+                    btnGraphTuner.PerformClick();
+                    return true;
+                }
             }
 
             return base.ProcessCmdKey(ref msg, keyData);
