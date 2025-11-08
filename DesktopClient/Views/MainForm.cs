@@ -34,6 +34,7 @@ namespace MicroluxErgConnect.Views
         {
             _viewModel = AppServices.MainViewModel;
             InitializeComponent();
+            KeyPreview = true;
             _headerTextBoxes = new[] { textBoxCaption1, textBoxCaption2, textBoxCaption3, textBoxCaption4 };
             foreach (var textBox in _headerTextBoxes)
             {
@@ -96,6 +97,25 @@ namespace MicroluxErgConnect.Views
             }
         }
 
+        private void ClearHeaderFocusIfEmpty()
+        {
+            if (_headerTextBoxes.Length == 0)
+            {
+                return;
+            }
+
+            if (_headerTextBoxes.All(tb => string.IsNullOrWhiteSpace(tb.Text)) && IsHandleCreated)
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    if (!IsDisposed && !Disposing && _headerTextBoxes.All(tb => string.IsNullOrWhiteSpace(tb.Text)))
+                    {
+                        ActiveControl = null;
+                    }
+                }));
+            }
+        }
+
         private void UpdateHeaderPlaceholders()
         {
             if (_headerTextBoxes.Length == 0)
@@ -107,6 +127,11 @@ namespace MicroluxErgConnect.Views
             for (var i = 0; i < _headerTextBoxes.Length; i++)
             {
                 _headerTextBoxes[i].PlaceholderText = showPlaceholders ? _headerPlaceholders[i] : string.Empty;
+            }
+
+            if (showPlaceholders)
+            {
+                ClearHeaderFocusIfEmpty();
             }
         }
 
@@ -442,6 +467,7 @@ namespace MicroluxErgConnect.Views
             _isExitRequested = true;
             AppServices.Log.Info("Пользователь запросил завершение приложения из трея.");
             trayIcon.Visible = false;
+            HideFromTaskbar();
             Close();
         }
 
@@ -638,7 +664,7 @@ namespace MicroluxErgConnect.Views
             if (!_isExitRequested && AppServices.Settings.Current.MinimizeToTray)
             {
                 e.Cancel = true;
-                Hide();
+                HideFromTaskbar();
                 AppServices.Log.Info("Окно скрыто в трей вместо завершения работы.");
             }
         }
@@ -653,13 +679,14 @@ namespace MicroluxErgConnect.Views
                 : _viewModel.ReportsDirectory;
 
             HideToTrayOnStartup();
+            ClearHeaderFocusIfEmpty();
         }
 
         private void OnFormResized(object? sender, EventArgs e)
         {
             if (WindowState == FormWindowState.Minimized)
             {
-                Hide();
+                HideFromTaskbar();
                 if (_startupMinimized)
                 {
                     _startupMinimized = false;
@@ -675,8 +702,14 @@ namespace MicroluxErgConnect.Views
         {
             _startupMinimized = true;
             WindowState = FormWindowState.Minimized;
-            Hide();
+            HideFromTaskbar();
             AppServices.Log.Info("Приложение запущено свернутым в системный трей.");
+        }
+
+        private void HideFromTaskbar()
+        {
+            ShowInTaskbar = false;
+            Hide();
         }
 
         private void OnReportsBatchCompleted(object? sender, ReportsBatchCompletedEventArgs e)
@@ -873,11 +906,13 @@ namespace MicroluxErgConnect.Views
 
         private void RestoreFromTray()
         {
+            ShowInTaskbar = true;
             Show();
             WindowState = FormWindowState.Normal;
             Activate();
             _startupMinimized = false;
             AppServices.Log.Info("Окно восстановлено из трея.");
+            ClearHeaderFocusIfEmpty();
         }
 
         private void SaveHeaderFromInputs()
@@ -1065,7 +1100,7 @@ namespace MicroluxErgConnect.Views
 
                 if (keyCode == Keys.S)
                 {
-                    btnGraphTuner.PerformClick();
+                    btnGraphTuner_Click(btnGraphTuner, EventArgs.Empty);
                     return true;
                 }
             }

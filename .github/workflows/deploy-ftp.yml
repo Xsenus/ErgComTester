@@ -74,14 +74,13 @@ jobs:
         run: |
           if (Test-Path "${{ env.OUT_DIR }}") { Remove-Item -Recurse -Force "${{ env.OUT_DIR }}" }
 
-      # Self-contained + single-file + сжатие, БЕЗ InvariantGlobalization
-      - name: Publish self-contained single-file (Release, ${{ env.RID }})
+      # Self-contained публикация без single-file ради компактного exe
+      - name: Publish self-contained (Release, ${{ env.RID }})
         shell: pwsh
         run: |
           dotnet publish "${{ env.PROJECT_PATH }}" -c Release -r ${{ env.RID }} `
             -p:SelfContained=true `
-            -p:PublishSingleFile=true `
-            -p:EnableCompressionInSingleFile=true `
+            -p:PublishSingleFile=false `
             -p:PublishTrimmed=false `
             -p:PublishReadyToRun=false `
             -p:CopyOutputSymbolsToPublishDirectory=false `
