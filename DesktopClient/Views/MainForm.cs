@@ -5,27 +5,44 @@ using MicroluxErgConnect.Utils;
 using MicroluxErgConnect.ViewModels;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Runtime.InteropServices;
+using System.Linq;
+using System.Drawing;
 using System.Text;
 
 namespace MicroluxErgConnect.Views
 {
     public partial class MainForm : Form
     {
-        private const int HTCAPTION = 0x2;
-        private const int WM_NCLBUTTONDOWN = 0xA1;
-
         private readonly EventHandler _checkUpdatesCanExecuteHandler;
         private readonly EventHandler _installUpdateCanExecuteHandler;
         private bool _isApplyingHeaderInputs;
         private bool _isExitRequested;
         private readonly BindingList<LogEntry> _logEntries = new();
         private readonly MainViewModel _viewModel;
+        private readonly string[] _headerPlaceholders =
+        {
+            "Например: ФИО врача",
+            "Например: Должность и звание",
+            "Например: Название клиники",
+            "Например: Контактный телефон"
+        };
+        private readonly Color _headerPlaceholderColor = Color.FromArgb(160, 168, 176);
+        private TextBox[] _headerTextBoxes = Array.Empty<TextBox>();
+        private Color _headerTextColor;
+        private bool _headerPlaceholdersVisible;
 
         public MainForm()
         {
             _viewModel = AppServices.MainViewModel;
             InitializeComponent();
+            _headerTextBoxes = new[] { textBoxCaption1, textBoxCaption2, textBoxCaption3, textBoxCaption4 };
+            _headerTextColor = textBoxCaption1.ForeColor;
+            foreach (var textBox in _headerTextBoxes)
+            {
+                textBox.Enter += OnHeaderInputEnter;
+                textBox.Leave += OnHeaderInputLeave;
+                textBox.TextChanged += OnHeaderLineValidated;
+            }
             DoubleBuffered = true;
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
             UpdateStyles();
@@ -60,16 +77,6 @@ namespace MicroluxErgConnect.Views
             versionStatusLabel.Text = $"Версия: {version}";
             AppServices.Log.Info("Главное окно инициализировано.");
 
-            panelHeader.MouseDown += DragByHeader;
-            labelHeader.MouseDown += DragByHeader;
-
-            panelFooter.MouseDown += DragByHeader;
-            labelHeader.MouseDown += DragByHeader;
-
-            textBoxCaption1.TextChanged += OnHeaderLineValidated;
-            textBoxCaption2.TextChanged += OnHeaderLineValidated;
-            textBoxCaption3.TextChanged += OnHeaderLineValidated;
-            textBoxCaption4.TextChanged += OnHeaderLineValidated;
         }
 
 
@@ -79,14 +86,103 @@ namespace MicroluxErgConnect.Views
             try
             {
                 var lines = ReportHeaderFormatter.Split(_viewModel.ReportHeader);
-                textBoxCaption1.Text = lines[0];
-                textBoxCaption2.Text = lines[1];
-                textBoxCaption3.Text = lines[2];
-                textBoxCaption4.Text = lines[3];
+                if (lines.All(string.IsNullOrWhiteSpace))
+                {
+                    foreach (var textBox in _headerTextBoxes)
+                    {
+                        textBox.Clear();
+                    }
+                    SetHeaderPlaceholdersVisible(true);
+                }
+                else
+                {
+                    SetHeaderPlaceholdersVisible(false);
+                    textBoxCaption1.Text = lines[0];
+                    textBoxCaption2.Text = lines[1];
+                    textBoxCaption3.Text = lines[2];
+                    textBoxCaption4.Text = lines[3];
+                }
             }
             finally
             {
                 _isApplyingHeaderInputs = false;
+            }
+        }
+
+        private void EnsureHeaderPlaceholders()
+        {
+            if (_headerTextBoxes.Length == 0)
+            {
+                return;
+            }
+
+            if (_headerPlaceholdersVisible)
+            {
+                if (!string.IsNullOrWhiteSpace(_viewModel.ReportHeader))
+                {
+                    SetHeaderPlaceholdersVisible(false);
+                }
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_viewModel.ReportHeader) &&
+                _headerTextBoxes.All(tb => string.IsNullOrWhiteSpace(tb.Text)))
+            {
+                SetHeaderPlaceholdersVisible(true);
+            }
+        }
+
+        private void OnHeaderInputEnter(object? sender, EventArgs e)
+        {
+            if (_headerPlaceholdersVisible)
+            {
+                SetHeaderPlaceholdersVisible(false);
+            }
+        }
+
+        private void OnHeaderInputLeave(object? sender, EventArgs e)
+        {
+            if (!_headerPlaceholdersVisible &&
+                string.IsNullOrWhiteSpace(_viewModel.ReportHeader) &&
+                _headerTextBoxes.All(tb => string.IsNullOrWhiteSpace(tb.Text)))
+            {
+                SetHeaderPlaceholdersVisible(true);
+            }
+        }
+
+        private void SetHeaderPlaceholdersVisible(bool visible)
+        {
+            if (_headerPlaceholdersVisible == visible || _headerTextBoxes.Length == 0)
+            {
+                return;
+            }
+
+            var previousApplying = _isApplyingHeaderInputs;
+            _isApplyingHeaderInputs = true;
+            try
+            {
+                _headerPlaceholdersVisible = visible;
+                for (var i = 0; i < _headerTextBoxes.Length; i++)
+                {
+                    var textBox = _headerTextBoxes[i];
+                    if (visible)
+                    {
+                        textBox.ForeColor = _headerPlaceholderColor;
+                        textBox.Text = _headerPlaceholders[i];
+                    }
+                    else
+                    {
+                        if (string.Equals(textBox.Text, _headerPlaceholders[i], StringComparison.Ordinal))
+                        {
+                            textBox.Clear();
+                        }
+                        textBox.ForeColor = _headerTextColor;
+                    }
+                }
+            }
+            finally
+            {
+                _isApplyingHeaderInputs = previousApplying;
             }
         }
 
@@ -291,11 +387,6 @@ namespace MicroluxErgConnect.Views
             return builder.ToString().TrimEnd();
         }
 
-        private void buttonClosed_Click(object sender, EventArgs e)
-        {
-            Close();
-        }
-
         private async void buttonSetPathFolder_Click(object sender, EventArgs e)
         {
             using var dialog = new FolderBrowserDialog
@@ -309,13 +400,6 @@ namespace MicroluxErgConnect.Views
                 labelPath.Text = dialog.SelectedPath;
                 await ApplySettingsAsync();
             }
-        }
-
-        private void DragByHeader(object? sender, MouseEventArgs e)
-        {
-            if (e.Button != MouseButtons.Left) return;
-            ReleaseCapture();
-            SendMessage(this.Handle, WM_NCLBUTTONDOWN, HTCAPTION, 0);
         }
 
         private void EnsureLogGridConfigured()
@@ -656,7 +740,9 @@ namespace MicroluxErgConnect.Views
             Activate();
             AppServices.Log.Info("Главное окно отображено при запуске приложения.");
 
-            labelPath.Text = _viewModel.ReportsDirectory;
+            labelPath.Text = string.IsNullOrWhiteSpace(_viewModel.ReportsDirectory)
+                ? "Папка с отчетами"
+                : _viewModel.ReportsDirectory;
         }
 
         private void OnFormResized(object? sender, EventArgs e)
@@ -671,6 +757,7 @@ namespace MicroluxErgConnect.Views
         private void OnHeaderLineValidated(object? sender, EventArgs e)
         {
             SaveHeaderFromInputs();
+            EnsureHeaderPlaceholders();
         }
 
         private void OnInstallUpdateClicked(object? sender, EventArgs e)
@@ -807,7 +894,6 @@ namespace MicroluxErgConnect.Views
 
             ScrollLogsToEnd();
         }
-        [DllImport("user32.dll")] private static extern bool ReleaseCapture();
 
         private static Color ResolveStatusColor(string? statusText)
         {
@@ -850,13 +936,24 @@ namespace MicroluxErgConnect.Views
         {
             if (_isApplyingHeaderInputs) return;
 
-            var lines = new[]
+            if (_headerPlaceholdersVisible)
             {
-                textBoxCaption1.Text ?? string.Empty,
-                textBoxCaption2.Text ?? string.Empty,
-                textBoxCaption3.Text ?? string.Empty,
-                textBoxCaption4.Text ?? string.Empty
-            };
+                if (!string.IsNullOrEmpty(_viewModel.ReportHeader))
+                {
+                    _viewModel.ReportHeader = string.Empty;
+                }
+                return;
+            }
+
+            var lines = _headerTextBoxes
+                .Select((tb, index) =>
+                {
+                    var value = tb.Text ?? string.Empty;
+                    return string.Equals(value, _headerPlaceholders[index], StringComparison.Ordinal)
+                        ? string.Empty
+                        : value;
+                })
+                .ToArray();
 
             var normalized = ReportHeaderFormatter.Normalize(string.Join('\n', ReportHeaderFormatter.EnsureLineCount(lines)));
             if (!string.Equals(normalized, _viewModel.ReportHeader, StringComparison.Ordinal))
@@ -885,11 +982,9 @@ namespace MicroluxErgConnect.Views
                 }
             }
         }
-        [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
 
         private void ToggleControls(bool enabled)
         {
-            buttonClosed.Enabled = enabled;
             buttonSetPathFolder.Enabled = enabled;
         }
 
