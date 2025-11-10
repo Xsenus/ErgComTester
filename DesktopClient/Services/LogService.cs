@@ -15,16 +15,35 @@ public sealed class LogService : IDisposable, ILog
     public event EventHandler<LogEntry>? LogAdded;
 
     public string SessionLogPath { get; }
+    public bool IsFileLoggingEnabled { get; }
 
     public LogService(SettingsService settings)
     {
-        Directory.CreateDirectory(settings.Current.LogsDirectory);
-        SessionLogPath = Path.Combine(settings.Current.LogsDirectory, $"ergconnect_{DateTime.Now:yyyyMMdd_HHmmss}.log");
-        _writer = new StreamWriter(File.Open(SessionLogPath, FileMode.Create, FileAccess.Write, FileShare.Read))
+        IsFileLoggingEnabled = settings.Current.WriteLogsToFile;
+
+        var logsDirectory = settings.Current.LogsDirectory;
+        if (string.IsNullOrWhiteSpace(logsDirectory))
         {
-            AutoFlush = true,
-            NewLine = "\n"
-        };
+            logsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Microlux ERG Connect", "Logs");
+        }
+
+        if (IsFileLoggingEnabled)
+        {
+            Directory.CreateDirectory(logsDirectory);
+        }
+
+        SessionLogPath = Path.Combine(logsDirectory, $"ergconnect_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+        _writer = IsFileLoggingEnabled
+            ? new StreamWriter(File.Open(SessionLogPath, FileMode.Create, FileAccess.Write, FileShare.Read))
+            {
+                AutoFlush = true,
+                NewLine = "\n"
+            }
+            : new StreamWriter(Stream.Null)
+            {
+                AutoFlush = false,
+                NewLine = "\n"
+            };
         Info("Журнал сеанса создан.");
     }
 

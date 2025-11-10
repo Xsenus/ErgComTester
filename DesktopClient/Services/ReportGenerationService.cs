@@ -185,6 +185,7 @@ public sealed class ReportGenerationService : IDisposable
             string? attemptPath = null;
             string? finalRawPath = null;
             bool ackSent = false;
+            var attemptPaths = new List<string>();
 
             void EnsureAckSent()
             {
@@ -262,6 +263,7 @@ public sealed class ReportGenerationService : IDisposable
                     sessionAnnounced = true;
                 }
                 attemptPath = SavePatientAttempt(sessionDir, index, attempt, block);
+                attemptPaths.Add(attemptPath);
 
                 var checksumValid = ErgProtocol.ValidateChecksum(block);
                 if (!checksumValid)
@@ -414,6 +416,10 @@ public sealed class ReportGenerationService : IDisposable
                         docxPathForNotification = docxPath ?? "<не создан>";
                     }
                     _telegram?.NotifyPatientProcessed(index, patient, finalRawPath, jsonPath, pdfPathForNotification, docxPathForNotification);
+
+                    var pdfActuallySaved = !string.IsNullOrEmpty(pdfPath);
+                    var docxActuallySaved = !string.IsNullOrEmpty(docxPath);
+                    CleanupRawFilesIfNeeded(finalRawPath, attemptPaths, pdfRequiredForSuccess, pdfSavedSuccessfully, pdfActuallySaved, docxActuallySaved);
                 }
 
                 requestNextPatient = true;
@@ -685,6 +691,73 @@ public sealed class ReportGenerationService : IDisposable
             AnimalKind.Other => "Прочие",
             _ => animal.ToString()
         };
+
+    private void CleanupRawFilesIfNeeded(string? finalRawPath, List<string> attemptPaths, bool pdfRequiredForSuccess, bool pdfSavedSuccessfully, bool pdfActuallySaved, bool docxActuallySaved)
+    {
+        if (string.IsNullOrWhiteSpace(finalRawPath))
+        {
+            return;
+        }
+
+        if (_settings.Current.KeepRawPatientFiles)
+        {
+            return;
+        }
+
+        if (_settings.Current.Telegram?.ForwardRawData == true)
+        {
+            _log.Debug($"RAW-файлы сохранены для пересылки в Telegram: {finalRawPath}.");
+            return;
+        }
+
+        bool success = (pdfRequiredForSuccess && pdfSavedSuccessfully && pdfActuallySaved)
+            || (!pdfRequiredForSuccess && (pdfActuallySaved || docxActuallySaved));
+
+        if (!success)
+        {
+            _log.Debug($"RAW-файлы сохранены для диагностики: отчёт не сформирован ({finalRawPath}).");
+            return;
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in attemptPaths)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                continue;
+            }
+
+            if (!seen.Add(path))
+            {
+                continue;
+            }
+
+            TryDeleteFile(path, $"промежуточный дамп пациента {Path.GetFileName(path)}");
+        }
+
+        if (seen.Add(finalRawPath))
+        {
+            TryDeleteFile(finalRawPath, $"финальный дамп пациента {Path.GetFileName(finalRawPath)}");
+        }
+    }
+
+    private void TryDeleteFile(string path, string description)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return;
+            }
+
+            File.Delete(path);
+            _log.Debug($"Удалён {description}: {path}");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Не удалось удалить {description}: {ex.Message}");
+        }
+    }
 
     private void CancelLoop()
     {

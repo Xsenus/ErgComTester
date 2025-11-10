@@ -93,7 +93,10 @@ public sealed class SettingsService
             saveRequired = true;
         }
 
-        Directory.CreateDirectory(_settings.LogsDirectory);
+        if (_settings.WriteLogsToFile && !string.IsNullOrWhiteSpace(_settings.LogsDirectory))
+        {
+            Directory.CreateDirectory(_settings.LogsDirectory);
+        }
         Directory.CreateDirectory(_settings.ReportsDirectory);
 
         if (_settings.Serial != null)

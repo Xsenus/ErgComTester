@@ -29,6 +29,7 @@ namespace MicroluxErgConnect.Views
         };
         private TextBox[] _headerTextBoxes = Array.Empty<TextBox>();
         private bool _startupMinimized;
+        private bool _startupNotificationShown;
 
         public MainForm()
         {
@@ -727,11 +728,7 @@ namespace MicroluxErgConnect.Views
             }
 
             var message = $"Сохранено {total} ЭРГ-отчёт(а/ов).";
-            trayIcon.BalloonTipTitle = "Microlux ERG-Connect";
-            trayIcon.BalloonTipText = message;
-            trayIcon.BalloonTipIcon = ToolTipIcon.Info;
-            trayIcon.Visible = true;
-            trayIcon.ShowBalloonTip(5000);
+            ShowTrayNotification(message);
         }
 
         private void OnHeaderLineValidated(object? sender, EventArgs e)
@@ -1081,10 +1078,26 @@ namespace MicroluxErgConnect.Views
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
+
+            if (!_startupNotificationShown)
+            {
+                _startupNotificationShown = true;
+                ShowTrayNotification("Приложение запущено.");
+            }
+
             if (Visible && WindowState == FormWindowState.Normal)
             {
                 AppServices.Log.Info("Главное окно отображено пользователю.");
             }
+        }
+
+        private void ShowTrayNotification(string message, ToolTipIcon icon = ToolTipIcon.Info)
+        {
+            trayIcon.BalloonTipTitle = "Microlux ERG-Connect";
+            trayIcon.BalloonTipText = message;
+            trayIcon.BalloonTipIcon = icon;
+            trayIcon.Visible = true;
+            trayIcon.ShowBalloonTip(5000);
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)

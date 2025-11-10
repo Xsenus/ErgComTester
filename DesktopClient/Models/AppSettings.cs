@@ -18,12 +18,14 @@ public class AppSettings
     public string UpdateManifestUrl { get; set; } = DefaultManifestUrl;
     public SerialCommunicationOptions Serial { get; set; } = SerialCommunicationOptions.CreateDefault();
     public int BackgroundSyncIntervalMinutes { get; set; } = 30;
-    public string ReportsDirectory { get; set; } = Path.Combine(AppContext.BaseDirectory ?? Environment.CurrentDirectory, "out");
+    public string ReportsDirectory { get; set; } = ResolveDefaultReportsDirectory();
     public string LogsDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Microlux ERG Connect", "Logs");
     public bool MinimizeToTray { get; set; } = true;
     public bool StartMinimized { get; set; } = false;
     public TelegramSettings Telegram { get; set; } = TelegramSettings.CreateDefault();
     public bool GenerateWordReports { get; set; } = false;
+    public bool WriteLogsToFile { get; set; } = false;
+    public bool KeepRawPatientFiles { get; set; } = false;
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public ReportTemplate ReportTemplate { get; set; } = ReportTemplate.Client;
     [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -34,6 +36,31 @@ public class AppSettings
     public TimeSpan DeviceReconnectDelay => TimeSpan.FromSeconds(Math.Clamp(DeviceReconnectDelaySeconds, 5, 300));
     public TimeSpan UpdateCheckInterval => TimeSpan.FromMinutes(Math.Clamp(UpdateCheckIntervalMinutes, 5, 24 * 60));
     public TimeSpan BackgroundSyncInterval => TimeSpan.FromMinutes(Math.Clamp(BackgroundSyncIntervalMinutes, 5, 24 * 60));
+
+    private static string ResolveDefaultReportsDirectory()
+    {
+        var commonDocuments = Environment.GetFolderPath(Environment.SpecialFolder.CommonDocuments);
+        if (!string.IsNullOrWhiteSpace(commonDocuments))
+        {
+            try
+            {
+                var publicRoot = Path.GetFullPath(Path.Combine(commonDocuments, ".."));
+                return Path.Combine(publicRoot, "Microlux ERG-Reports");
+            }
+            catch
+            {
+                // Игнорируем ошибки и используем запасной путь ниже.
+            }
+        }
+
+        var fallbackBase = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        if (string.IsNullOrWhiteSpace(fallbackBase))
+        {
+            fallbackBase = Environment.CurrentDirectory;
+        }
+
+        return Path.Combine(fallbackBase, "Microlux ERG-Reports");
+    }
 }
 
 public sealed class GraphRenderOptionsDto

@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Xml.Linq;
 using AutoUpdaterDotNET;
 using ErgData;
@@ -38,12 +39,28 @@ public static class AppServices
 
         Settings = new SettingsService();
         Settings.LoadAsync().GetAwaiter().GetResult();
+        var startupSettingsImport = TryApplyStartupSettings();
         var graphPresetImport = TryImportGraphPreset();
         // RenderingSupport.Reload(Settings.Current.ReportRenderingMode);
         RenderingSupport.Reload(ReportRenderingMode.Legacy);
         ApplyGraphOptionsFromSettingsOrInitialize();
 
         Log = new LogService(Settings);
+        if (startupSettingsImport.Attempted)
+        {
+            if (!string.IsNullOrEmpty(startupSettingsImport.Path) && !string.IsNullOrWhiteSpace(startupSettingsImport.Error))
+            {
+                Log.Warn($"Не удалось применить стартовые настройки из файла {startupSettingsImport.Path}: {startupSettingsImport.Error}.");
+            }
+            else if (!string.IsNullOrEmpty(startupSettingsImport.Path) && startupSettingsImport.Changed)
+            {
+                Log.Info($"Стартовые настройки применены из файла {startupSettingsImport.Path}.");
+            }
+            else if (!string.IsNullOrEmpty(startupSettingsImport.Path))
+            {
+                Log.Info($"Файл стартовых настроек {startupSettingsImport.Path} прочитан, изменения не потребовались.");
+            }
+        }
         if (graphPresetImport.Attempted)
         {
             if (graphPresetImport.Applied && !string.IsNullOrEmpty(graphPresetImport.Path))
@@ -54,6 +71,10 @@ public static class AppServices
             {
                 Log.Warn($"Не удалось импортировать настройки графиков из файла {graphPresetImport.Path}: {graphPresetImport.Error}.");
             }
+            else if (!string.IsNullOrEmpty(graphPresetImport.Path))
+            {
+                Log.Info($"Файл настроек графиков {graphPresetImport.Path} прочитан, актуальные значения уже сохранены.");
+            }
         }
         Log.Section("Microlux ERG-Connect Desktop");
         var version = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0, 0);
@@ -63,7 +84,14 @@ public static class AppServices
         Log.Info($"Пользователь: {Environment.UserDomainName}\\{Environment.UserName} | x64={Environment.Is64BitProcess}");
         Log.Info($"Рабочая директория: {AppContext.BaseDirectory}");
         Log.Info($"Файл настроек: {Settings.SettingsPath} ({(File.Exists(Settings.SettingsPath) ? "существует" : "будет создан")})");
-        Log.Info($"Файл журнала: {Log.SessionLogPath}");
+        if (Log.IsFileLoggingEnabled)
+        {
+            Log.Info($"Файл журнала: {Log.SessionLogPath}");
+        }
+        else
+        {
+            Log.Info("Файл журнала: запись в файл отключена (WriteLogsToFile = false).");
+        }
         DumpSettings();
         Settings.SettingsChanged += (_, __) =>
         {
@@ -159,6 +187,141 @@ public static class AppServices
         var dto = Settings.Current.GraphOptions;
         if (dto is not null)
             dto.ApplyTo(ErgReportBuilder.GraphOptions);
+    }
+
+    private static StartupSettingsImportResult TryApplyStartupSettings()
+    {
+        var baseDir = AppContext.BaseDirectory ?? Environment.CurrentDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(baseDir, "start_settings.json"),
+            Path.Combine(baseDir, "StartSettings.json")
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (!File.Exists(candidate))
+            {
+                continue;
+            }
+
+            try
+            {
+                var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+                {
+                    PropertyNameCaseInsensitive = true,
+                    ReadCommentHandling = JsonCommentHandling.Skip,
+                    AllowTrailingCommas = true,
+                    NumberHandling = JsonNumberHandling.AllowReadingFromString
+                };
+
+                var dto = JsonSerializer.Deserialize<StartupSettingsDto>(File.ReadAllText(candidate), options);
+                if (dto is null)
+                {
+                    return StartupSettingsImportResult.Failure(candidate, "файл не содержит корректных данных");
+                }
+
+                var changed = ApplyStartupSettings(dto);
+                return StartupSettingsImportResult.Success(candidate, changed);
+            }
+            catch (Exception ex)
+            {
+                return StartupSettingsImportResult.Failure(candidate, ex.Message);
+            }
+        }
+
+        return StartupSettingsImportResult.NotFound;
+    }
+
+    private static bool ApplyStartupSettings(StartupSettingsDto dto)
+    {
+        var current = Settings.Current;
+
+        int? newScan = null;
+        if (dto.DeviceScanIntervalSeconds is { } scanSeconds)
+        {
+            var normalized = Math.Clamp(scanSeconds, 2, 60);
+            if (normalized != current.DeviceScanIntervalSeconds)
+            {
+                newScan = normalized;
+            }
+        }
+
+        int? newReconnect = null;
+        if (dto.DeviceReconnectDelaySeconds is { } reconnectSeconds)
+        {
+            var normalized = Math.Clamp(reconnectSeconds, 5, 300);
+            if (normalized != current.DeviceReconnectDelaySeconds)
+            {
+                newReconnect = normalized;
+            }
+        }
+
+        int? newSyncMinutes = null;
+        if (dto.BackgroundSyncIntervalMinutes is { } syncMinutes)
+        {
+            var normalized = Math.Clamp(syncMinutes, 5, 24 * 60);
+            if (normalized != current.BackgroundSyncIntervalMinutes)
+            {
+                newSyncMinutes = normalized;
+            }
+        }
+        else if (dto.BackgroundSyncIntervalSeconds is { } syncSeconds)
+        {
+            var minutes = (int)Math.Ceiling(syncSeconds / 60.0);
+            minutes = Math.Clamp(minutes, 5, 24 * 60);
+            if (minutes != current.BackgroundSyncIntervalMinutes)
+            {
+                newSyncMinutes = minutes;
+            }
+        }
+
+        bool? logsEnabled = dto.WriteLogsToFile ?? dto.EnableLogs;
+        if (logsEnabled.HasValue && logsEnabled.Value == current.WriteLogsToFile)
+        {
+            logsEnabled = null;
+        }
+
+        bool? keepRaw = dto.KeepRawPatientFiles ?? dto.KeepBinFiles;
+        if (keepRaw.HasValue && keepRaw.Value == current.KeepRawPatientFiles)
+        {
+            keepRaw = null;
+        }
+
+        if (newScan is null && newReconnect is null && newSyncMinutes is null && !logsEnabled.HasValue && !keepRaw.HasValue)
+        {
+            return false;
+        }
+
+        Settings.UpdateAsync(settings =>
+        {
+            if (newScan.HasValue)
+            {
+                settings.DeviceScanIntervalSeconds = newScan.Value;
+            }
+
+            if (newReconnect.HasValue)
+            {
+                settings.DeviceReconnectDelaySeconds = newReconnect.Value;
+            }
+
+            if (newSyncMinutes.HasValue)
+            {
+                settings.BackgroundSyncIntervalMinutes = newSyncMinutes.Value;
+            }
+
+            if (logsEnabled.HasValue)
+            {
+                settings.WriteLogsToFile = logsEnabled.Value;
+            }
+
+            if (keepRaw.HasValue)
+            {
+                settings.KeepRawPatientFiles = keepRaw.Value;
+            }
+        }).GetAwaiter().GetResult();
+
+        return true;
     }
 
     private static GraphPresetImportResult TryImportGraphPreset()
@@ -451,6 +614,7 @@ public static class AppServices
         Log.Info($"Синхронизация пациентов: interval={s.BackgroundSyncInterval.TotalMinutes} мин.");
         Log.Info($"Обновления: interval={s.UpdateCheckInterval.TotalMinutes} мин., авто-загрузка={(s.AutoDownloadUpdates ? "да" : "нет")}, manifest={s.UpdateManifestUrl}");
         Log.Info($"Каталоги: отчеты={s.ReportsDirectory}, логи={s.LogsDirectory}");
+        Log.Info($"Запись логов: {(s.WriteLogsToFile ? "включена" : "отключена")}, сохранение RAW={(s.KeepRawPatientFiles ? "включено" : "отключено")}");
         var serial = s.Serial;
         Log.Info($"COM-порт: baud={serial.BaudRate}, readTimeout={serial.ReadTimeoutMs}мс, writeTimeout={serial.WriteTimeoutMs}мс, quiet={serial.QuietTimeMs}мс, window={serial.MaxReadWindowMs}мс");
         Log.Info($"COM-параметры: DTR={(serial.DtrEnable ? "on" : "off")}, RTS={(serial.RtsEnable ? "on" : "off")}, toggle={(serial.ToggleLinesOnOpen ? "on" : "off")}, retries={serial.RetryCount}, minCI={serial.MinCommonInfoSize}, minPatient={serial.MinPatientBlockSize}");
@@ -492,6 +656,28 @@ public static class AppServices
         public static GraphPresetImportResult NotFound => new(false, false, null, null);
         public static GraphPresetImportResult Success(string path) => new(true, true, path, null);
         public static GraphPresetImportResult Failure(string path, string error) => new(true, false, path, error);
+    }
+
+    private readonly struct StartupSettingsImportResult
+    {
+        private StartupSettingsImportResult(bool attempted, bool applied, bool changed, string? path, string? error)
+        {
+            Attempted = attempted;
+            Applied = applied;
+            Changed = changed;
+            Path = path;
+            Error = error;
+        }
+
+        public bool Attempted { get; }
+        public bool Applied { get; }
+        public bool Changed { get; }
+        public string? Path { get; }
+        public string? Error { get; }
+
+        public static StartupSettingsImportResult NotFound => new(false, false, false, null, null);
+        public static StartupSettingsImportResult Success(string path, bool changed) => new(true, true, changed, path, null);
+        public static StartupSettingsImportResult Failure(string path, string error) => new(true, false, false, path, error);
     }
 
     public sealed class ExitRequestedEventArgs : EventArgs
