@@ -10,31 +10,45 @@ namespace MicroluxErgConnect.Services;
 public sealed class LogService : IDisposable, ILog
 {
     private readonly object _lock = new();
-    private readonly StreamWriter _writer;
+    private readonly TextWriter _writer;
+    private readonly bool _persistToFile;
 
     public event EventHandler<LogEntry>? LogAdded;
 
-    public string SessionLogPath { get; }
+    public string? SessionLogPath { get; }
 
     public LogService(SettingsService settings)
     {
-        Directory.CreateDirectory(settings.Current.LogsDirectory);
-        SessionLogPath = Path.Combine(settings.Current.LogsDirectory, $"ergconnect_{DateTime.Now:yyyyMMdd_HHmmss}.log");
-        _writer = new StreamWriter(File.Open(SessionLogPath, FileMode.Create, FileAccess.Write, FileShare.Read))
+        _persistToFile = settings.Current.EnableLogs;
+        if (_persistToFile)
         {
-            AutoFlush = true,
-            NewLine = "\n"
-        };
-        Info("Журнал сеанса создан.");
+            Directory.CreateDirectory(settings.Current.LogsDirectory);
+            SessionLogPath = Path.Combine(settings.Current.LogsDirectory, $"ergconnect_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+            _writer = TextWriter.Synchronized(new StreamWriter(File.Open(SessionLogPath, FileMode.Create, FileAccess.Write, FileShare.Read))
+            {
+                AutoFlush = true,
+                NewLine = "\n"
+            });
+        }
+        else
+        {
+            SessionLogPath = null;
+            _writer = TextWriter.Synchronized(TextWriter.Null);
+        }
+
+        Info(_persistToFile ? "Журнал сеанса создан." : "Файловый журнал отключен (запись в файл не ведется).");
     }
 
     private void Write(string level, string message)
     {
         var entry = new LogEntry(DateTime.Now, level, message);
-        lock (_lock)
+        if (_persistToFile)
         {
-            var line = string.Format(CultureInfo.InvariantCulture, "{0:yyyy-MM-dd HH:mm:ss.fff} [{1}] {2}", entry.Timestamp, level, message);
-            _writer.WriteLine(line);
+            lock (_lock)
+            {
+                var line = string.Format(CultureInfo.InvariantCulture, "{0:yyyy-MM-dd HH:mm:ss.fff} [{1}] {2}", entry.Timestamp, level, message);
+                _writer.WriteLine(line);
+            }
         }
         LogAdded?.Invoke(this, entry);
     }
@@ -71,9 +85,12 @@ public sealed class LogService : IDisposable, ILog
 
     public void Dispose()
     {
-        lock (_lock)
+        if (_persistToFile)
         {
-            _writer.Dispose();
+            lock (_lock)
+            {
+                _writer.Dispose();
+            }
         }
     }
 }

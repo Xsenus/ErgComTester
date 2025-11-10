@@ -22,13 +22,14 @@ namespace MicroluxErgConnect.Views
         private readonly MainViewModel _viewModel;
         private readonly string[] _headerPlaceholders =
         {
-            "Например: ФИО врача",
-            "Например: Должность и звание",
-            "Например: Название клиники",
-            "Например: Контактный телефон"
+            "Наименование клиники",
+            "Адрес",
+            "Телефон",
+            "Email и прочая информация"
         };
         private TextBox[] _headerTextBoxes = Array.Empty<TextBox>();
         private bool _startupMinimized;
+        private bool _startupNotificationShown;
 
         public MainForm()
         {
@@ -85,9 +86,10 @@ namespace MicroluxErgConnect.Views
             try
             {
                 var lines = ReportHeaderFormatter.Split(_viewModel.ReportHeader);
-                for (var i = 0; i < _headerTextBoxes.Length && i < lines.Length; i++)
+                for (var i = 0; i < _headerTextBoxes.Length; i++)
                 {
-                    _headerTextBoxes[i].Text = lines[i];
+                    var text = i < lines.Length ? lines[i] : string.Empty;
+                    _headerTextBoxes[i].Text = text;
                 }
             }
             finally
@@ -675,10 +677,11 @@ namespace MicroluxErgConnect.Views
             ApplySettingsToInputs();
 
             labelPath.Text = string.IsNullOrWhiteSpace(_viewModel.ReportsDirectory)
-                ? "Папка с отчетами"
+                ? "Папка для сохранения отчетов"
                 : _viewModel.ReportsDirectory;
 
             HideToTrayOnStartup();
+            ShowStartupNotification();
             ClearHeaderFocusIfEmpty();
         }
 
@@ -727,11 +730,7 @@ namespace MicroluxErgConnect.Views
             }
 
             var message = $"Сохранено {total} ЭРГ-отчёт(а/ов).";
-            trayIcon.BalloonTipTitle = "Microlux ERG-Connect";
-            trayIcon.BalloonTipText = message;
-            trayIcon.BalloonTipIcon = ToolTipIcon.Info;
-            trayIcon.Visible = true;
-            trayIcon.ShowBalloonTip(5000);
+            ShowTrayNotification(message);
         }
 
         private void OnHeaderLineValidated(object? sender, EventArgs e)
@@ -783,6 +782,31 @@ namespace MicroluxErgConnect.Views
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
             }
+        }
+
+        private void ShowStartupNotification()
+        {
+            if (_startupNotificationShown)
+            {
+                return;
+            }
+
+            ShowTrayNotification("Приложение запущено.");
+            _startupNotificationShown = true;
+        }
+
+        private void ShowTrayNotification(string message, ToolTipIcon icon = ToolTipIcon.Info)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return;
+            }
+
+            trayIcon.BalloonTipTitle = "Microlux ERG-Connect";
+            trayIcon.BalloonTipText = message;
+            trayIcon.BalloonTipIcon = icon;
+            trayIcon.Visible = true;
+            trayIcon.ShowBalloonTip(5000);
         }
 
         private void OnOpenLogsClicked(object? sender, EventArgs e)

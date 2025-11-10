@@ -75,7 +75,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            if (File.Exists(_log.SessionLogPath))
+            if (!string.IsNullOrWhiteSpace(_log.SessionLogPath) && File.Exists(_log.SessionLogPath))
             {
                 using var stream = new FileStream(_log.SessionLogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 using var reader = new StreamReader(stream);

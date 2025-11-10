@@ -304,6 +304,7 @@ public sealed class ReportGenerationService : IDisposable
                     string? pdfPath = null;
                     bool pdfRequiredForSuccess = _pdfGenerationEnabled;
                     bool pdfSavedSuccessfully = !pdfRequiredForSuccess;
+                    string? rawPathForNotification = finalRawPath;
                     if (_pdfGenerationEnabled)
                     {
                         var pdfNameInfo = ReportFileNaming.CreatePdfFileName(patient, DateTime.Now);
@@ -407,13 +408,25 @@ public sealed class ReportGenerationService : IDisposable
                     {
                         successfullySavedPatients++;
                     }
+
+                    if (!_settings.Current.SaveRawPatientFiles && !string.IsNullOrEmpty(finalRawPath))
+                    {
+                        var canDeleteRaw = (!pdfRequiredForSuccess || pdfSavedSuccessfully)
+                            && (!wordGenerationEnabled || docxPath != null);
+                        if (canDeleteRaw && TryDeleteFile(finalRawPath, $"[{portName}] пациент #{index}"))
+                        {
+                            rawPathForNotification = null;
+                            finalRawPath = null;
+                        }
+                    }
+
                     var pdfPathForNotification = pdfPath ?? "<не создан>";
                     string? docxPathForNotification = null;
                     if (wordGenerationEnabled)
                     {
                         docxPathForNotification = docxPath ?? "<не создан>";
                     }
-                    _telegram?.NotifyPatientProcessed(index, patient, finalRawPath, jsonPath, pdfPathForNotification, docxPathForNotification);
+                    _telegram?.NotifyPatientProcessed(index, patient, rawPathForNotification, jsonPath, pdfPathForNotification, docxPathForNotification);
                 }
 
                 requestNextPatient = true;
@@ -637,8 +650,34 @@ public sealed class ReportGenerationService : IDisposable
         if (!string.Equals(finalPath, attemptPath, StringComparison.OrdinalIgnoreCase))
         {
             _log.Debug($"Финальные данные пациента #{patientIndex} сохранены: {finalPath}");
+            TryDeleteFile(attemptPath, $"финальный дамп пациента #{patientIndex}", warnOnFailure: false);
         }
         return finalPath;
+    }
+
+    private bool TryDeleteFile(string path, string context, bool warnOnFailure = true)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+                _log.Debug($"{context}: файл удалён {path}.");
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            if (warnOnFailure)
+            {
+                _log.Warn($"{context}: не удалось удалить файл {path}: {ex.Message}");
+            }
+            else
+            {
+                _log.Debug($"{context}: не удалось удалить файл {path}: {ex.Message}");
+            }
+            return false;
+        }
     }
 
     private void LogPdfGenerationDisabled(string portName)

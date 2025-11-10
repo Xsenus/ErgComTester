@@ -78,9 +78,9 @@ partial class SettingsForm
         folderLabel.Location = new Point(0, 0);
         folderLabel.Margin = new Padding(0, 0, 12, 0);
         folderLabel.Name = "folderLabel";
-        folderLabel.Size = new Size(125, 15);
+        folderLabel.Size = new Size(172, 15);
         folderLabel.TabIndex = 0;
-        folderLabel.Text = "Каталог PDF-отчетов:";
+        folderLabel.Text = "Папка для сохранения отчетов:";
         // 
         // folderTextBox
         // 
