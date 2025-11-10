@@ -274,6 +274,29 @@ public sealed class SettingsService
             }
         }
 
+        if (TryReadString(root, "ReportsDirectory", out var reportsDirectory))
+        {
+            if (!string.IsNullOrWhiteSpace(reportsDirectory))
+            {
+                string resolved;
+                try
+                {
+                    resolved = Path.GetFullPath(reportsDirectory);
+                }
+                catch
+                {
+                    resolved = reportsDirectory;
+                }
+
+                if (!string.Equals(_settings.ReportsDirectory, resolved, StringComparison.OrdinalIgnoreCase))
+                {
+                    _settings.ReportsDirectory = resolved;
+                    applied.Add($"ReportsDirectory={resolved}");
+                    changed = true;
+                }
+            }
+        }
+
         if (!changed)
         {
             return StartSettingsImportResult.NoChanges(path);
@@ -341,6 +364,24 @@ public sealed class SettingsService
                 }
 
                 return false;
+            default:
+                return false;
+        }
+    }
+
+    private static bool TryReadString(Dictionary<string, JsonElement> root, string key, out string value)
+    {
+        value = string.Empty;
+        if (!root.TryGetValue(key, out var element))
+        {
+            return false;
+        }
+
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.String:
+                value = element.GetString() ?? string.Empty;
+                return true;
             default:
                 return false;
         }

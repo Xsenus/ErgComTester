@@ -44,10 +44,17 @@ public class AppSettings
             var commonDocuments = Environment.GetFolderPath(Environment.SpecialFolder.CommonDocuments);
             if (!string.IsNullOrWhiteSpace(commonDocuments))
             {
-                var publicRoot = Directory.GetParent(commonDocuments);
-                if (publicRoot is not null)
+                var trimmed = Path.TrimEndingDirectorySeparator(commonDocuments);
+                var publicRoot = Path.GetDirectoryName(trimmed);
+                if (!string.IsNullOrWhiteSpace(publicRoot))
                 {
-                    var candidate = Path.Combine(publicRoot.FullName, "Microlux ERG-Reports");
+                    var candidate = Path.Combine(publicRoot, "Microlux ERG-Reports");
+                    return Path.GetFullPath(candidate);
+                }
+
+                if (Directory.GetParent(trimmed) is { } parent)
+                {
+                    var candidate = Path.Combine(parent.FullName, "Microlux ERG-Reports");
                     return Path.GetFullPath(candidate);
                 }
             }
