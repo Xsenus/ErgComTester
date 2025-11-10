@@ -1069,6 +1069,7 @@ partial class MainForm
         // 
         // connectionLayout
         // 
+        connectionLayout.AutoSize = true;
         connectionLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         connectionLayout.BackColor = Color.White;
         connectionLayout.ColumnCount = 1;
@@ -1084,11 +1085,11 @@ partial class MainForm
         connectionLayout.Name = "connectionLayout";
         connectionLayout.Padding = new Padding(0, 4, 0, 4);
         connectionLayout.RowCount = 4;
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
-        connectionLayout.Size = new Size(364, 261);
+        connectionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        connectionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        connectionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        connectionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        connectionLayout.Size = new Size(364, 192);
         connectionLayout.TabIndex = 0;
         // 
         // textBoxCaption1Container
@@ -1100,7 +1101,7 @@ partial class MainForm
         textBoxCaption1Container.Margin = new Padding(0, 0, 0, 8);
         textBoxCaption1Container.Name = "textBoxCaption1Container";
         textBoxCaption1Container.Padding = new Padding(1);
-        textBoxCaption1Container.Size = new Size(364, 55);
+        textBoxCaption1Container.Size = new Size(364, 40);
         textBoxCaption1Container.TabIndex = 0;
         // 
         // textBoxCaption1Inner
@@ -1110,8 +1111,8 @@ partial class MainForm
         textBoxCaption1Inner.Dock = DockStyle.Fill;
         textBoxCaption1Inner.Location = new Point(1, 1);
         textBoxCaption1Inner.Name = "textBoxCaption1Inner";
-        textBoxCaption1Inner.Padding = new Padding(8, 6, 8, 6);
-        textBoxCaption1Inner.Size = new Size(362, 53);
+        textBoxCaption1Inner.Padding = new Padding(8, 5, 8, 5);
+        textBoxCaption1Inner.Size = new Size(362, 38);
         textBoxCaption1Inner.TabIndex = 0;
         // 
         // textBoxCaption1
@@ -1120,7 +1121,7 @@ partial class MainForm
         textBoxCaption1.BorderStyle = BorderStyle.None;
         textBoxCaption1.Dock = DockStyle.Fill;
         textBoxCaption1.Font = new Font("Segoe UI", 10F);
-        textBoxCaption1.Location = new Point(8, 6);
+        textBoxCaption1.Location = new Point(8, 5);
         textBoxCaption1.Margin = new Padding(0);
         textBoxCaption1.Name = "textBoxCaption1";
         textBoxCaption1.Size = new Size(346, 18);
@@ -1132,11 +1133,11 @@ partial class MainForm
         textBoxCaption2Container.BackColor = Color.FromArgb(210, 217, 226);
         textBoxCaption2Container.Controls.Add(textBoxCaption2Inner);
         textBoxCaption2Container.Dock = DockStyle.Fill;
-        textBoxCaption2Container.Location = new Point(0, 67);
+        textBoxCaption2Container.Location = new Point(0, 52);
         textBoxCaption2Container.Margin = new Padding(0, 0, 0, 8);
         textBoxCaption2Container.Name = "textBoxCaption2Container";
         textBoxCaption2Container.Padding = new Padding(1);
-        textBoxCaption2Container.Size = new Size(364, 55);
+        textBoxCaption2Container.Size = new Size(364, 40);
         textBoxCaption2Container.TabIndex = 1;
         // 
         // textBoxCaption2Inner
@@ -1146,8 +1147,8 @@ partial class MainForm
         textBoxCaption2Inner.Dock = DockStyle.Fill;
         textBoxCaption2Inner.Location = new Point(1, 1);
         textBoxCaption2Inner.Name = "textBoxCaption2Inner";
-        textBoxCaption2Inner.Padding = new Padding(8, 6, 8, 6);
-        textBoxCaption2Inner.Size = new Size(362, 53);
+        textBoxCaption2Inner.Padding = new Padding(8, 5, 8, 5);
+        textBoxCaption2Inner.Size = new Size(362, 38);
         textBoxCaption2Inner.TabIndex = 0;
         // 
         // textBoxCaption2
@@ -1156,7 +1157,7 @@ partial class MainForm
         textBoxCaption2.BorderStyle = BorderStyle.None;
         textBoxCaption2.Dock = DockStyle.Fill;
         textBoxCaption2.Font = new Font("Segoe UI", 10F);
-        textBoxCaption2.Location = new Point(8, 6);
+        textBoxCaption2.Location = new Point(8, 5);
         textBoxCaption2.Margin = new Padding(0);
         textBoxCaption2.Name = "textBoxCaption2";
         textBoxCaption2.Size = new Size(346, 18);
@@ -1168,11 +1169,11 @@ partial class MainForm
         textBoxCaption3Container.BackColor = Color.FromArgb(210, 217, 226);
         textBoxCaption3Container.Controls.Add(textBoxCaption3Inner);
         textBoxCaption3Container.Dock = DockStyle.Fill;
-        textBoxCaption3Container.Location = new Point(0, 130);
+        textBoxCaption3Container.Location = new Point(0, 100);
         textBoxCaption3Container.Margin = new Padding(0, 0, 0, 8);
         textBoxCaption3Container.Name = "textBoxCaption3Container";
         textBoxCaption3Container.Padding = new Padding(1);
-        textBoxCaption3Container.Size = new Size(364, 55);
+        textBoxCaption3Container.Size = new Size(364, 40);
         textBoxCaption3Container.TabIndex = 2;
         // 
         // textBoxCaption3Inner
@@ -1182,8 +1183,8 @@ partial class MainForm
         textBoxCaption3Inner.Dock = DockStyle.Fill;
         textBoxCaption3Inner.Location = new Point(1, 1);
         textBoxCaption3Inner.Name = "textBoxCaption3Inner";
-        textBoxCaption3Inner.Padding = new Padding(8, 6, 8, 6);
-        textBoxCaption3Inner.Size = new Size(362, 53);
+        textBoxCaption3Inner.Padding = new Padding(8, 5, 8, 5);
+        textBoxCaption3Inner.Size = new Size(362, 38);
         textBoxCaption3Inner.TabIndex = 0;
         // 
         // textBoxCaption3
@@ -1192,7 +1193,7 @@ partial class MainForm
         textBoxCaption3.BorderStyle = BorderStyle.None;
         textBoxCaption3.Dock = DockStyle.Fill;
         textBoxCaption3.Font = new Font("Segoe UI", 10F);
-        textBoxCaption3.Location = new Point(8, 6);
+        textBoxCaption3.Location = new Point(8, 5);
         textBoxCaption3.Margin = new Padding(0);
         textBoxCaption3.Name = "textBoxCaption3";
         textBoxCaption3.Size = new Size(346, 18);
@@ -1204,11 +1205,11 @@ partial class MainForm
         textBoxCaption4Container.BackColor = Color.FromArgb(210, 217, 226);
         textBoxCaption4Container.Controls.Add(textBoxCaption4Inner);
         textBoxCaption4Container.Dock = DockStyle.Fill;
-        textBoxCaption4Container.Location = new Point(0, 193);
+        textBoxCaption4Container.Location = new Point(0, 148);
         textBoxCaption4Container.Margin = new Padding(0);
         textBoxCaption4Container.Name = "textBoxCaption4Container";
         textBoxCaption4Container.Padding = new Padding(1);
-        textBoxCaption4Container.Size = new Size(364, 64);
+        textBoxCaption4Container.Size = new Size(364, 40);
         textBoxCaption4Container.TabIndex = 3;
         // 
         // textBoxCaption4Inner
@@ -1218,8 +1219,8 @@ partial class MainForm
         textBoxCaption4Inner.Dock = DockStyle.Fill;
         textBoxCaption4Inner.Location = new Point(1, 1);
         textBoxCaption4Inner.Name = "textBoxCaption4Inner";
-        textBoxCaption4Inner.Padding = new Padding(8, 6, 8, 6);
-        textBoxCaption4Inner.Size = new Size(362, 62);
+        textBoxCaption4Inner.Padding = new Padding(8, 5, 8, 5);
+        textBoxCaption4Inner.Size = new Size(362, 38);
         textBoxCaption4Inner.TabIndex = 0;
         // 
         // textBoxCaption4
@@ -1228,7 +1229,7 @@ partial class MainForm
         textBoxCaption4.BorderStyle = BorderStyle.None;
         textBoxCaption4.Dock = DockStyle.Fill;
         textBoxCaption4.Font = new Font("Segoe UI", 10F);
-        textBoxCaption4.Location = new Point(8, 6);
+        textBoxCaption4.Location = new Point(8, 5);
         textBoxCaption4.Margin = new Padding(0);
         textBoxCaption4.Name = "textBoxCaption4";
         textBoxCaption4.Size = new Size(346, 18);
