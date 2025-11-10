@@ -3,5 +3,6 @@
   "DeviceReconnectDelaySeconds": 15,
   "BackgroundSyncIntervalMinutes": 30,
   "EnableLogs": 0,
-  "SaveRawPatientFiles": 0
+  "SaveRawPatientFiles": 0,
+  "ReportsDirectory": "C:\\Users\\Public\\Microlux ERG-Reports"
 }

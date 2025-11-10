@@ -62,6 +62,18 @@ dotnet publish DesktopClient/MicroluxErgConnect.Desktop.csproj -c Release -r win
 
 > ⚙️ Стандартный pipeline GitHub Actions (`dotnet build` + `dotnet publish` без явного указания RID) тоже выпускает x86-артефакт, потому что в `.csproj` по умолчанию прописаны `PlatformTarget=x86` и `RuntimeIdentifier=win-x86`. На 32-битных машинах достаточно установить [Desktop Runtime .NET 8 (x86)](https://dotnet.microsoft.com/ru-ru/download/dotnet/8.0), распаковать архив из CI и запустить `MicroluxErgConnect.Desktop.exe`.
 
+## Первоначальная настройка
+
+При первом запуске настольный клиент создаёт файл `settings.json` в каталоге `%AppData%/MicroluxErgConnect/` и заполняет его значениями по умолчанию. Чтобы подготовить рабочее место до старта программы (например, на новом компьютере), рядом с `MicroluxErgConnect.Desktop.exe` можно разместить файл `start_settings.json`. Он будет считан один раз при запуске; поддерживаются параметры из [`DesktopClient/start_settings.sample.json`](DesktopClient/start_settings.sample.json). Так можно заранее задать альтернативный путь к отчётам:
+
+```json
+{
+  "ReportsDirectory": "D:\\ERG-Reports"
+}
+```
+
+Если каталог существует, приложение начнёт использовать его по умолчанию; при необходимости путь будет создан автоматически.
+
 ## Обновления
 - URL манифеста и частоту проверки можно задать на вкладке «Обновления».
 - Манифест ожидается в формате JSON:
@@ -78,7 +90,7 @@ dotnet publish DesktopClient/MicroluxErgConnect.Desktop.csproj -c Release -r win
 ## Каталоги приложения
 - Настройки: `%AppData%/MicroluxErgConnect/settings.json`
 - Логи: `Документы/Microlux ERG Connect/Logs/`
-- Отчёты: `Документы/Microlux ERG Connect/Reports/<дата>/`
+- Отчёты: `C:\\Users\\Public\\Microlux ERG-Reports/`
 
 ## Telegram-уведомления
 Клиент умеет отправлять подробные уведомления в Telegram о запуске и остановке приложения, подключении прибора,
