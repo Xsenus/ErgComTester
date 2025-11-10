@@ -1078,7 +1078,8 @@ partial class MainForm
         connectionLayout.Controls.Add(textBoxCaption2Container, 0, 1);
         connectionLayout.Controls.Add(textBoxCaption3Container, 0, 2);
         connectionLayout.Controls.Add(textBoxCaption4Container, 0, 3);
-        connectionLayout.Dock = DockStyle.Fill;
+        connectionLayout.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        connectionLayout.Dock = DockStyle.Top;
         connectionLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
         connectionLayout.Location = new Point(16, 30);
         connectionLayout.Margin = new Padding(0);
@@ -1101,7 +1102,9 @@ partial class MainForm
         textBoxCaption1Container.Margin = new Padding(0, 0, 0, 8);
         textBoxCaption1Container.Name = "textBoxCaption1Container";
         textBoxCaption1Container.Padding = new Padding(1);
-        textBoxCaption1Container.Size = new Size(364, 40);
+        textBoxCaption1Container.MinimumSize = new Size(0, 34);
+        textBoxCaption1Container.MaximumSize = new Size(int.MaxValue, 34);
+        textBoxCaption1Container.Size = new Size(364, 34);
         textBoxCaption1Container.TabIndex = 0;
         // 
         // textBoxCaption1Inner
@@ -1111,8 +1114,8 @@ partial class MainForm
         textBoxCaption1Inner.Dock = DockStyle.Fill;
         textBoxCaption1Inner.Location = new Point(1, 1);
         textBoxCaption1Inner.Name = "textBoxCaption1Inner";
-        textBoxCaption1Inner.Padding = new Padding(8, 5, 8, 5);
-        textBoxCaption1Inner.Size = new Size(362, 38);
+        textBoxCaption1Inner.Padding = new Padding(8, 4, 8, 4);
+        textBoxCaption1Inner.Size = new Size(362, 32);
         textBoxCaption1Inner.TabIndex = 0;
         // 
         // textBoxCaption1
@@ -1124,7 +1127,7 @@ partial class MainForm
         textBoxCaption1.Location = new Point(8, 5);
         textBoxCaption1.Margin = new Padding(0);
         textBoxCaption1.Name = "textBoxCaption1";
-        textBoxCaption1.Size = new Size(346, 18);
+        textBoxCaption1.Size = new Size(346, 24);
         textBoxCaption1.TabIndex = 0;
         textBoxCaption1.TextAlign = HorizontalAlignment.Center;
         // 
@@ -1137,7 +1140,9 @@ partial class MainForm
         textBoxCaption2Container.Margin = new Padding(0, 0, 0, 8);
         textBoxCaption2Container.Name = "textBoxCaption2Container";
         textBoxCaption2Container.Padding = new Padding(1);
-        textBoxCaption2Container.Size = new Size(364, 40);
+        textBoxCaption2Container.MinimumSize = new Size(0, 34);
+        textBoxCaption2Container.MaximumSize = new Size(int.MaxValue, 34);
+        textBoxCaption2Container.Size = new Size(364, 34);
         textBoxCaption2Container.TabIndex = 1;
         // 
         // textBoxCaption2Inner
@@ -1147,8 +1152,8 @@ partial class MainForm
         textBoxCaption2Inner.Dock = DockStyle.Fill;
         textBoxCaption2Inner.Location = new Point(1, 1);
         textBoxCaption2Inner.Name = "textBoxCaption2Inner";
-        textBoxCaption2Inner.Padding = new Padding(8, 5, 8, 5);
-        textBoxCaption2Inner.Size = new Size(362, 38);
+        textBoxCaption2Inner.Padding = new Padding(8, 4, 8, 4);
+        textBoxCaption2Inner.Size = new Size(362, 32);
         textBoxCaption2Inner.TabIndex = 0;
         // 
         // textBoxCaption2
@@ -1160,7 +1165,7 @@ partial class MainForm
         textBoxCaption2.Location = new Point(8, 5);
         textBoxCaption2.Margin = new Padding(0);
         textBoxCaption2.Name = "textBoxCaption2";
-        textBoxCaption2.Size = new Size(346, 18);
+        textBoxCaption2.Size = new Size(346, 24);
         textBoxCaption2.TabIndex = 1;
         textBoxCaption2.TextAlign = HorizontalAlignment.Center;
         // 
@@ -1173,7 +1178,9 @@ partial class MainForm
         textBoxCaption3Container.Margin = new Padding(0, 0, 0, 8);
         textBoxCaption3Container.Name = "textBoxCaption3Container";
         textBoxCaption3Container.Padding = new Padding(1);
-        textBoxCaption3Container.Size = new Size(364, 40);
+        textBoxCaption3Container.MinimumSize = new Size(0, 34);
+        textBoxCaption3Container.MaximumSize = new Size(int.MaxValue, 34);
+        textBoxCaption3Container.Size = new Size(364, 34);
         textBoxCaption3Container.TabIndex = 2;
         // 
         // textBoxCaption3Inner
@@ -1183,8 +1190,8 @@ partial class MainForm
         textBoxCaption3Inner.Dock = DockStyle.Fill;
         textBoxCaption3Inner.Location = new Point(1, 1);
         textBoxCaption3Inner.Name = "textBoxCaption3Inner";
-        textBoxCaption3Inner.Padding = new Padding(8, 5, 8, 5);
-        textBoxCaption3Inner.Size = new Size(362, 38);
+        textBoxCaption3Inner.Padding = new Padding(8, 4, 8, 4);
+        textBoxCaption3Inner.Size = new Size(362, 32);
         textBoxCaption3Inner.TabIndex = 0;
         // 
         // textBoxCaption3
@@ -1196,7 +1203,7 @@ partial class MainForm
         textBoxCaption3.Location = new Point(8, 5);
         textBoxCaption3.Margin = new Padding(0);
         textBoxCaption3.Name = "textBoxCaption3";
-        textBoxCaption3.Size = new Size(346, 18);
+        textBoxCaption3.Size = new Size(346, 24);
         textBoxCaption3.TabIndex = 2;
         textBoxCaption3.TextAlign = HorizontalAlignment.Center;
         // 
@@ -1209,7 +1216,9 @@ partial class MainForm
         textBoxCaption4Container.Margin = new Padding(0);
         textBoxCaption4Container.Name = "textBoxCaption4Container";
         textBoxCaption4Container.Padding = new Padding(1);
-        textBoxCaption4Container.Size = new Size(364, 40);
+        textBoxCaption4Container.MinimumSize = new Size(0, 34);
+        textBoxCaption4Container.MaximumSize = new Size(int.MaxValue, 34);
+        textBoxCaption4Container.Size = new Size(364, 34);
         textBoxCaption4Container.TabIndex = 3;
         // 
         // textBoxCaption4Inner
@@ -1219,8 +1228,8 @@ partial class MainForm
         textBoxCaption4Inner.Dock = DockStyle.Fill;
         textBoxCaption4Inner.Location = new Point(1, 1);
         textBoxCaption4Inner.Name = "textBoxCaption4Inner";
-        textBoxCaption4Inner.Padding = new Padding(8, 5, 8, 5);
-        textBoxCaption4Inner.Size = new Size(362, 38);
+        textBoxCaption4Inner.Padding = new Padding(8, 4, 8, 4);
+        textBoxCaption4Inner.Size = new Size(362, 32);
         textBoxCaption4Inner.TabIndex = 0;
         // 
         // textBoxCaption4
@@ -1232,7 +1241,7 @@ partial class MainForm
         textBoxCaption4.Location = new Point(8, 5);
         textBoxCaption4.Margin = new Padding(0);
         textBoxCaption4.Name = "textBoxCaption4";
-        textBoxCaption4.Size = new Size(346, 18);
+        textBoxCaption4.Size = new Size(346, 24);
         textBoxCaption4.TabIndex = 3;
         textBoxCaption4.TextAlign = HorizontalAlignment.Center;
         // 
