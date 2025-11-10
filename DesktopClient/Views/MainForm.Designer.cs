@@ -1062,13 +1062,14 @@ partial class MainForm
         connectionGroup.Margin = new Padding(12, 0, 0, 0);
         connectionGroup.Name = "connectionGroup";
         connectionGroup.Padding = new Padding(16, 12, 16, 12);
-        connectionGroup.Size = new Size(396, 303);
+        connectionGroup.Size = new Size(410, 214);
         connectionGroup.TabIndex = 0;
         connectionGroup.TabStop = false;
         connectionGroup.Text = "Реквизиты клиники";
         // 
         // connectionLayout
         // 
+        connectionLayout.AutoSize = true;
         connectionLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         connectionLayout.BackColor = Color.White;
         connectionLayout.ColumnCount = 1;
@@ -1077,18 +1078,18 @@ partial class MainForm
         connectionLayout.Controls.Add(textBoxCaption2Container, 0, 1);
         connectionLayout.Controls.Add(textBoxCaption3Container, 0, 2);
         connectionLayout.Controls.Add(textBoxCaption4Container, 0, 3);
-        connectionLayout.Dock = DockStyle.Fill;
+        connectionLayout.Dock = DockStyle.Top;
         connectionLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
         connectionLayout.Location = new Point(16, 30);
         connectionLayout.Margin = new Padding(0);
         connectionLayout.Name = "connectionLayout";
         connectionLayout.Padding = new Padding(0, 4, 0, 4);
         connectionLayout.RowCount = 4;
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
-        connectionLayout.Size = new Size(364, 261);
+        connectionLayout.RowStyles.Add(new RowStyle());
+        connectionLayout.RowStyles.Add(new RowStyle());
+        connectionLayout.RowStyles.Add(new RowStyle());
+        connectionLayout.RowStyles.Add(new RowStyle());
+        connectionLayout.Size = new Size(378, 168);
         connectionLayout.TabIndex = 0;
         // 
         // textBoxCaption1Container
@@ -1098,9 +1099,11 @@ partial class MainForm
         textBoxCaption1Container.Dock = DockStyle.Fill;
         textBoxCaption1Container.Location = new Point(0, 4);
         textBoxCaption1Container.Margin = new Padding(0, 0, 0, 8);
+        textBoxCaption1Container.MaximumSize = new Size(int.MaxValue, 34);
+        textBoxCaption1Container.MinimumSize = new Size(0, 34);
         textBoxCaption1Container.Name = "textBoxCaption1Container";
         textBoxCaption1Container.Padding = new Padding(1);
-        textBoxCaption1Container.Size = new Size(364, 55);
+        textBoxCaption1Container.Size = new Size(378, 34);
         textBoxCaption1Container.TabIndex = 0;
         // 
         // textBoxCaption1Inner
@@ -1110,8 +1113,8 @@ partial class MainForm
         textBoxCaption1Inner.Dock = DockStyle.Fill;
         textBoxCaption1Inner.Location = new Point(1, 1);
         textBoxCaption1Inner.Name = "textBoxCaption1Inner";
-        textBoxCaption1Inner.Padding = new Padding(8, 6, 8, 6);
-        textBoxCaption1Inner.Size = new Size(362, 53);
+        textBoxCaption1Inner.Padding = new Padding(8, 4, 8, 4);
+        textBoxCaption1Inner.Size = new Size(376, 32);
         textBoxCaption1Inner.TabIndex = 0;
         // 
         // textBoxCaption1
@@ -1120,10 +1123,10 @@ partial class MainForm
         textBoxCaption1.BorderStyle = BorderStyle.None;
         textBoxCaption1.Dock = DockStyle.Fill;
         textBoxCaption1.Font = new Font("Segoe UI", 10F);
-        textBoxCaption1.Location = new Point(8, 6);
+        textBoxCaption1.Location = new Point(8, 4);
         textBoxCaption1.Margin = new Padding(0);
         textBoxCaption1.Name = "textBoxCaption1";
-        textBoxCaption1.Size = new Size(346, 18);
+        textBoxCaption1.Size = new Size(360, 18);
         textBoxCaption1.TabIndex = 0;
         textBoxCaption1.TextAlign = HorizontalAlignment.Center;
         // 
@@ -1132,11 +1135,13 @@ partial class MainForm
         textBoxCaption2Container.BackColor = Color.FromArgb(210, 217, 226);
         textBoxCaption2Container.Controls.Add(textBoxCaption2Inner);
         textBoxCaption2Container.Dock = DockStyle.Fill;
-        textBoxCaption2Container.Location = new Point(0, 67);
+        textBoxCaption2Container.Location = new Point(0, 46);
         textBoxCaption2Container.Margin = new Padding(0, 0, 0, 8);
+        textBoxCaption2Container.MaximumSize = new Size(int.MaxValue, 34);
+        textBoxCaption2Container.MinimumSize = new Size(0, 34);
         textBoxCaption2Container.Name = "textBoxCaption2Container";
         textBoxCaption2Container.Padding = new Padding(1);
-        textBoxCaption2Container.Size = new Size(364, 55);
+        textBoxCaption2Container.Size = new Size(378, 34);
         textBoxCaption2Container.TabIndex = 1;
         // 
         // textBoxCaption2Inner
@@ -1146,8 +1151,8 @@ partial class MainForm
         textBoxCaption2Inner.Dock = DockStyle.Fill;
         textBoxCaption2Inner.Location = new Point(1, 1);
         textBoxCaption2Inner.Name = "textBoxCaption2Inner";
-        textBoxCaption2Inner.Padding = new Padding(8, 6, 8, 6);
-        textBoxCaption2Inner.Size = new Size(362, 53);
+        textBoxCaption2Inner.Padding = new Padding(8, 4, 8, 4);
+        textBoxCaption2Inner.Size = new Size(376, 32);
         textBoxCaption2Inner.TabIndex = 0;
         // 
         // textBoxCaption2
@@ -1156,10 +1161,10 @@ partial class MainForm
         textBoxCaption2.BorderStyle = BorderStyle.None;
         textBoxCaption2.Dock = DockStyle.Fill;
         textBoxCaption2.Font = new Font("Segoe UI", 10F);
-        textBoxCaption2.Location = new Point(8, 6);
+        textBoxCaption2.Location = new Point(8, 4);
         textBoxCaption2.Margin = new Padding(0);
         textBoxCaption2.Name = "textBoxCaption2";
-        textBoxCaption2.Size = new Size(346, 18);
+        textBoxCaption2.Size = new Size(360, 18);
         textBoxCaption2.TabIndex = 1;
         textBoxCaption2.TextAlign = HorizontalAlignment.Center;
         // 
@@ -1168,11 +1173,13 @@ partial class MainForm
         textBoxCaption3Container.BackColor = Color.FromArgb(210, 217, 226);
         textBoxCaption3Container.Controls.Add(textBoxCaption3Inner);
         textBoxCaption3Container.Dock = DockStyle.Fill;
-        textBoxCaption3Container.Location = new Point(0, 130);
+        textBoxCaption3Container.Location = new Point(0, 88);
         textBoxCaption3Container.Margin = new Padding(0, 0, 0, 8);
+        textBoxCaption3Container.MaximumSize = new Size(int.MaxValue, 34);
+        textBoxCaption3Container.MinimumSize = new Size(0, 34);
         textBoxCaption3Container.Name = "textBoxCaption3Container";
         textBoxCaption3Container.Padding = new Padding(1);
-        textBoxCaption3Container.Size = new Size(364, 55);
+        textBoxCaption3Container.Size = new Size(378, 34);
         textBoxCaption3Container.TabIndex = 2;
         // 
         // textBoxCaption3Inner
@@ -1182,8 +1189,8 @@ partial class MainForm
         textBoxCaption3Inner.Dock = DockStyle.Fill;
         textBoxCaption3Inner.Location = new Point(1, 1);
         textBoxCaption3Inner.Name = "textBoxCaption3Inner";
-        textBoxCaption3Inner.Padding = new Padding(8, 6, 8, 6);
-        textBoxCaption3Inner.Size = new Size(362, 53);
+        textBoxCaption3Inner.Padding = new Padding(8, 4, 8, 4);
+        textBoxCaption3Inner.Size = new Size(376, 32);
         textBoxCaption3Inner.TabIndex = 0;
         // 
         // textBoxCaption3
@@ -1192,10 +1199,10 @@ partial class MainForm
         textBoxCaption3.BorderStyle = BorderStyle.None;
         textBoxCaption3.Dock = DockStyle.Fill;
         textBoxCaption3.Font = new Font("Segoe UI", 10F);
-        textBoxCaption3.Location = new Point(8, 6);
+        textBoxCaption3.Location = new Point(8, 4);
         textBoxCaption3.Margin = new Padding(0);
         textBoxCaption3.Name = "textBoxCaption3";
-        textBoxCaption3.Size = new Size(346, 18);
+        textBoxCaption3.Size = new Size(360, 18);
         textBoxCaption3.TabIndex = 2;
         textBoxCaption3.TextAlign = HorizontalAlignment.Center;
         // 
@@ -1204,11 +1211,13 @@ partial class MainForm
         textBoxCaption4Container.BackColor = Color.FromArgb(210, 217, 226);
         textBoxCaption4Container.Controls.Add(textBoxCaption4Inner);
         textBoxCaption4Container.Dock = DockStyle.Fill;
-        textBoxCaption4Container.Location = new Point(0, 193);
+        textBoxCaption4Container.Location = new Point(0, 130);
         textBoxCaption4Container.Margin = new Padding(0);
+        textBoxCaption4Container.MaximumSize = new Size(int.MaxValue, 34);
+        textBoxCaption4Container.MinimumSize = new Size(0, 34);
         textBoxCaption4Container.Name = "textBoxCaption4Container";
         textBoxCaption4Container.Padding = new Padding(1);
-        textBoxCaption4Container.Size = new Size(364, 64);
+        textBoxCaption4Container.Size = new Size(378, 34);
         textBoxCaption4Container.TabIndex = 3;
         // 
         // textBoxCaption4Inner
@@ -1218,8 +1227,8 @@ partial class MainForm
         textBoxCaption4Inner.Dock = DockStyle.Fill;
         textBoxCaption4Inner.Location = new Point(1, 1);
         textBoxCaption4Inner.Name = "textBoxCaption4Inner";
-        textBoxCaption4Inner.Padding = new Padding(8, 6, 8, 6);
-        textBoxCaption4Inner.Size = new Size(362, 62);
+        textBoxCaption4Inner.Padding = new Padding(8, 4, 8, 4);
+        textBoxCaption4Inner.Size = new Size(376, 32);
         textBoxCaption4Inner.TabIndex = 0;
         // 
         // textBoxCaption4
@@ -1228,10 +1237,10 @@ partial class MainForm
         textBoxCaption4.BorderStyle = BorderStyle.None;
         textBoxCaption4.Dock = DockStyle.Fill;
         textBoxCaption4.Font = new Font("Segoe UI", 10F);
-        textBoxCaption4.Location = new Point(8, 6);
+        textBoxCaption4.Location = new Point(8, 4);
         textBoxCaption4.Margin = new Padding(0);
         textBoxCaption4.Name = "textBoxCaption4";
-        textBoxCaption4.Size = new Size(346, 18);
+        textBoxCaption4.Size = new Size(360, 18);
         textBoxCaption4.TabIndex = 3;
         textBoxCaption4.TextAlign = HorizontalAlignment.Center;
         // 
@@ -1245,7 +1254,7 @@ partial class MainForm
         panelPath.MinimumSize = new Size(200, 38);
         panelPath.Name = "panelPath";
         panelPath.Padding = new Padding(1);
-        panelPath.Size = new Size(396, 40);
+        panelPath.Size = new Size(410, 40);
         panelPath.TabIndex = 1;
         // 
         // panelPathContent
@@ -1258,7 +1267,7 @@ partial class MainForm
         panelPathContent.Margin = new Padding(0);
         panelPathContent.Name = "panelPathContent";
         panelPathContent.Padding = new Padding(10, 6, 6, 6);
-        panelPathContent.Size = new Size(394, 38);
+        panelPathContent.Size = new Size(408, 38);
         panelPathContent.TabIndex = 0;
         // 
         // labelPath
@@ -1270,7 +1279,7 @@ partial class MainForm
         labelPath.Location = new Point(10, 6);
         labelPath.Margin = new Padding(0);
         labelPath.Name = "labelPath";
-        labelPath.Size = new Size(328, 26);
+        labelPath.Size = new Size(342, 26);
         labelPath.TabIndex = 0;
         labelPath.Text = "Папка для сохранения отчетов";
         labelPath.TextAlign = ContentAlignment.MiddleLeft;
@@ -1283,7 +1292,7 @@ partial class MainForm
         buttonSetPathFolder.FlatAppearance.BorderColor = Color.FromArgb(189, 206, 223);
         buttonSetPathFolder.FlatStyle = FlatStyle.Flat;
         buttonSetPathFolder.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
-        buttonSetPathFolder.Location = new Point(338, 6);
+        buttonSetPathFolder.Location = new Point(352, 6);
         buttonSetPathFolder.Margin = new Padding(8, 0, 0, 0);
         buttonSetPathFolder.MinimumSize = new Size(44, 30);
         buttonSetPathFolder.Name = "buttonSetPathFolder";
@@ -1492,7 +1501,7 @@ partial class MainForm
         tableLayoutPanelMain.RowCount = 2;
         tableLayoutPanelMain.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         tableLayoutPanelMain.RowStyles.Add(new RowStyle());
-        tableLayoutPanelMain.Size = new Size(620, 400);
+        tableLayoutPanelMain.Size = new Size(634, 311);
         tableLayoutPanelMain.TabIndex = 2;
         // 
         // pictureBox
@@ -1503,7 +1512,7 @@ partial class MainForm
         pictureBox.Margin = new Padding(0, 0, 12, 0);
         pictureBox.Name = "pictureBox";
         tableLayoutPanelMain.SetRowSpan(pictureBox, 2);
-        pictureBox.Size = new Size(176, 376);
+        pictureBox.Size = new Size(176, 287);
         pictureBox.SizeMode = PictureBoxSizeMode.Zoom;
         pictureBox.TabIndex = 3;
         pictureBox.TabStop = false;
@@ -1517,20 +1526,20 @@ partial class MainForm
         reportsLayout.Controls.Add(labelInfoPath, 0, 0);
         reportsLayout.Controls.Add(panelPath, 0, 1);
         reportsLayout.Dock = DockStyle.Fill;
-        reportsLayout.Location = new Point(212, 323);
+        reportsLayout.Location = new Point(212, 234);
         reportsLayout.Margin = new Padding(12, 8, 0, 0);
         reportsLayout.Name = "reportsLayout";
         reportsLayout.RowCount = 2;
         reportsLayout.RowStyles.Add(new RowStyle());
         reportsLayout.RowStyles.Add(new RowStyle());
-        reportsLayout.Size = new Size(396, 65);
+        reportsLayout.Size = new Size(410, 65);
         reportsLayout.TabIndex = 1;
         // 
         // MainForm
         // 
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(620, 400);
+        ClientSize = new Size(634, 311);
         Controls.Add(tableLayoutPanelMain);
         Controls.Add(mainLayout);
         Controls.Add(statusCaptionLabel);
@@ -1545,7 +1554,7 @@ partial class MainForm
         Controls.Add(softwareCaptionLabel);
         Font = new Font("Segoe UI", 9F);
         Icon = (Icon)resources.GetObject("$this.Icon");
-        MinimumSize = new Size(620, 400);
+        MinimumSize = new Size(650, 350);
         Name = "MainForm";
         StartPosition = FormStartPosition.CenterScreen;
         Text = "Microlux ERG-Connect";
@@ -1584,6 +1593,7 @@ partial class MainForm
         mainStatusStrip.ResumeLayout(false);
         mainStatusStrip.PerformLayout();
         connectionGroup.ResumeLayout(false);
+        connectionGroup.PerformLayout();
         connectionLayout.ResumeLayout(false);
         textBoxCaption1Container.ResumeLayout(false);
         textBoxCaption1Inner.ResumeLayout(false);
