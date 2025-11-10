@@ -18,12 +18,14 @@ public class AppSettings
     public string UpdateManifestUrl { get; set; } = DefaultManifestUrl;
     public SerialCommunicationOptions Serial { get; set; } = SerialCommunicationOptions.CreateDefault();
     public int BackgroundSyncIntervalMinutes { get; set; } = 30;
-    public string ReportsDirectory { get; set; } = Path.Combine(AppContext.BaseDirectory ?? Environment.CurrentDirectory, "out");
+    public string ReportsDirectory { get; set; } = GetDefaultReportsDirectory();
     public string LogsDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Microlux ERG Connect", "Logs");
     public bool MinimizeToTray { get; set; } = true;
     public bool StartMinimized { get; set; } = false;
     public TelegramSettings Telegram { get; set; } = TelegramSettings.CreateDefault();
     public bool GenerateWordReports { get; set; } = false;
+    public bool EnableFileLogging { get; set; } = false;
+    public bool PreserveRawPatientFiles { get; set; } = false;
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public ReportTemplate ReportTemplate { get; set; } = ReportTemplate.Client;
     [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -34,6 +36,28 @@ public class AppSettings
     public TimeSpan DeviceReconnectDelay => TimeSpan.FromSeconds(Math.Clamp(DeviceReconnectDelaySeconds, 5, 300));
     public TimeSpan UpdateCheckInterval => TimeSpan.FromMinutes(Math.Clamp(UpdateCheckIntervalMinutes, 5, 24 * 60));
     public TimeSpan BackgroundSyncInterval => TimeSpan.FromMinutes(Math.Clamp(BackgroundSyncIntervalMinutes, 5, 24 * 60));
+
+    private static string GetDefaultReportsDirectory()
+    {
+        try
+        {
+            var commonDocuments = Environment.GetFolderPath(Environment.SpecialFolder.CommonDocuments);
+            if (!string.IsNullOrWhiteSpace(commonDocuments))
+            {
+                var parent = Directory.GetParent(commonDocuments)?.FullName ?? commonDocuments;
+                if (!string.IsNullOrWhiteSpace(parent))
+                {
+                    return Path.Combine(parent, "Microlux ERG-Reports");
+                }
+            }
+        }
+        catch
+        {
+            // игнорируем и используем стандартный путь ниже
+        }
+
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Microlux ERG-Reports");
+    }
 }
 
 public sealed class GraphRenderOptionsDto

@@ -120,12 +120,16 @@ public sealed class TelegramNotificationService : IDisposable
         EnqueueMessage(summary.ToString());
     }
 
-    public void NotifyApplicationStopping(string logPath)
+    public void NotifyApplicationStopping(string? logPath)
     {
-        var message = $"⏹️ Microlux ERG-Connect завершает работу. Лог: {logPath}";
+        var message = string.IsNullOrWhiteSpace(logPath)
+            ? "⏹️ Microlux ERG-Connect завершает работу. Файловый журнал отключен."
+            : $"⏹️ Microlux ERG-Connect завершает работу. Лог: {logPath}";
         EnqueueMessage(message);
 
-        if (File.Exists(logPath) && CurrentSettings.SendLogOnExit)
+        if (!string.IsNullOrWhiteSpace(logPath)
+            && File.Exists(logPath)
+            && CurrentSettings.SendLogOnExit)
         {
             EnqueueDocument(logPath, "Лог сессии приложения");
         }

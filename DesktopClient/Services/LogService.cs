@@ -10,31 +10,45 @@ namespace MicroluxErgConnect.Services;
 public sealed class LogService : IDisposable, ILog
 {
     private readonly object _lock = new();
-    private readonly StreamWriter _writer;
+    private readonly StreamWriter? _writer;
+    private readonly bool _fileLoggingEnabled;
 
     public event EventHandler<LogEntry>? LogAdded;
 
     public string SessionLogPath { get; }
+    public bool IsFileLoggingEnabled => _fileLoggingEnabled;
 
     public LogService(SettingsService settings)
     {
-        Directory.CreateDirectory(settings.Current.LogsDirectory);
-        SessionLogPath = Path.Combine(settings.Current.LogsDirectory, $"ergconnect_{DateTime.Now:yyyyMMdd_HHmmss}.log");
-        _writer = new StreamWriter(File.Open(SessionLogPath, FileMode.Create, FileAccess.Write, FileShare.Read))
+        _fileLoggingEnabled = settings.Current.EnableFileLogging;
+        if (_fileLoggingEnabled)
         {
-            AutoFlush = true,
-            NewLine = "\n"
-        };
-        Info("Журнал сеанса создан.");
+            Directory.CreateDirectory(settings.Current.LogsDirectory);
+            SessionLogPath = Path.Combine(settings.Current.LogsDirectory, $"ergconnect_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+            _writer = new StreamWriter(File.Open(SessionLogPath, FileMode.Create, FileAccess.Write, FileShare.Read))
+            {
+                AutoFlush = true,
+                NewLine = "\n"
+            };
+            Info("Журнал сеанса создан.");
+        }
+        else
+        {
+            SessionLogPath = string.Empty;
+            Info("Файловый журнал отключен настройками.");
+        }
     }
 
     private void Write(string level, string message)
     {
         var entry = new LogEntry(DateTime.Now, level, message);
-        lock (_lock)
+        if (_fileLoggingEnabled && _writer != null)
         {
             var line = string.Format(CultureInfo.InvariantCulture, "{0:yyyy-MM-dd HH:mm:ss.fff} [{1}] {2}", entry.Timestamp, level, message);
-            _writer.WriteLine(line);
+            lock (_lock)
+            {
+                _writer.WriteLine(line);
+            }
         }
         LogAdded?.Invoke(this, entry);
     }
@@ -71,6 +85,11 @@ public sealed class LogService : IDisposable, ILog
 
     public void Dispose()
     {
+        if (_writer is null)
+        {
+            return;
+        }
+
         lock (_lock)
         {
             _writer.Dispose();

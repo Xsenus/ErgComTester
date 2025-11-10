@@ -679,6 +679,7 @@ namespace MicroluxErgConnect.Views
                 : _viewModel.ReportsDirectory;
 
             HideToTrayOnStartup();
+            ShowStartupNotification();
             ClearHeaderFocusIfEmpty();
         }
 
@@ -710,6 +711,15 @@ namespace MicroluxErgConnect.Views
         {
             ShowInTaskbar = false;
             Hide();
+        }
+
+        private void ShowStartupNotification()
+        {
+            trayIcon.BalloonTipTitle = "Microlux ERG-Connect";
+            trayIcon.BalloonTipText = "Приложение запущено.";
+            trayIcon.BalloonTipIcon = ToolTipIcon.Info;
+            trayIcon.Visible = true;
+            trayIcon.ShowBalloonTip(3000);
         }
 
         private void OnReportsBatchCompleted(object? sender, ReportsBatchCompletedEventArgs e)

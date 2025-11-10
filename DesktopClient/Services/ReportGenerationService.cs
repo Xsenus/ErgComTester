@@ -161,6 +161,7 @@ public sealed class ReportGenerationService : IDisposable
         var generatedPdfReports = new List<string>();
         var generatedWordReports = new List<string>();
         var wordGenerationEnabled = _settings.Current.GenerateWordReports;
+        var preserveRawFiles = _settings.Current.PreserveRawPatientFiles;
         if (!wordGenerationEnabled)
         {
             _log.Info("Генерация Word-отчетов отключена в настройках. DOCX-файлы создаваться не будут.");
@@ -184,6 +185,8 @@ public sealed class ReportGenerationService : IDisposable
             int attempt = 0;
             string? attemptPath = null;
             string? finalRawPath = null;
+            var attemptFiles = preserveRawFiles ? null : new List<string>();
+            bool patientSuccess = false;
             bool ackSent = false;
 
             void EnsureAckSent()
@@ -262,6 +265,7 @@ public sealed class ReportGenerationService : IDisposable
                     sessionAnnounced = true;
                 }
                 attemptPath = SavePatientAttempt(sessionDir, index, attempt, block);
+                attemptFiles?.Add(attemptPath);
 
                 var checksumValid = ErgProtocol.ValidateChecksum(block);
                 if (!checksumValid)
@@ -403,7 +407,8 @@ public sealed class ReportGenerationService : IDisposable
                     }
 
                     processedPatients++;
-                    if (!pdfRequiredForSuccess || pdfSavedSuccessfully)
+                    patientSuccess = !pdfRequiredForSuccess || pdfSavedSuccessfully;
+                    if (patientSuccess)
                     {
                         successfullySavedPatients++;
                     }
@@ -423,6 +428,28 @@ public sealed class ReportGenerationService : IDisposable
             if (stopRequested)
             {
                 break;
+            }
+
+            if (!preserveRawFiles && patientSuccess)
+            {
+                if (!string.IsNullOrWhiteSpace(finalRawPath))
+                {
+                    TryDeleteRawFile(finalRawPath, $"финальные данные пациента #{index}");
+                }
+
+                if (attemptFiles is { Count: > 0 })
+                {
+                    foreach (var path in attemptFiles)
+                    {
+                        if (string.IsNullOrWhiteSpace(path)
+                            || string.Equals(path, finalRawPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        TryDeleteRawFile(path, $"временные данные пациента #{index}");
+                    }
+                }
             }
 
             if (requestNextPatient && !ackSent)
@@ -639,6 +666,29 @@ public sealed class ReportGenerationService : IDisposable
             _log.Debug($"Финальные данные пациента #{patientIndex} сохранены: {finalPath}");
         }
         return finalPath;
+    }
+
+    private void TryDeleteRawFile(string? path, string description)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return;
+            }
+
+            File.Delete(path);
+            _log.Debug($"{description} удалены: {path}");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Не удалось удалить {description} ({path}): {ex.Message}");
+        }
     }
 
     private void LogPdfGenerationDisabled(string portName)

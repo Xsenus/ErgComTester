@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Reflection;
@@ -38,12 +39,31 @@ public static class AppServices
 
         Settings = new SettingsService();
         Settings.LoadAsync().GetAwaiter().GetResult();
+        var startSettingsImport = TryImportStartSettings();
         var graphPresetImport = TryImportGraphPreset();
         // RenderingSupport.Reload(Settings.Current.ReportRenderingMode);
         RenderingSupport.Reload(ReportRenderingMode.Legacy);
         ApplyGraphOptionsFromSettingsOrInitialize();
 
         Log = new LogService(Settings);
+        if (startSettingsImport.Attempted)
+        {
+            if (startSettingsImport.Applied && !string.IsNullOrEmpty(startSettingsImport.Path))
+            {
+                var summary = startSettingsImport.Changes.Count > 0
+                    ? $": {string.Join(", ", startSettingsImport.Changes)}"
+                    : string.Empty;
+                Log.Info($"Начальные настройки применены из файла {startSettingsImport.Path}{summary}.");
+            }
+            else if (!string.IsNullOrWhiteSpace(startSettingsImport.Error) && !string.IsNullOrEmpty(startSettingsImport.Path))
+            {
+                Log.Warn($"Не удалось применить начальные настройки из файла {startSettingsImport.Path}: {startSettingsImport.Error}.");
+            }
+            else if (!string.IsNullOrEmpty(startSettingsImport.Path))
+            {
+                Log.Info($"Начальные настройки из файла {startSettingsImport.Path} совпадают с текущими значениями.");
+            }
+        }
         if (graphPresetImport.Attempted)
         {
             if (graphPresetImport.Applied && !string.IsNullOrEmpty(graphPresetImport.Path))
@@ -63,7 +83,14 @@ public static class AppServices
         Log.Info($"Пользователь: {Environment.UserDomainName}\\{Environment.UserName} | x64={Environment.Is64BitProcess}");
         Log.Info($"Рабочая директория: {AppContext.BaseDirectory}");
         Log.Info($"Файл настроек: {Settings.SettingsPath} ({(File.Exists(Settings.SettingsPath) ? "существует" : "будет создан")})");
-        Log.Info($"Файл журнала: {Log.SessionLogPath}");
+        if (Log.IsFileLoggingEnabled)
+        {
+            Log.Info($"Файл журнала: {Log.SessionLogPath}");
+        }
+        else
+        {
+            Log.Info("Файловый журнал отключён настройками.");
+        }
         DumpSettings();
         Settings.SettingsChanged += (_, __) =>
         {
@@ -128,7 +155,7 @@ public static class AppServices
         DeviceMonitor.Dispose();
         Reports.Dispose();
         Log.Info("Приложение Microlux ERG-Connect завершается.");
-        Telegram.NotifyApplicationStopping(Log.SessionLogPath);
+        Telegram.NotifyApplicationStopping(Log.IsFileLoggingEnabled ? Log.SessionLogPath : null);
         Telegram.Dispose();
         Log.Dispose();
         _initialized = false;
@@ -159,6 +186,98 @@ public static class AppServices
         var dto = Settings.Current.GraphOptions;
         if (dto is not null)
             dto.ApplyTo(ErgReportBuilder.GraphOptions);
+    }
+
+    private static StartSettingsImportResult TryImportStartSettings()
+    {
+        var baseDir = AppContext.BaseDirectory ?? Environment.CurrentDirectory;
+        var candidate = Path.Combine(baseDir, "start_settings.json");
+        if (!File.Exists(candidate))
+        {
+            return StartSettingsImportResult.NotFound;
+        }
+
+        try
+        {
+            var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+            {
+                PropertyNameCaseInsensitive = true,
+                AllowTrailingCommas = true,
+                ReadCommentHandling = JsonCommentHandling.Skip
+            };
+
+            using var stream = File.OpenRead(candidate);
+            var dto = JsonSerializer.Deserialize<StartSettingsDto>(stream, options);
+            if (dto is null)
+            {
+                return StartSettingsImportResult.Failure(candidate, "файл не содержит корректных данных");
+            }
+
+            var updates = new List<Action<AppSettings>>();
+            var changes = new List<string>();
+            var settings = Settings.Current;
+
+            if (dto.DeviceScanIntervalSeconds.HasValue)
+            {
+                var normalized = Math.Clamp(dto.DeviceScanIntervalSeconds.Value, 2, 60);
+                if (normalized != settings.DeviceScanIntervalSeconds)
+                {
+                    updates.Add(s => s.DeviceScanIntervalSeconds = normalized);
+                    changes.Add($"интервал поиска={normalized} с");
+                }
+            }
+
+            if (dto.DeviceReconnectDelaySeconds.HasValue)
+            {
+                var normalized = Math.Clamp(dto.DeviceReconnectDelaySeconds.Value, 5, 300);
+                if (normalized != settings.DeviceReconnectDelaySeconds)
+                {
+                    updates.Add(s => s.DeviceReconnectDelaySeconds = normalized);
+                    changes.Add($"интервал перепроверки={normalized} с");
+                }
+            }
+
+            if (dto.BackgroundSyncIntervalMinutes.HasValue)
+            {
+                var normalized = Math.Clamp(dto.BackgroundSyncIntervalMinutes.Value, 5, 24 * 60);
+                if (normalized != settings.BackgroundSyncIntervalMinutes)
+                {
+                    updates.Add(s => s.BackgroundSyncIntervalMinutes = normalized);
+                    changes.Add($"интервал синхронизации={normalized} мин");
+                }
+            }
+
+            if (dto.TryGetEnableLogs(out var enableLogs) && enableLogs != settings.EnableFileLogging)
+            {
+                updates.Add(s => s.EnableFileLogging = enableLogs);
+                changes.Add($"логи={(enableLogs ? "вкл" : "выкл")}");
+            }
+
+            if (dto.TryGetSaveBinFiles(out var preserveBin) && preserveBin != settings.PreserveRawPatientFiles)
+            {
+                updates.Add(s => s.PreserveRawPatientFiles = preserveBin);
+                changes.Add($"сырые данные={(preserveBin ? "сохранять" : "удалять")}");
+            }
+
+            if (updates.Count == 0)
+            {
+                return StartSettingsImportResult.NoChanges(candidate);
+            }
+
+            Settings.UpdateAsync(s =>
+            {
+                foreach (var update in updates)
+                {
+                    update(s);
+                }
+            }).GetAwaiter().GetResult();
+
+            return StartSettingsImportResult.Success(candidate, changes);
+        }
+        catch (Exception ex)
+        {
+            return StartSettingsImportResult.Failure(candidate, ex.Message);
+        }
     }
 
     private static GraphPresetImportResult TryImportGraphPreset()
@@ -451,6 +570,7 @@ public static class AppServices
         Log.Info($"Синхронизация пациентов: interval={s.BackgroundSyncInterval.TotalMinutes} мин.");
         Log.Info($"Обновления: interval={s.UpdateCheckInterval.TotalMinutes} мин., авто-загрузка={(s.AutoDownloadUpdates ? "да" : "нет")}, manifest={s.UpdateManifestUrl}");
         Log.Info($"Каталоги: отчеты={s.ReportsDirectory}, логи={s.LogsDirectory}");
+        Log.Info($"Файлы: журнал={(s.EnableFileLogging ? "вкл" : "выкл")}, .bin={(s.PreserveRawPatientFiles ? "сохранять" : "удалять после отчёта")}");
         var serial = s.Serial;
         Log.Info($"COM-порт: baud={serial.BaudRate}, readTimeout={serial.ReadTimeoutMs}мс, writeTimeout={serial.WriteTimeoutMs}мс, quiet={serial.QuietTimeMs}мс, window={serial.MaxReadWindowMs}мс");
         Log.Info($"COM-параметры: DTR={(serial.DtrEnable ? "on" : "off")}, RTS={(serial.RtsEnable ? "on" : "off")}, toggle={(serial.ToggleLinesOnOpen ? "on" : "off")}, retries={serial.RetryCount}, minCI={serial.MinCommonInfoSize}, minPatient={serial.MinPatientBlockSize}");
@@ -492,6 +612,29 @@ public static class AppServices
         public static GraphPresetImportResult NotFound => new(false, false, null, null);
         public static GraphPresetImportResult Success(string path) => new(true, true, path, null);
         public static GraphPresetImportResult Failure(string path, string error) => new(true, false, path, error);
+    }
+
+    private readonly struct StartSettingsImportResult
+    {
+        private StartSettingsImportResult(bool attempted, bool applied, string? path, string? error, IReadOnlyList<string> changes)
+        {
+            Attempted = attempted;
+            Applied = applied;
+            Path = path;
+            Error = error;
+            Changes = changes;
+        }
+
+        public bool Attempted { get; }
+        public bool Applied { get; }
+        public string? Path { get; }
+        public string? Error { get; }
+        public IReadOnlyList<string> Changes { get; }
+
+        public static StartSettingsImportResult NotFound => new(false, false, null, null, Array.Empty<string>());
+        public static StartSettingsImportResult Success(string path, IReadOnlyList<string> changes) => new(true, true, path, null, changes);
+        public static StartSettingsImportResult Failure(string path, string error) => new(true, false, path, error, Array.Empty<string>());
+        public static StartSettingsImportResult NoChanges(string path) => new(true, false, path, null, Array.Empty<string>());
     }
 
     public sealed class ExitRequestedEventArgs : EventArgs
