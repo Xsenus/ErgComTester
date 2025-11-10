@@ -1060,30 +1060,26 @@ partial class MainForm
         //
         // connectionLayout
         //
-        connectionLayout.AutoSize = true;
+        connectionLayout.AutoSize = false;
         connectionLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         connectionLayout.BackColor = Color.White;
         connectionLayout.ColumnCount = 1;
         connectionLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        connectionLayout.Controls.Add(textBoxCaption1Container, 0, 1);
-        connectionLayout.Controls.Add(textBoxCaption2Container, 0, 3);
-        connectionLayout.Controls.Add(textBoxCaption3Container, 0, 5);
-        connectionLayout.Controls.Add(textBoxCaption4Container, 0, 7);
+        connectionLayout.Controls.Add(textBoxCaption1Container, 0, 0);
+        connectionLayout.Controls.Add(textBoxCaption2Container, 0, 1);
+        connectionLayout.Controls.Add(textBoxCaption3Container, 0, 2);
+        connectionLayout.Controls.Add(textBoxCaption4Container, 0, 3);
         connectionLayout.Dock = DockStyle.Fill;
         connectionLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
         connectionLayout.Location = new Point(16, 28);
         connectionLayout.Margin = new Padding(0);
         connectionLayout.Name = "connectionLayout";
         connectionLayout.Padding = new Padding(0, 4, 0, 4);
-        connectionLayout.RowCount = 8;
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 6F));
-        connectionLayout.RowStyles.Add(new RowStyle());
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 6F));
-        connectionLayout.RowStyles.Add(new RowStyle());
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 6F));
-        connectionLayout.RowStyles.Add(new RowStyle());
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 6F));
-        connectionLayout.RowStyles.Add(new RowStyle());
+        connectionLayout.RowCount = 4;
+        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
         connectionLayout.Size = new Size(364, 244);
         connectionLayout.TabIndex = 0;
         //
@@ -1091,7 +1087,7 @@ partial class MainForm
         //
         textBoxCaption1Container.BackColor = Color.FromArgb(210, 217, 226);
         textBoxCaption1Container.Dock = DockStyle.Fill;
-        textBoxCaption1Container.Margin = new Padding(0);
+        textBoxCaption1Container.Margin = new Padding(0, 0, 0, 8);
         textBoxCaption1Container.Padding = new Padding(1);
         Panel textBoxCaption1Inner = new Panel();
         textBoxCaption1Inner.BackColor = Color.White;
@@ -1116,7 +1112,7 @@ partial class MainForm
         //
         textBoxCaption2Container.BackColor = Color.FromArgb(210, 217, 226);
         textBoxCaption2Container.Dock = DockStyle.Fill;
-        textBoxCaption2Container.Margin = new Padding(0);
+        textBoxCaption2Container.Margin = new Padding(0, 0, 0, 8);
         textBoxCaption2Container.Padding = new Padding(1);
         Panel textBoxCaption2Inner = new Panel();
         textBoxCaption2Inner.BackColor = Color.White;
@@ -1141,7 +1137,7 @@ partial class MainForm
         //
         textBoxCaption3Container.BackColor = Color.FromArgb(210, 217, 226);
         textBoxCaption3Container.Dock = DockStyle.Fill;
-        textBoxCaption3Container.Margin = new Padding(0);
+        textBoxCaption3Container.Margin = new Padding(0, 0, 0, 8);
         textBoxCaption3Container.Padding = new Padding(1);
         Panel textBoxCaption3Inner = new Panel();
         textBoxCaption3Inner.BackColor = Color.White;
