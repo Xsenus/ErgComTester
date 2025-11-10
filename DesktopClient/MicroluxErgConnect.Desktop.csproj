@@ -9,8 +9,8 @@
     <AssemblyName>MicroluxErgConnect</AssemblyName>
     <RootNamespace>MicroluxErgConnect</RootNamespace>
 
-    <AssemblyVersion>1.0.0.46</AssemblyVersion>
-    <FileVersion>1.0.0.46</FileVersion>
+    <AssemblyVersion>1.0.0.47</AssemblyVersion>
+    <FileVersion>1.0.0.47</FileVersion>
 
     <!-- Платформа/рид -->
     <PlatformTarget Condition="'$(PlatformTarget)' == ''">x86</PlatformTarget>
@@ -29,7 +29,7 @@
     <InvariantGlobalization>false</InvariantGlobalization>
 
     <!-- Оставляем один ApplicationIcon (убрали дубликат) -->
-    <ApplicationIcon>Microlux_Logo.ico</ApplicationIcon>
+    <ApplicationIcon>Microlux_Logo_White.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -59,7 +59,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Microlux_Logo.ico" />
+    <Content Include="Microlux_Logo_White.ico" />
   </ItemGroup>
 
   <ItemGroup>

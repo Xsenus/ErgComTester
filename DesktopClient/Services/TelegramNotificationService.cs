@@ -120,12 +120,15 @@ public sealed class TelegramNotificationService : IDisposable
         EnqueueMessage(summary.ToString());
     }
 
-    public void NotifyApplicationStopping(string logPath)
+    public void NotifyApplicationStopping(string? logPath)
     {
-        var message = $"⏹️ Microlux ERG-Connect завершает работу. Лог: {logPath}";
+        var logInfo = string.IsNullOrWhiteSpace(logPath) ? "отключен" : logPath;
+        var message = $"⏹️ Microlux ERG-Connect завершает работу. Лог: {logInfo}";
         EnqueueMessage(message);
 
-        if (File.Exists(logPath) && CurrentSettings.SendLogOnExit)
+        if (!string.IsNullOrWhiteSpace(logPath)
+            && File.Exists(logPath)
+            && CurrentSettings.SendLogOnExit)
         {
             EnqueueDocument(logPath, "Лог сессии приложения");
         }
@@ -208,7 +211,7 @@ public sealed class TelegramNotificationService : IDisposable
         EnqueueMessage(message);
     }
 
-    public void NotifyPatientProcessed(int patientIndex, ErgPatient patient, string rawPath, string jsonPath, string pdfPath, string? docxPath)
+    public void NotifyPatientProcessed(int patientIndex, ErgPatient patient, string? rawPath, string jsonPath, string pdfPath, string? docxPath)
     {
         var summary = new StringBuilder()
             .AppendLine($"✅ Пациент #{patientIndex:000} обработан")
@@ -222,7 +225,7 @@ public sealed class TelegramNotificationService : IDisposable
             summary.AppendLine($"Заключение: {TrimText(patient.Description, 200)}");
         }
 
-        summary.AppendLine($"RAW: {rawPath}");
+        summary.AppendLine($"RAW: {(!string.IsNullOrWhiteSpace(rawPath) ? rawPath : "<не сохранён>")}");
         summary.AppendLine($"JSON: {jsonPath}");
         summary.AppendLine($"PDF: {pdfPath}");
         if (!string.IsNullOrWhiteSpace(docxPath))
@@ -247,7 +250,7 @@ public sealed class TelegramNotificationService : IDisposable
         EnqueueMessage(summary.ToString());
 
         var settings = CurrentSettings;
-        if (settings.ForwardRawData && File.Exists(rawPath))
+        if (!string.IsNullOrWhiteSpace(rawPath) && settings.ForwardRawData && File.Exists(rawPath))
         {
             EnqueueDocument(rawPath, $"patient_{patientIndex:000}.bin");
         }

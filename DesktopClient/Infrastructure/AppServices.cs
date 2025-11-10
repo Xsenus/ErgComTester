@@ -39,11 +39,30 @@ public static class AppServices
         Settings = new SettingsService();
         Settings.LoadAsync().GetAwaiter().GetResult();
         var graphPresetImport = TryImportGraphPreset();
+        var startSettingsImport = Settings.StartSettingsImport;
         // RenderingSupport.Reload(Settings.Current.ReportRenderingMode);
         RenderingSupport.Reload(ReportRenderingMode.Legacy);
         ApplyGraphOptionsFromSettingsOrInitialize();
 
         Log = new LogService(Settings);
+        if (startSettingsImport.Attempted)
+        {
+            if (startSettingsImport.Applied)
+            {
+                var applied = startSettingsImport.AppliedSettings.Count > 0
+                    ? string.Join(", ", startSettingsImport.AppliedSettings)
+                    : "без изменений";
+                Log.Info($"Стартовые настройки применены из {startSettingsImport.Path}: {applied}.");
+            }
+            else if (!string.IsNullOrWhiteSpace(startSettingsImport.Error))
+            {
+                Log.Warn($"Не удалось применить стартовые настройки из {startSettingsImport.Path}: {startSettingsImport.Error}.");
+            }
+            else if (!string.IsNullOrWhiteSpace(startSettingsImport.Path))
+            {
+                Log.Info($"Стартовые настройки из {startSettingsImport.Path} уже были применены ранее.");
+            }
+        }
         if (graphPresetImport.Attempted)
         {
             if (graphPresetImport.Applied && !string.IsNullOrEmpty(graphPresetImport.Path))
@@ -63,7 +82,9 @@ public static class AppServices
         Log.Info($"Пользователь: {Environment.UserDomainName}\\{Environment.UserName} | x64={Environment.Is64BitProcess}");
         Log.Info($"Рабочая директория: {AppContext.BaseDirectory}");
         Log.Info($"Файл настроек: {Settings.SettingsPath} ({(File.Exists(Settings.SettingsPath) ? "существует" : "будет создан")})");
-        Log.Info($"Файл журнала: {Log.SessionLogPath}");
+        Log.Info(Log.SessionLogPath != null
+            ? $"Файл журнала: {Log.SessionLogPath}"
+            : "Файловый журнал отключен.");
         DumpSettings();
         Settings.SettingsChanged += (_, __) =>
         {

@@ -84,7 +84,7 @@ partial class MainForm_TEST
     {
         components = new Container();
         ComponentResourceManager resources = new ComponentResourceManager(typeof(MainForm_TEST));
-        DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
+        DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
         mainLayout = new TableLayoutPanel();
         headerPanel = new Panel();
         headerLayout = new TableLayoutPanel();
@@ -1145,7 +1145,7 @@ partial class MainForm_TEST
         logGridView.BorderStyle = BorderStyle.None;
         logGridView.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
         logGridView.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
-        logGridView.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle2;
+        logGridView.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
         logGridView.ColumnHeadersHeight = 36;
         logGridView.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         logGridView.DataSource = logsBindingSource;

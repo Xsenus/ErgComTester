@@ -83,7 +83,7 @@ partial class MainForm
     private void InitializeComponent()
     {
         components = new Container();
-        DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
+        DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
         ComponentResourceManager resources = new ComponentResourceManager(typeof(MainForm));
         mainLayout = new TableLayoutPanel();
         headerPanel = new Panel();
@@ -139,13 +139,22 @@ partial class MainForm
         versionStatusLabel = new ToolStripStatusLabel();
         connectionGroup = new GroupBox();
         connectionLayout = new TableLayoutPanel();
+        textBoxCaption1Container = new Panel();
+        textBoxCaption1Inner = new Panel();
+        textBoxCaption1 = new TextBox();
+        textBoxCaption2Container = new Panel();
+        textBoxCaption2Inner = new Panel();
+        textBoxCaption2 = new TextBox();
+        textBoxCaption3Container = new Panel();
+        textBoxCaption3Inner = new Panel();
+        textBoxCaption3 = new TextBox();
+        textBoxCaption4Container = new Panel();
+        textBoxCaption4Inner = new Panel();
         textBoxCaption4 = new TextBox();
         panelPath = new Panel();
+        panelPathContent = new Panel();
         labelPath = new Label();
         buttonSetPathFolder = new Button();
-        textBoxCaption3 = new TextBox();
-        textBoxCaption2 = new TextBox();
-        textBoxCaption1 = new TextBox();
         labelInfoPath = new Label();
         statusCaptionLabel = new Label();
         statusValueLabel = new Label();
@@ -162,8 +171,8 @@ partial class MainForm
         trayOpenMenuItem = new ToolStripMenuItem();
         trayExitMenuItem = new ToolStripMenuItem();
         tableLayoutPanelMain = new TableLayoutPanel();
-        reportsLayout = new TableLayoutPanel();
         pictureBox = new PictureBox();
+        reportsLayout = new TableLayoutPanel();
         mainLayout.SuspendLayout();
         headerPanel.SuspendLayout();
         headerLayout.SuspendLayout();
@@ -185,10 +194,20 @@ partial class MainForm
         mainStatusStrip.SuspendLayout();
         connectionGroup.SuspendLayout();
         connectionLayout.SuspendLayout();
+        textBoxCaption1Container.SuspendLayout();
+        textBoxCaption1Inner.SuspendLayout();
+        textBoxCaption2Container.SuspendLayout();
+        textBoxCaption2Inner.SuspendLayout();
+        textBoxCaption3Container.SuspendLayout();
+        textBoxCaption3Inner.SuspendLayout();
+        textBoxCaption4Container.SuspendLayout();
+        textBoxCaption4Inner.SuspendLayout();
         panelPath.SuspendLayout();
+        panelPathContent.SuspendLayout();
         trayMenu.SuspendLayout();
         tableLayoutPanelMain.SuspendLayout();
         ((ISupportInitialize)pictureBox).BeginInit();
+        reportsLayout.SuspendLayout();
         SuspendLayout();
         // 
         // mainLayout
@@ -977,7 +996,7 @@ partial class MainForm
         logGridView.BorderStyle = BorderStyle.None;
         logGridView.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
         logGridView.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
-        logGridView.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle2;
+        logGridView.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
         logGridView.ColumnHeadersHeight = 36;
         logGridView.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         logGridView.DataSource = logsBindingSource;
@@ -1039,83 +1058,221 @@ partial class MainForm
         connectionGroup.Dock = DockStyle.Fill;
         connectionGroup.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
         connectionGroup.ForeColor = Color.FromArgb(33, 37, 41);
-        connectionGroup.Location = new Point(232, 16);
-        connectionGroup.Margin = new Padding(16, 0, 0, 0);
+        connectionGroup.Location = new Point(212, 12);
+        connectionGroup.Margin = new Padding(12, 0, 0, 0);
         connectionGroup.Name = "connectionGroup";
         connectionGroup.Padding = new Padding(16, 12, 16, 12);
-        connectionGroup.Size = new Size(392, 284);
+        connectionGroup.Size = new Size(396, 303);
         connectionGroup.TabIndex = 0;
         connectionGroup.TabStop = false;
-        connectionGroup.Text = "Реквизиты";
-        //
+        connectionGroup.Text = "Реквизиты клиники";
+        // 
         // connectionLayout
-        //
-        connectionLayout.AutoSize = true;
+        // 
         connectionLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         connectionLayout.BackColor = Color.White;
         connectionLayout.ColumnCount = 1;
         connectionLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        connectionLayout.Controls.Add(textBoxCaption1, 0, 1);
-        connectionLayout.Controls.Add(textBoxCaption2, 0, 3);
-        connectionLayout.Controls.Add(textBoxCaption3, 0, 5);
-        connectionLayout.Controls.Add(textBoxCaption4, 0, 7);
+        connectionLayout.Controls.Add(textBoxCaption1Container, 0, 0);
+        connectionLayout.Controls.Add(textBoxCaption2Container, 0, 1);
+        connectionLayout.Controls.Add(textBoxCaption3Container, 0, 2);
+        connectionLayout.Controls.Add(textBoxCaption4Container, 0, 3);
         connectionLayout.Dock = DockStyle.Fill;
         connectionLayout.GrowStyle = TableLayoutPanelGrowStyle.FixedSize;
-        connectionLayout.Location = new Point(16, 28);
+        connectionLayout.Location = new Point(16, 30);
         connectionLayout.Margin = new Padding(0);
         connectionLayout.Name = "connectionLayout";
         connectionLayout.Padding = new Padding(0, 4, 0, 4);
-        connectionLayout.RowCount = 8;
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 6F));
-        connectionLayout.RowStyles.Add(new RowStyle());
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 6F));
-        connectionLayout.RowStyles.Add(new RowStyle());
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 6F));
-        connectionLayout.RowStyles.Add(new RowStyle());
-        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 6F));
-        connectionLayout.RowStyles.Add(new RowStyle());
-        connectionLayout.Size = new Size(360, 244);
+        connectionLayout.RowCount = 4;
+        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+        connectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+        connectionLayout.Size = new Size(364, 261);
         connectionLayout.TabIndex = 0;
-        //
+        // 
+        // textBoxCaption1Container
+        // 
+        textBoxCaption1Container.BackColor = Color.FromArgb(210, 217, 226);
+        textBoxCaption1Container.Controls.Add(textBoxCaption1Inner);
+        textBoxCaption1Container.Dock = DockStyle.Fill;
+        textBoxCaption1Container.Location = new Point(0, 4);
+        textBoxCaption1Container.Margin = new Padding(0, 0, 0, 8);
+        textBoxCaption1Container.Name = "textBoxCaption1Container";
+        textBoxCaption1Container.Padding = new Padding(1);
+        textBoxCaption1Container.Size = new Size(364, 55);
+        textBoxCaption1Container.TabIndex = 0;
+        // 
+        // textBoxCaption1Inner
+        // 
+        textBoxCaption1Inner.BackColor = Color.White;
+        textBoxCaption1Inner.Controls.Add(textBoxCaption1);
+        textBoxCaption1Inner.Dock = DockStyle.Fill;
+        textBoxCaption1Inner.Location = new Point(1, 1);
+        textBoxCaption1Inner.Name = "textBoxCaption1Inner";
+        textBoxCaption1Inner.Padding = new Padding(8, 6, 8, 6);
+        textBoxCaption1Inner.Size = new Size(362, 53);
+        textBoxCaption1Inner.TabIndex = 0;
+        // 
+        // textBoxCaption1
+        // 
+        textBoxCaption1.BackColor = Color.White;
+        textBoxCaption1.BorderStyle = BorderStyle.None;
+        textBoxCaption1.Dock = DockStyle.Fill;
+        textBoxCaption1.Font = new Font("Segoe UI", 10F);
+        textBoxCaption1.Location = new Point(8, 6);
+        textBoxCaption1.Margin = new Padding(0);
+        textBoxCaption1.Name = "textBoxCaption1";
+        textBoxCaption1.Size = new Size(346, 18);
+        textBoxCaption1.TabIndex = 0;
+        textBoxCaption1.TextAlign = HorizontalAlignment.Center;
+        // 
+        // textBoxCaption2Container
+        // 
+        textBoxCaption2Container.BackColor = Color.FromArgb(210, 217, 226);
+        textBoxCaption2Container.Controls.Add(textBoxCaption2Inner);
+        textBoxCaption2Container.Dock = DockStyle.Fill;
+        textBoxCaption2Container.Location = new Point(0, 67);
+        textBoxCaption2Container.Margin = new Padding(0, 0, 0, 8);
+        textBoxCaption2Container.Name = "textBoxCaption2Container";
+        textBoxCaption2Container.Padding = new Padding(1);
+        textBoxCaption2Container.Size = new Size(364, 55);
+        textBoxCaption2Container.TabIndex = 1;
+        // 
+        // textBoxCaption2Inner
+        // 
+        textBoxCaption2Inner.BackColor = Color.White;
+        textBoxCaption2Inner.Controls.Add(textBoxCaption2);
+        textBoxCaption2Inner.Dock = DockStyle.Fill;
+        textBoxCaption2Inner.Location = new Point(1, 1);
+        textBoxCaption2Inner.Name = "textBoxCaption2Inner";
+        textBoxCaption2Inner.Padding = new Padding(8, 6, 8, 6);
+        textBoxCaption2Inner.Size = new Size(362, 53);
+        textBoxCaption2Inner.TabIndex = 0;
+        // 
+        // textBoxCaption2
+        // 
+        textBoxCaption2.BackColor = Color.White;
+        textBoxCaption2.BorderStyle = BorderStyle.None;
+        textBoxCaption2.Dock = DockStyle.Fill;
+        textBoxCaption2.Font = new Font("Segoe UI", 10F);
+        textBoxCaption2.Location = new Point(8, 6);
+        textBoxCaption2.Margin = new Padding(0);
+        textBoxCaption2.Name = "textBoxCaption2";
+        textBoxCaption2.Size = new Size(346, 18);
+        textBoxCaption2.TabIndex = 1;
+        textBoxCaption2.TextAlign = HorizontalAlignment.Center;
+        // 
+        // textBoxCaption3Container
+        // 
+        textBoxCaption3Container.BackColor = Color.FromArgb(210, 217, 226);
+        textBoxCaption3Container.Controls.Add(textBoxCaption3Inner);
+        textBoxCaption3Container.Dock = DockStyle.Fill;
+        textBoxCaption3Container.Location = new Point(0, 130);
+        textBoxCaption3Container.Margin = new Padding(0, 0, 0, 8);
+        textBoxCaption3Container.Name = "textBoxCaption3Container";
+        textBoxCaption3Container.Padding = new Padding(1);
+        textBoxCaption3Container.Size = new Size(364, 55);
+        textBoxCaption3Container.TabIndex = 2;
+        // 
+        // textBoxCaption3Inner
+        // 
+        textBoxCaption3Inner.BackColor = Color.White;
+        textBoxCaption3Inner.Controls.Add(textBoxCaption3);
+        textBoxCaption3Inner.Dock = DockStyle.Fill;
+        textBoxCaption3Inner.Location = new Point(1, 1);
+        textBoxCaption3Inner.Name = "textBoxCaption3Inner";
+        textBoxCaption3Inner.Padding = new Padding(8, 6, 8, 6);
+        textBoxCaption3Inner.Size = new Size(362, 53);
+        textBoxCaption3Inner.TabIndex = 0;
+        // 
+        // textBoxCaption3
+        // 
+        textBoxCaption3.BackColor = Color.White;
+        textBoxCaption3.BorderStyle = BorderStyle.None;
+        textBoxCaption3.Dock = DockStyle.Fill;
+        textBoxCaption3.Font = new Font("Segoe UI", 10F);
+        textBoxCaption3.Location = new Point(8, 6);
+        textBoxCaption3.Margin = new Padding(0);
+        textBoxCaption3.Name = "textBoxCaption3";
+        textBoxCaption3.Size = new Size(346, 18);
+        textBoxCaption3.TabIndex = 2;
+        textBoxCaption3.TextAlign = HorizontalAlignment.Center;
+        // 
+        // textBoxCaption4Container
+        // 
+        textBoxCaption4Container.BackColor = Color.FromArgb(210, 217, 226);
+        textBoxCaption4Container.Controls.Add(textBoxCaption4Inner);
+        textBoxCaption4Container.Dock = DockStyle.Fill;
+        textBoxCaption4Container.Location = new Point(0, 193);
+        textBoxCaption4Container.Margin = new Padding(0);
+        textBoxCaption4Container.Name = "textBoxCaption4Container";
+        textBoxCaption4Container.Padding = new Padding(1);
+        textBoxCaption4Container.Size = new Size(364, 64);
+        textBoxCaption4Container.TabIndex = 3;
+        // 
+        // textBoxCaption4Inner
+        // 
+        textBoxCaption4Inner.BackColor = Color.White;
+        textBoxCaption4Inner.Controls.Add(textBoxCaption4);
+        textBoxCaption4Inner.Dock = DockStyle.Fill;
+        textBoxCaption4Inner.Location = new Point(1, 1);
+        textBoxCaption4Inner.Name = "textBoxCaption4Inner";
+        textBoxCaption4Inner.Padding = new Padding(8, 6, 8, 6);
+        textBoxCaption4Inner.Size = new Size(362, 62);
+        textBoxCaption4Inner.TabIndex = 0;
+        // 
         // textBoxCaption4
-        //
-        textBoxCaption4.BorderStyle = BorderStyle.FixedSingle;
+        // 
+        textBoxCaption4.BackColor = Color.White;
+        textBoxCaption4.BorderStyle = BorderStyle.None;
         textBoxCaption4.Dock = DockStyle.Fill;
         textBoxCaption4.Font = new Font("Segoe UI", 10F);
-        textBoxCaption4.Location = new Point(0, 184);
+        textBoxCaption4.Location = new Point(8, 6);
         textBoxCaption4.Margin = new Padding(0);
         textBoxCaption4.Name = "textBoxCaption4";
-        textBoxCaption4.Size = new Size(360, 25);
+        textBoxCaption4.Size = new Size(346, 18);
         textBoxCaption4.TabIndex = 3;
-        textBoxCaption4.TextAlign = HorizontalAlignment.Left;
-        //
+        textBoxCaption4.TextAlign = HorizontalAlignment.Center;
+        // 
         // panelPath
-        //
-        panelPath.BackColor = Color.White;
-        panelPath.BorderStyle = BorderStyle.FixedSingle;
-        panelPath.Controls.Add(labelPath);
-        panelPath.Controls.Add(buttonSetPathFolder);
+        // 
+        panelPath.BackColor = Color.FromArgb(210, 217, 226);
+        panelPath.Controls.Add(panelPathContent);
         panelPath.Dock = DockStyle.Fill;
         panelPath.Location = new Point(0, 25);
         panelPath.Margin = new Padding(0);
         panelPath.MinimumSize = new Size(200, 38);
         panelPath.Name = "panelPath";
-        panelPath.Padding = new Padding(8, 4, 4, 4);
-        panelPath.Size = new Size(392, 38);
+        panelPath.Padding = new Padding(1);
+        panelPath.Size = new Size(396, 40);
         panelPath.TabIndex = 1;
-        //
+        // 
+        // panelPathContent
+        // 
+        panelPathContent.BackColor = Color.White;
+        panelPathContent.Controls.Add(labelPath);
+        panelPathContent.Controls.Add(buttonSetPathFolder);
+        panelPathContent.Dock = DockStyle.Fill;
+        panelPathContent.Location = new Point(1, 1);
+        panelPathContent.Margin = new Padding(0);
+        panelPathContent.Name = "panelPathContent";
+        panelPathContent.Padding = new Padding(10, 6, 6, 6);
+        panelPathContent.Size = new Size(394, 38);
+        panelPathContent.TabIndex = 0;
+        // 
         // labelPath
-        //
+        // 
         labelPath.AutoEllipsis = true;
         labelPath.Dock = DockStyle.Fill;
         labelPath.Font = new Font("Segoe UI", 9F);
         labelPath.ForeColor = Color.FromArgb(33, 37, 41);
-        labelPath.Location = new Point(8, 4);
+        labelPath.Location = new Point(10, 6);
         labelPath.Margin = new Padding(0);
         labelPath.Name = "labelPath";
-        labelPath.Size = new Size(332, 30);
+        labelPath.Size = new Size(328, 26);
         labelPath.TabIndex = 0;
-        labelPath.Text = "Папка с отчетами";
+        labelPath.Text = "Папка для сохранения отчетов";
         labelPath.TextAlign = ContentAlignment.MiddleLeft;
         // 
         // buttonSetPathFolder
@@ -1124,66 +1281,29 @@ partial class MainForm
         buttonSetPathFolder.Cursor = Cursors.Hand;
         buttonSetPathFolder.Dock = DockStyle.Right;
         buttonSetPathFolder.FlatAppearance.BorderColor = Color.FromArgb(189, 206, 223);
-        buttonSetPathFolder.FlatAppearance.BorderSize = 1;
         buttonSetPathFolder.FlatStyle = FlatStyle.Flat;
         buttonSetPathFolder.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
-        buttonSetPathFolder.Location = new Point(340, 4);
+        buttonSetPathFolder.Location = new Point(338, 6);
         buttonSetPathFolder.Margin = new Padding(8, 0, 0, 0);
         buttonSetPathFolder.MinimumSize = new Size(44, 30);
         buttonSetPathFolder.Name = "buttonSetPathFolder";
-        buttonSetPathFolder.Size = new Size(44, 30);
+        buttonSetPathFolder.Size = new Size(50, 30);
         buttonSetPathFolder.TabIndex = 1;
         buttonSetPathFolder.Text = "…";
         buttonSetPathFolder.UseVisualStyleBackColor = false;
         buttonSetPathFolder.Click += buttonSetPathFolder_Click;
-        //
-        // textBoxCaption3
-        //
-        textBoxCaption3.BorderStyle = BorderStyle.FixedSingle;
-        textBoxCaption3.Dock = DockStyle.Fill;
-        textBoxCaption3.Font = new Font("Segoe UI", 10F);
-        textBoxCaption3.Location = new Point(0, 123);
-        textBoxCaption3.Margin = new Padding(0);
-        textBoxCaption3.Name = "textBoxCaption3";
-        textBoxCaption3.Size = new Size(360, 25);
-        textBoxCaption3.TabIndex = 2;
-        textBoxCaption3.TextAlign = HorizontalAlignment.Left;
-        //
-        // textBoxCaption2
-        //
-        textBoxCaption2.BorderStyle = BorderStyle.FixedSingle;
-        textBoxCaption2.Dock = DockStyle.Fill;
-        textBoxCaption2.Font = new Font("Segoe UI", 10F);
-        textBoxCaption2.Location = new Point(0, 62);
-        textBoxCaption2.Margin = new Padding(0);
-        textBoxCaption2.Name = "textBoxCaption2";
-        textBoxCaption2.Size = new Size(360, 25);
-        textBoxCaption2.TabIndex = 1;
-        textBoxCaption2.TextAlign = HorizontalAlignment.Left;
-        //
-        // textBoxCaption1
-        //
-        textBoxCaption1.BorderStyle = BorderStyle.FixedSingle;
-        textBoxCaption1.Dock = DockStyle.Fill;
-        textBoxCaption1.Font = new Font("Segoe UI", 10F);
-        textBoxCaption1.Location = new Point(0, 10);
-        textBoxCaption1.Margin = new Padding(0);
-        textBoxCaption1.Name = "textBoxCaption1";
-        textBoxCaption1.Size = new Size(360, 25);
-        textBoxCaption1.TabIndex = 0;
-        textBoxCaption1.TextAlign = HorizontalAlignment.Left;
-        //
+        // 
         // labelInfoPath
-        //
+        // 
         labelInfoPath.AutoSize = true;
-        labelInfoPath.Font = new Font("Segoe UI", 9F);
-        labelInfoPath.ForeColor = Color.FromArgb(120, 128, 145);
+        labelInfoPath.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
+        labelInfoPath.ForeColor = Color.FromArgb(33, 37, 41);
         labelInfoPath.Location = new Point(0, 0);
-        labelInfoPath.Margin = new Padding(0, 0, 0, 4);
+        labelInfoPath.Margin = new Padding(0, 0, 0, 6);
         labelInfoPath.Name = "labelInfoPath";
-        labelInfoPath.Size = new Size(116, 15);
+        labelInfoPath.Size = new Size(209, 19);
         labelInfoPath.TabIndex = 0;
-        labelInfoPath.Text = "Каталог с отчетами";
+        labelInfoPath.Text = "Папка для сохранения отчетов";
         labelInfoPath.TextAlign = ContentAlignment.MiddleLeft;
         // 
         // statusCaptionLabel
@@ -1359,7 +1479,7 @@ partial class MainForm
         // 
         tableLayoutPanelMain.BackColor = Color.White;
         tableLayoutPanelMain.ColumnCount = 2;
-        tableLayoutPanelMain.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 200F));
+        tableLayoutPanelMain.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 188F));
         tableLayoutPanelMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         tableLayoutPanelMain.Controls.Add(pictureBox, 0, 0);
         tableLayoutPanelMain.Controls.Add(connectionGroup, 1, 0);
@@ -1368,28 +1488,28 @@ partial class MainForm
         tableLayoutPanelMain.Location = new Point(0, 0);
         tableLayoutPanelMain.Margin = new Padding(0);
         tableLayoutPanelMain.Name = "tableLayoutPanelMain";
-        tableLayoutPanelMain.Padding = new Padding(16, 16, 16, 12);
+        tableLayoutPanelMain.Padding = new Padding(12);
         tableLayoutPanelMain.RowCount = 2;
         tableLayoutPanelMain.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         tableLayoutPanelMain.RowStyles.Add(new RowStyle());
-        tableLayoutPanelMain.Size = new Size(640, 420);
+        tableLayoutPanelMain.Size = new Size(620, 400);
         tableLayoutPanelMain.TabIndex = 2;
-        tableLayoutPanelMain.SetRowSpan(pictureBox, 2);
-        //
+        // 
         // pictureBox
-        //
+        // 
         pictureBox.Dock = DockStyle.Fill;
         pictureBox.Image = Properties.Resources.ML_210_Total_256_256;
-        pictureBox.Location = new Point(16, 16);
-        pictureBox.Margin = new Padding(0, 0, 16, 0);
+        pictureBox.Location = new Point(12, 12);
+        pictureBox.Margin = new Padding(0, 0, 12, 0);
         pictureBox.Name = "pictureBox";
-        pictureBox.Size = new Size(200, 392);
+        tableLayoutPanelMain.SetRowSpan(pictureBox, 2);
+        pictureBox.Size = new Size(176, 376);
         pictureBox.SizeMode = PictureBoxSizeMode.Zoom;
         pictureBox.TabIndex = 3;
         pictureBox.TabStop = false;
-        //
+        // 
         // reportsLayout
-        //
+        // 
         reportsLayout.AutoSize = true;
         reportsLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         reportsLayout.ColumnCount = 1;
@@ -1397,20 +1517,20 @@ partial class MainForm
         reportsLayout.Controls.Add(labelInfoPath, 0, 0);
         reportsLayout.Controls.Add(panelPath, 0, 1);
         reportsLayout.Dock = DockStyle.Fill;
-        reportsLayout.Location = new Point(232, 312);
-        reportsLayout.Margin = new Padding(16, 12, 0, 0);
+        reportsLayout.Location = new Point(212, 323);
+        reportsLayout.Margin = new Padding(12, 8, 0, 0);
         reportsLayout.Name = "reportsLayout";
         reportsLayout.RowCount = 2;
         reportsLayout.RowStyles.Add(new RowStyle());
         reportsLayout.RowStyles.Add(new RowStyle());
-        reportsLayout.Size = new Size(392, 92);
+        reportsLayout.Size = new Size(396, 65);
         reportsLayout.TabIndex = 1;
         // 
         // MainForm
         // 
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(640, 420);
+        ClientSize = new Size(620, 400);
         Controls.Add(tableLayoutPanelMain);
         Controls.Add(mainLayout);
         Controls.Add(statusCaptionLabel);
@@ -1424,9 +1544,8 @@ partial class MainForm
         Controls.Add(softwareValueLabel);
         Controls.Add(softwareCaptionLabel);
         Font = new Font("Segoe UI", 9F);
-        FormBorderStyle = FormBorderStyle.Sizable;
         Icon = (Icon)resources.GetObject("$this.Icon");
-        MinimumSize = new Size(640, 420);
+        MinimumSize = new Size(620, 400);
         Name = "MainForm";
         StartPosition = FormStartPosition.CenterScreen;
         Text = "Microlux ERG-Connect";
@@ -1465,15 +1584,27 @@ partial class MainForm
         mainStatusStrip.ResumeLayout(false);
         mainStatusStrip.PerformLayout();
         connectionGroup.ResumeLayout(false);
-        connectionGroup.PerformLayout();
         connectionLayout.ResumeLayout(false);
-        connectionLayout.PerformLayout();
+        textBoxCaption1Container.ResumeLayout(false);
+        textBoxCaption1Inner.ResumeLayout(false);
+        textBoxCaption1Inner.PerformLayout();
+        textBoxCaption2Container.ResumeLayout(false);
+        textBoxCaption2Inner.ResumeLayout(false);
+        textBoxCaption2Inner.PerformLayout();
+        textBoxCaption3Container.ResumeLayout(false);
+        textBoxCaption3Inner.ResumeLayout(false);
+        textBoxCaption3Inner.PerformLayout();
+        textBoxCaption4Container.ResumeLayout(false);
+        textBoxCaption4Inner.ResumeLayout(false);
+        textBoxCaption4Inner.PerformLayout();
         panelPath.ResumeLayout(false);
-        panelPath.PerformLayout();
+        panelPathContent.ResumeLayout(false);
         trayMenu.ResumeLayout(false);
         tableLayoutPanelMain.ResumeLayout(false);
         tableLayoutPanelMain.PerformLayout();
         ((ISupportInitialize)pictureBox).EndInit();
+        reportsLayout.ResumeLayout(false);
+        reportsLayout.PerformLayout();
         ResumeLayout(false);
         PerformLayout();
     }
@@ -1493,9 +1624,18 @@ partial class MainForm
     private Label labelInfoPath;
     private Button buttonSetPathFolder;
     private Panel panelPath;
+    private Panel panelPathContent;
     private Label labelPath;
+    private Panel textBoxCaption4Container;
     private TextBox textBoxCaption4;
+    private Panel textBoxCaption3Container;
     private TextBox textBoxCaption3;
+    private Panel textBoxCaption2Container;
     private TextBox textBoxCaption2;
+    private Panel textBoxCaption1Container;
     private TextBox textBoxCaption1;
+    private Panel textBoxCaption1Inner;
+    private Panel textBoxCaption2Inner;
+    private Panel textBoxCaption3Inner;
+    private Panel textBoxCaption4Inner;
 }

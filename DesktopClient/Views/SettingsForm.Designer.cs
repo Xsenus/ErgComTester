@@ -78,17 +78,17 @@ partial class SettingsForm
         folderLabel.Location = new Point(0, 0);
         folderLabel.Margin = new Padding(0, 0, 12, 0);
         folderLabel.Name = "folderLabel";
-        folderLabel.Size = new Size(125, 15);
+        folderLabel.Size = new Size(180, 15);
         folderLabel.TabIndex = 0;
-        folderLabel.Text = "Каталог PDF-отчетов:";
+        folderLabel.Text = "Папка для сохранения отчетов:";
         // 
         // folderTextBox
         // 
         folderTextBox.Dock = DockStyle.Fill;
-        folderTextBox.Location = new Point(155, 3);
+        folderTextBox.Location = new Point(192, 3);
         folderTextBox.Margin = new Padding(0, 3, 8, 3);
         folderTextBox.Name = "folderTextBox";
-        folderTextBox.Size = new Size(334, 23);
+        folderTextBox.Size = new Size(297, 23);
         folderTextBox.TabIndex = 1;
         // 
         // browseButton
@@ -132,13 +132,13 @@ partial class SettingsForm
         headerTextBox.BorderStyle = BorderStyle.FixedSingle;
         layout.SetColumnSpan(headerTextBox, 2);
         headerTextBox.Dock = DockStyle.Fill;
-        headerTextBox.Location = new Point(155, 47);
+        headerTextBox.Location = new Point(192, 47);
         headerTextBox.Margin = new Padding(0, 12, 0, 3);
         headerTextBox.MinimumSize = new Size(200, 100);
         headerTextBox.Multiline = true;
         headerTextBox.Name = "headerTextBox";
         headerTextBox.ScrollBars = ScrollBars.Vertical;
-        headerTextBox.Size = new Size(429, 163);
+        headerTextBox.Size = new Size(392, 163);
         headerTextBox.TabIndex = 4;
         // 
         // headerHintLabel
