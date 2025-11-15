@@ -297,9 +297,17 @@ public sealed class ReportGenerationService : IDisposable
                     _log.Info($"Получен пациент #{index}: ID={patient.PatientId}, животное={DescribeAnimal(patient.Animal)}, тестов={patient.Tests.Count}/{patient.TotalNumTests}");
                     LogPatientWarnings(patient, $"[{portName}] пациент #{index}");
 
-                    var jsonPath = Path.Combine(sessionDir, $"patient_{index:000}.json");
-                    ErgDataSerializer.SaveJson(jsonPath, patient);
-                    _log.Debug($"Структурированные данные пациента #{index} сохранены: {jsonPath}");
+                    string? jsonPath = null;
+                    if (_settings.Current.SaveRawPatientFiles)
+                    {
+                        jsonPath = Path.Combine(sessionDir, $"patient_{index:000}.json");
+                        ErgDataSerializer.SaveJson(jsonPath, patient);
+                        _log.Debug($"Структурированные данные пациента #{index} сохранены: {jsonPath}");
+                    }
+                    else
+                    {
+                        _log.Debug($"Структурированные данные пациента #{index} не сохраняются: сохранение дампов отключено.");
+                    }
 
                     string? pdfPath = null;
                     bool pdfRequiredForSuccess = _pdfGenerationEnabled;
