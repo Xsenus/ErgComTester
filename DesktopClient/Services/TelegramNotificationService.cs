@@ -211,7 +211,7 @@ public sealed class TelegramNotificationService : IDisposable
         EnqueueMessage(message);
     }
 
-    public void NotifyPatientProcessed(int patientIndex, ErgPatient patient, string? rawPath, string jsonPath, string pdfPath, string? docxPath)
+    public void NotifyPatientProcessed(int patientIndex, ErgPatient patient, string? rawPath, string? jsonPath, string pdfPath, string? docxPath)
     {
         var summary = new StringBuilder()
             .AppendLine($"✅ Пациент #{patientIndex:000} обработан")
@@ -226,7 +226,7 @@ public sealed class TelegramNotificationService : IDisposable
         }
 
         summary.AppendLine($"RAW: {(!string.IsNullOrWhiteSpace(rawPath) ? rawPath : "<не сохранён>")}");
-        summary.AppendLine($"JSON: {jsonPath}");
+        summary.AppendLine($"JSON: {(!string.IsNullOrWhiteSpace(jsonPath) ? jsonPath : "<не сохранён>")}");
         summary.AppendLine($"PDF: {pdfPath}");
         if (!string.IsNullOrWhiteSpace(docxPath))
         {
@@ -255,7 +255,7 @@ public sealed class TelegramNotificationService : IDisposable
             EnqueueDocument(rawPath, $"patient_{patientIndex:000}.bin");
         }
 
-        if (settings.ForwardJson && File.Exists(jsonPath))
+        if (settings.ForwardJson && !string.IsNullOrWhiteSpace(jsonPath) && File.Exists(jsonPath))
         {
             EnqueueDocument(jsonPath, $"patient_{patientIndex:000}.json");
         }
@@ -343,7 +343,7 @@ public sealed class TelegramNotificationService : IDisposable
         {
             EnqueueDocument(filePath, Path.GetFileName(filePath));
         }
-        if (settings.ForwardJson && File.Exists(jsonPath))
+        if (settings.ForwardJson && !string.IsNullOrWhiteSpace(jsonPath) && File.Exists(jsonPath))
         {
             EnqueueDocument(jsonPath, Path.GetFileName(jsonPath));
         }
