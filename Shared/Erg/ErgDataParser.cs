@@ -296,7 +296,12 @@ public static class ErgDataParser
             }
 
             ushort raw = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(offset, 2));
-            result[i] = raw == ushort.MaxValue ? null : raw;
+            result[i] = raw switch
+            {
+                ushort.MaxValue => null,
+                byte.MaxValue => null,
+                _ => raw
+            };
         }
 
         return result;
