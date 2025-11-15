@@ -15,6 +15,7 @@ public class AppSettings
     public int DeviceReconnectDelaySeconds { get; set; } = 15;
     public int UpdateCheckIntervalMinutes { get; set; } = 60;
     public bool AutoDownloadUpdates { get; set; } = true;
+    public bool AutoUpdaterEnabled { get; set; } = true;
     public string UpdateManifestUrl { get; set; } = DefaultManifestUrl;
     public SerialCommunicationOptions Serial { get; set; } = SerialCommunicationOptions.CreateDefault();
     public int BackgroundSyncIntervalMinutes { get; set; } = 30;
