@@ -428,6 +428,51 @@ public sealed class ErgDataParserTests
         Assert.Equal<ushort?>(34, test.RightEye.BWaveMs![0]);
     }
 
+    [Fact]
+    public void TryParsePatient_TreatsSentinelMeasurementsAsMissing()
+    {
+        var frame = BuildPatientFrame(builder =>
+        {
+            builder.RightEye = builder.RightEye with
+            {
+                ValueCount = 2,
+                AWaveMs = new ushort?[] { 255, 18, null },
+                AWaveMkV = new ushort?[] { 65535, 75, null, null, null, null },
+                BWaveMs = new ushort?[] { 255, 66, null },
+                BWaveMkV = new ushort?[] { 65535, 120, null, null, null, null },
+                AWaveMarker = 255,
+                BWaveMarker = 255
+            };
+        });
+
+        var success = ErgDataParser.TryParsePatient(frame, out var patient, out var error);
+
+        Assert.True(success);
+        Assert.Null(error);
+
+        var test = Assert.Single(patient.Tests);
+        var eye = test.RightEye;
+
+        Assert.NotNull(eye.AWaveMs);
+        Assert.Null(eye.AWaveMs![0]);
+        Assert.Equal<ushort?>(18, eye.AWaveMs![1]);
+
+        Assert.NotNull(eye.BWaveMs);
+        Assert.Null(eye.BWaveMs![0]);
+        Assert.Equal<ushort?>(66, eye.BWaveMs![1]);
+
+        Assert.NotNull(eye.AWaveMkV);
+        Assert.Null(eye.AWaveMkV![0]);
+        Assert.Equal<uint?>(75u, eye.AWaveMkV![1]);
+
+        Assert.NotNull(eye.BWaveMkV);
+        Assert.Null(eye.BWaveMkV![0]);
+        Assert.Equal<uint?>(120u, eye.BWaveMkV![1]);
+
+        Assert.Null(eye.AWaveMarker);
+        Assert.Null(eye.BWaveMarker);
+    }
+
     private static void WriteFixedString(BinaryWriter writer, string value, int length, Encoding encoding)
     {
         var bytes = new byte[length];
