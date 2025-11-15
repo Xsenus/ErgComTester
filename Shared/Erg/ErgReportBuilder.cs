@@ -45,6 +45,7 @@ public static class ErgReportBuilder
     private const float GraphRenderDpi = GraphImagePixelWidth / GraphImageTargetWidthInches;
     private const double HeaderLineSpacingPoints = 2d;
     private const double HeaderTitleSpacingPoints = 12d;
+    private const string MissingMeasurementText = "— —";
 
     private static SKTypeface? _skTypeface;
 
@@ -794,8 +795,8 @@ public static class ErgReportBuilder
             ? FormatRange(test.AWaveMkVNormalMin, test.AWaveMkVNormalMax)
             : FormatRange(test.BWaveMkVNormalMin, test.BWaveMkVNormalMax);
 
-        var msText = measurement.Ms.HasValue ? $"{measurement.Ms.Value:0} мс" : "—";
-        var mkvText = measurement.MkV.HasValue ? $"{measurement.MkV.Value:0} мкВ" : "—";
+        var msText = FormatPrimaryMeasurement(measurement.Ms, "мс");
+        var mkvText = FormatPrimaryMeasurement(measurement.MkV, "мкВ");
 
         return new WaveDisplay(eye.IsFlat, msText, mkvText, msNorm, mkvNorm);
     }
@@ -1422,9 +1423,9 @@ public static class ErgReportBuilder
         var paragraph = new Paragraph();
         paragraph.Append(new ParagraphProperties(new Justification { Val = JustificationValues.Center }));
 
-        if (string.IsNullOrWhiteSpace(value) || value == "—")
+        if (IsMissingMeasurementString(value))
         {
-            paragraph.Append(CreateMeasurementRun("—", 26, bold: true));
+            paragraph.Append(CreateMeasurementRun(MissingMeasurementText, 26, bold: true));
             return paragraph;
         }
 
@@ -1922,10 +1923,44 @@ public static class ErgReportBuilder
     {
         int valueCount = eye.ValueCount ?? DetermineValueCount(eye);
         if (valueCount <= 0)
-            return "—";
-        if (!marker.HasValue)
-            return "—";
+            return MissingMeasurementText;
+        if (!marker.HasValue || marker.Value == byte.MaxValue)
+            return MissingMeasurementText;
         return $"{marker} мс";
+    }
+
+    private static string FormatWaveMs(ushort? value)
+    {
+        if (!value.HasValue)
+            return MissingMeasurementText;
+
+        if (value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
+            return MissingMeasurementText;
+
+        return $"{value.Value} мс";
+    }
+
+    private static string FormatWaveMkV(uint? value)
+    {
+        if (!value.HasValue)
+            return MissingMeasurementText;
+
+        if (value.Value == ushort.MaxValue)
+            return MissingMeasurementText;
+
+        return $"{value.Value} мкВ";
+    }
+
+    private static string FormatPrimaryMeasurement(double? value, string unit)
+    {
+        if (!value.HasValue)
+            return MissingMeasurementText;
+
+        double rounded = Math.Round(value.Value);
+        if (Math.Abs(rounded - byte.MaxValue) < 0.5 || Math.Abs(rounded - ushort.MaxValue) < 0.5)
+            return MissingMeasurementText;
+
+        return $"{rounded:0} {unit}";
     }
 
     private static string? FormatMeasurement(EyeData eye, int index)
@@ -1950,16 +1985,13 @@ public static class ErgReportBuilder
         if (!hasA && !hasB)
             return null;
 
-        static string FormatMs(ushort? value) => value.HasValue ? $"{value} мс" : "—";
-        static string FormatMkV(uint? value) => value.HasValue ? $"{value} мкВ" : "—";
-
-        return $"a: {FormatMs(aMs)}, {FormatMkV(aMkV)}\n" +
-               $"b: {FormatMs(bMs)}, {FormatMkV(bMkV)}";
+        return $"a: {FormatWaveMs(aMs)}, {FormatWaveMkV(aMkV)}\n" +
+               $"b: {FormatWaveMs(bMs)}, {FormatWaveMkV(bMkV)}";
     }
 
     private static string? FormatNormForClient(string value)
     {
-        if (string.IsNullOrWhiteSpace(value) || value == "—")
+        if (IsMissingMeasurementString(value))
             return null;
 
         return $"[{value}]";
@@ -2052,8 +2084,13 @@ public static class ErgReportBuilder
 
         foreach (var value in values)
         {
-            if (value.HasValue)
-                return value.Value;
+            if (!value.HasValue)
+                continue;
+
+            if (value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
+                continue;
+
+            return value.Value;
         }
 
         return null;
@@ -2066,8 +2103,13 @@ public static class ErgReportBuilder
 
         foreach (var value in values)
         {
-            if (value.HasValue)
-                return value.Value;
+            if (!value.HasValue)
+                continue;
+
+            if (value.Value == ushort.MaxValue)
+                continue;
+
+            return value.Value;
         }
 
         return null;
@@ -2256,12 +2298,25 @@ public static class ErgReportBuilder
             FakeBoldText = bold
         };
 
+    private static bool IsMissingMeasurementString(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return true;
+
+        var trimmed = value.Trim();
+        return string.Equals(trimmed, "—", StringComparison.Ordinal)
+            || string.Equals(trimmed, MissingMeasurementText, StringComparison.Ordinal);
+    }
+
     private static (string Value, string Unit) SplitValueAndUnit(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
-            return ("—", string.Empty);
+            return (MissingMeasurementText, string.Empty);
 
         var trimmed = text.Trim();
+        if (string.Equals(trimmed, MissingMeasurementText, StringComparison.Ordinal))
+            return (MissingMeasurementText, string.Empty);
+
         var lastSpace = trimmed.LastIndexOf(' ');
         if (lastSpace <= 0 || lastSpace >= trimmed.Length - 1)
             return (trimmed, string.Empty);
@@ -4336,9 +4391,9 @@ public static class ErgReportBuilder
             {
                 row.Spacing(2);
 
-                if (value == "—")
+                if (IsMissingMeasurementString(value))
                 {
-                    row.AutoItem().AlignBottom().Text(value).FontSize(26).SemiBold();
+                    row.AutoItem().AlignBottom().Text(MissingMeasurementText).FontSize(26).SemiBold();
                     return;
                 }
 
