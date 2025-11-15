@@ -27,7 +27,29 @@ public sealed class UpdateService : IDisposable
     {
         get
         {
-            var url = _settings.Current.UpdateManifestUrl;
+            var settings = _settings.Current;
+            if (!settings.AutoUpdaterEnabled)
+            {
+                return false;
+            }
+
+            var url = settings.UpdateManifestUrl;
+            return Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                && string.Equals(uri.Scheme, Uri.UriSchemeFtp, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private bool IsAutoUpdaterDisabled
+    {
+        get
+        {
+            var settings = _settings.Current;
+            if (settings.AutoUpdaterEnabled)
+            {
+                return false;
+            }
+
+            var url = settings.UpdateManifestUrl;
             return Uri.TryCreate(url, UriKind.Absolute, out var uri)
                 && string.Equals(uri.Scheme, Uri.UriSchemeFtp, StringComparison.OrdinalIgnoreCase);
         }
@@ -50,6 +72,14 @@ public sealed class UpdateService : IDisposable
         {
             _log.Info("Сервис обновлений переведен в режим AutoUpdater.NET. Фоновые проверки встроенного механизма отключены.");
             UpdateStateInternal(new UpdateState(false, CurrentVersion, null, "Обновления управляются AutoUpdater.NET."));
+            return;
+        }
+
+        if (IsAutoUpdaterDisabled)
+        {
+            const string message = "AutoUpdater.NET отключен в настройках.";
+            _log.Info($"AutoUpdater.NET: {message}");
+            UpdateStateInternal(new UpdateState(false, CurrentVersion, null, $"AutoUpdater.NET: {message}"));
             return;
         }
 
@@ -137,6 +167,14 @@ public sealed class UpdateService : IDisposable
                 _log.Warn($"AutoUpdater.NET: ошибка ручной проверки: {ex.Message}");
                 return UpdateStateInternal(new UpdateState(CurrentState.UpdateAvailable, CurrentState.LatestVersion, CurrentState.DownloadedFile, "AutoUpdater.NET: ошибка проверки обновлений"));
             }
+        }
+
+        if (IsAutoUpdaterDisabled)
+        {
+            const string disabledMessage = "AutoUpdater.NET отключен в настройках.";
+            _log.Info($"AutoUpdater.NET: {disabledMessage}");
+            var latest = CurrentState.LatestVersion ?? CurrentVersion;
+            return UpdateStateInternal(new UpdateState(false, latest, CurrentState.DownloadedFile, $"AutoUpdater.NET: {disabledMessage}"));
         }
 
         try
@@ -293,6 +331,13 @@ public sealed class UpdateService : IDisposable
         if (IsAutoUpdaterMode)
         {
             _log.Info("Сервис обновлений (AutoUpdater.NET) завершает работу.");
+            _httpClient.Dispose();
+            return;
+        }
+
+        if (IsAutoUpdaterDisabled)
+        {
+            _log.Info("AutoUpdater.NET отключен в настройках. Фоновый сервис обновлений не запускался.");
             _httpClient.Dispose();
             return;
         }

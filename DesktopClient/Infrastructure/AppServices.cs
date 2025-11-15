@@ -98,38 +98,45 @@ public static class AppServices
         Update = new UpdateService(Settings, Log);
         MainViewModel = new MainViewModel(Settings, DeviceMonitor, Update, Reports, Log);
 
-        var autoUpdaterTask = RunAutoUpdaterAsync();
-        autoUpdaterTask.ContinueWith(task =>
+        if (Settings.Current.AutoUpdaterEnabled)
         {
-            if (task.IsFaulted)
+            var autoUpdaterTask = RunAutoUpdaterAsync();
+            autoUpdaterTask.ContinueWith(task =>
             {
-                var ex = task.Exception?.GetBaseException();
-                Log.Warn($"AutoUpdater.NET: фоновая проверка завершилась ошибкой: {ex?.Message ?? task.Exception?.Message}");
-                return;
-            }
+                if (task.IsFaulted)
+                {
+                    var ex = task.Exception?.GetBaseException();
+                    Log.Warn($"AutoUpdater.NET: фоновая проверка завершилась ошибкой: {ex?.Message ?? task.Exception?.Message}");
+                    return;
+                }
 
-            var info = task.Result;
-            if (!info.Enabled)
-            {
-                return;
-            }
+                var info = task.Result;
+                if (!info.Enabled)
+                {
+                    return;
+                }
 
-            try
-            {
-                Telegram?.NotifyAutoUpdaterSummary(
-                    info.Manifest?.Version,
-                    info.Manifest?.PackageUrl,
-                    info.Manifest?.Mandatory,
-                    info.Manifest?.MandatoryMode,
-                    info.Manifest?.Description,
-                    info.Error,
-                    info.ExitRequested);
-            }
-            catch (ObjectDisposedException)
-            {
-                // Служба уведомлений уже остановлена.
-            }
-        }, TaskScheduler.Default);
+                try
+                {
+                    Telegram?.NotifyAutoUpdaterSummary(
+                        info.Manifest?.Version,
+                        info.Manifest?.PackageUrl,
+                        info.Manifest?.Mandatory,
+                        info.Manifest?.MandatoryMode,
+                        info.Manifest?.Description,
+                        info.Error,
+                        info.ExitRequested);
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Служба уведомлений уже остановлена.
+                }
+            }, TaskScheduler.Default);
+        }
+        else
+        {
+            Log.Info("AutoUpdater.NET: запуск при старте отключен настройками.");
+        }
 
         DeviceMonitor.DeviceConnected += (_, info) => Telegram.NotifyDeviceConnected(info);
         DeviceMonitor.DeviceDisconnected += (_, __) => Telegram.NotifyDeviceDisconnected(DeviceMonitor.CurrentStatus.Message);
@@ -222,6 +229,12 @@ public static class AppServices
 
     public static Task<AutoUpdaterRunInfo> RunAutoUpdaterAsync()
     {
+        if (!Settings.Current.AutoUpdaterEnabled)
+        {
+            Log.Info("AutoUpdater.NET: проверка отключена настройками.");
+            return Task.FromResult(new AutoUpdaterRunInfo(false, null, "AutoUpdater.NET отключен в настройках", false));
+        }
+
         var url = Settings.Current.UpdateManifestUrl;
         if (string.IsNullOrWhiteSpace(url))
         {
@@ -470,7 +483,7 @@ public static class AppServices
         var s = Settings.Current;
         Log.Info($"Настройки устройства: preferredPort={s.PreferredPort ?? "<не задан>"}, scanInterval={s.DeviceScanInterval.TotalSeconds}s, reconnectDelay={s.DeviceReconnectDelay.TotalSeconds}s");
         Log.Info($"Синхронизация пациентов: interval={s.BackgroundSyncInterval.TotalMinutes} мин.");
-        Log.Info($"Обновления: interval={s.UpdateCheckInterval.TotalMinutes} мин., авто-загрузка={(s.AutoDownloadUpdates ? "да" : "нет")}, manifest={s.UpdateManifestUrl}");
+        Log.Info($"Обновления: interval={s.UpdateCheckInterval.TotalMinutes} мин., авто-загрузка={(s.AutoDownloadUpdates ? "да" : "нет")}, AutoUpdater={(s.AutoUpdaterEnabled ? "вкл" : "выкл")}, manifest={s.UpdateManifestUrl}");
         Log.Info($"Каталоги: отчеты={s.ReportsDirectory}, логи={s.LogsDirectory}");
         var serial = s.Serial;
         Log.Info($"COM-порт: baud={serial.BaudRate}, readTimeout={serial.ReadTimeoutMs}мс, writeTimeout={serial.WriteTimeoutMs}мс, quiet={serial.QuietTimeMs}мс, window={serial.MaxReadWindowMs}мс");
