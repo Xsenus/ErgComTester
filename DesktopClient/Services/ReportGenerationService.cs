@@ -165,8 +165,13 @@ public sealed class ReportGenerationService : IDisposable
         {
             _log.Info("Генерация Word-отчетов отключена в настройках. DOCX-файлы создаваться не будут.");
         }
-        int maxPatients = Math.Max(1, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 1);
-        int expectedPatients = Math.Max(0, _lastDeviceInfo?.DeviceInfo.TotalNumId ?? 0);
+        var reportedPatients = _lastDeviceInfo?.DeviceInfo.TotalNumId;
+        int expectedPatients = Math.Max(0, reportedPatients ?? 0);
+        int maxPatients = reportedPatients.HasValue ? expectedPatients : 1;
+        if (reportedPatients == 0)
+        {
+            _log.Info($"[{portName}] прибор сообщил об отсутствии записанных пациентов (Total_Num_Id = 0).");
+        }
         int successfullySavedPatients = 0;
         bool hasFailedPatients = false;
         bool sessionAnnounced = false;
@@ -489,7 +494,7 @@ public sealed class ReportGenerationService : IDisposable
             _telegram?.NotifySessionCompleted(portName, sessionDir, processedPatients, totalReports);
         }
 
-        if (options.EnableRtcSynchronization)
+        if (options.EnableRtcSynchronization && expectedPatients > 0)
         {
             if (expectedPatients == successfullySavedPatients && !hasFailedPatients)
             {
@@ -501,6 +506,10 @@ public sealed class ReportGenerationService : IDisposable
             {
                 _log.Warn($"[{portName}] синхронизация времени пропущена: ожидалось пациентов {expectedPatients}, успешно сохранено {successfullySavedPatients}.");
             }
+        }
+        else if (options.EnableRtcSynchronization)
+        {
+            _log.Info($"[{portName}] синхронизация времени пропущена: прибор сообщил Total_Num_Id = 0.");
         }
     }
 
