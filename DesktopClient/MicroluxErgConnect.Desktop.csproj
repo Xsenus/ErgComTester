@@ -9,8 +9,8 @@
     <AssemblyName>MicroluxErgConnect</AssemblyName>
     <RootNamespace>MicroluxErgConnect</RootNamespace>
 
-    <AssemblyVersion>1.0.0.53</AssemblyVersion>
-    <FileVersion>1.0.0.53</FileVersion>
+    <AssemblyVersion>1.0.0.54</AssemblyVersion>
+    <FileVersion>1.0.0.54</FileVersion>
 
     <!-- Платформа/рид -->
     <PlatformTarget Condition="'$(PlatformTarget)' == ''">x86</PlatformTarget>
