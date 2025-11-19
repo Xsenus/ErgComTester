@@ -784,7 +784,7 @@ public static class ErgReportBuilder
 
     private static WaveDisplay BuildWaveDisplay(ErgTest test, EyeData eye, WaveKind wave)
     {
-        int valueCount = eye.ValueCount ?? DetermineValueCount(eye);
+        int valueCount = DetermineValueCount(eye);
         var measurement = wave == WaveKind.A
             ? new WaveMeasurement(GetFirstValue(eye.AWaveMs, valueCount), GetFirstValue(eye.AWaveMkV, valueCount))
             : new WaveMeasurement(GetFirstValue(eye.BWaveMs, valueCount), GetFirstValue(eye.BWaveMkV, valueCount));
@@ -1609,7 +1609,7 @@ public static class ErgReportBuilder
 
     private static int DetermineValueCount(EyeData eye)
     {
-        if (eye.ValueCount.HasValue)
+        if (eye.ValueCount.HasValue && eye.ValueCount.Value > 0)
             return eye.ValueCount.Value;
 
         int count = 0;
@@ -1812,7 +1812,7 @@ public static class ErgReportBuilder
         if (eye.QualityIndex.HasValue && eye.QualityIndex.Value == 0)
             return false;
 
-        if (eye.ValueCount.HasValue && eye.ValueCount.Value == 0)
+        if (DetermineValueCount(eye) == 0)
             return false;
 
         if (eye.GraphCount == 0)
@@ -1922,7 +1922,7 @@ public static class ErgReportBuilder
 
     private static string FormatMarker(EyeData eye, byte? marker)
     {
-        int valueCount = eye.ValueCount ?? DetermineValueCount(eye);
+        int valueCount = DetermineValueCount(eye);
         if (valueCount <= 0)
             return MissingMeasurementText;
         if (!marker.HasValue || marker.Value == byte.MaxValue)
@@ -1995,7 +1995,7 @@ public static class ErgReportBuilder
 
     private static string? FormatMeasurement(EyeData eye, int index)
     {
-        int valueCount = eye.ValueCount ?? DetermineValueCount(eye);
+        int valueCount = DetermineValueCount(eye);
         if (index >= valueCount)
             return null;
 
@@ -2218,7 +2218,7 @@ public static class ErgReportBuilder
 
     private static bool HasEyeMeasurementValues(EyeData eye)
     {
-        int valueCount = eye.ValueCount ?? DetermineValueCount(eye);
+        int valueCount = DetermineValueCount(eye);
         if (valueCount <= 0)
             return false;
 
