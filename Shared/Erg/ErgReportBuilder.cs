@@ -45,7 +45,7 @@ public static class ErgReportBuilder
     private const float GraphRenderDpi = GraphImagePixelWidth / GraphImageTargetWidthInches;
     private const double HeaderLineSpacingPoints = 2d;
     private const double HeaderTitleSpacingPoints = 12d;
-    private const string MissingMeasurementText = "— —";
+    private const string MissingMeasurementText = "- -";
 
     private static SKTypeface? _skTypeface;
 
@@ -1608,10 +1608,7 @@ public static class ErgReportBuilder
 
     private static int DetermineValueCount(EyeData eye)
     {
-        if (eye.ValueCount.HasValue)
-            return eye.ValueCount.Value;
-
-        int count = 0;
+        int count = eye.ValueCount ?? 0;
         count = Math.Max(count, eye.AWaveMs?.Length ?? 0);
         count = Math.Max(count, eye.AWaveMkV?.Length ?? 0);
         count = Math.Max(count, eye.BWaveMs?.Length ?? 0);
@@ -1817,7 +1814,7 @@ public static class ErgReportBuilder
         if (eye.GraphCount == 0)
             return false;
 
-        return HasEyeMeasurementValues(eye);
+        return DetermineValueCount(eye) > 0;
     }
 
     private static string FormatAnimal(AnimalKind animal)
@@ -1921,7 +1918,7 @@ public static class ErgReportBuilder
 
     private static string FormatMarker(EyeData eye, byte? marker)
     {
-        int valueCount = eye.ValueCount ?? DetermineValueCount(eye);
+        int valueCount = DetermineValueCount(eye);
         if (valueCount <= 0)
             return MissingMeasurementText;
         if (!marker.HasValue || marker.Value == byte.MaxValue)
@@ -1965,7 +1962,7 @@ public static class ErgReportBuilder
 
     private static string? FormatMeasurement(EyeData eye, int index)
     {
-        int valueCount = eye.ValueCount ?? DetermineValueCount(eye);
+        int valueCount = DetermineValueCount(eye);
         if (index >= valueCount)
             return null;
 
@@ -2145,14 +2142,6 @@ public static class ErgReportBuilder
         yield return ("/word/theme/theme1.xml", "application/vnd.openxmlformats-officedocument.theme+xml");
     }
 
-    private static bool HasEyeMeasurementValues(EyeData eye)
-    {
-        return GetFirstValue(eye.AWaveMs).HasValue
-            || GetFirstValue(eye.AWaveMkV).HasValue
-            || GetFirstValue(eye.BWaveMs).HasValue
-            || GetFirstValue(eye.BWaveMkV).HasValue;
-    }
-
     private static long InchesToEmus(double inches) => (long)(inches * 914400);
 
     private static bool IsWaveDisplayEmpty(WaveDisplay display)
@@ -2160,8 +2149,8 @@ public static class ErgReportBuilder
         if (display.IsFlat)
             return false;
 
-        return display.MsValue == "—"
-            && display.MkVValue == "—"
+        return display.MsValue == MissingMeasurementText
+            && display.MkVValue == MissingMeasurementText
             && FormatNormForClient(display.MsNorm) == null
             && FormatNormForClient(display.MkVNorm) == null;
     }

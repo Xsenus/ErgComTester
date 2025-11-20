@@ -359,7 +359,7 @@ public class RenderingSupportTests
             using var document = WordprocessingDocument.Open(outputPath, false);
             var text = document.MainDocumentPart!.Document.InnerText;
 
-            Assert.Contains("— —", text);
+            Assert.Contains("- -", text);
             Assert.DoesNotContain("255 мс", text);
             Assert.DoesNotContain("65535 мкВ", text);
         }
