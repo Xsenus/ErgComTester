@@ -459,6 +459,78 @@ public class RenderingSupportTests
     }
 
     [Fact]
+    public void WordReport_ReplacesZeroMeasurementsWithPlaceholders()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".docx");
+        try
+        {
+            var patient = new ErgPatient
+            {
+                PatientId = 102,
+                Animal = AnimalKind.Dog,
+                TestDateTime = "04.03.2024 11:00",
+                TotalNumTests = 1,
+                Tests =
+                {
+                    new ErgTest
+                    {
+                        TestName = "Flash",
+                        GraphNumPoints = 10,
+                        GraphDt = 1,
+                        GraphDiscrPerMkV = 1,
+                        GraphFlashPosition = 5,
+                        GraphXValueStep = 1,
+                        GraphXLineStep = 1,
+                        GraphXScaleMin = 0,
+                        GraphXScaleMax = 9,
+                        GraphYValueStep = 1,
+                        GraphYLineStep = 1,
+                        GraphYScaleMin = -5,
+                        GraphYScaleMax = 5,
+                        AWaveExists = true,
+                        RightEye = new EyeData
+                        {
+                            QualityIndex = 2,
+                            ValueCount = 1,
+                            AWaveMs = new ushort?[] { 0 },
+                            AWaveMkV = new uint?[] { 0u },
+                            BWaveMs = new ushort?[] { 0 },
+                            BWaveMkV = new uint?[] { 0u },
+                            GraphCount = 0
+                        },
+                        LeftEye = new EyeData
+                        {
+                            QualityIndex = 1,
+                            ValueCount = 1,
+                            AWaveMs = new ushort?[] { 0 },
+                            AWaveMkV = new uint?[] { 0u },
+                            BWaveMs = new ushort?[] { 0 },
+                            BWaveMkV = new uint?[] { 0u },
+                            GraphCount = 0
+                        }
+                    }
+                }
+            };
+
+            ErgReportBuilder.BuildPatientWordReport(patient, outputPath);
+
+            using var document = WordprocessingDocument.Open(outputPath, false);
+            var text = document.MainDocumentPart!.Document.InnerText;
+
+            Assert.Contains("— —", text);
+            Assert.DoesNotContain("0 мс", text);
+            Assert.DoesNotContain("0 мкВ", text);
+        }
+        finally
+        {
+            if (File.Exists(outputPath))
+            {
+                File.Delete(outputPath);
+            }
+        }
+    }
+
+    [Fact]
     public void ManualRenderingModeOverridesDetection()
     {
         var original = Environment.GetEnvironmentVariable("ERG_FORCE_LEGACY_RENDERING");
