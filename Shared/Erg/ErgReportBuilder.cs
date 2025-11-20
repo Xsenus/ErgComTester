@@ -2087,9 +2087,6 @@ public static class ErgReportBuilder
             if (!value.HasValue)
                 continue;
 
-            if (value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
-                continue;
-
             return value.Value;
         }
 
@@ -2104,9 +2101,6 @@ public static class ErgReportBuilder
         foreach (var value in values)
         {
             if (!value.HasValue)
-                continue;
-
-            if (value.Value == ushort.MaxValue)
                 continue;
 
             return value.Value;
@@ -2147,10 +2141,10 @@ public static class ErgReportBuilder
 
     private static bool HasEyeMeasurementValues(EyeData eye)
     {
-        return GetFirstValue(eye.AWaveMs).HasValue
-            || GetFirstValue(eye.AWaveMkV).HasValue
-            || GetFirstValue(eye.BWaveMs).HasValue
-            || GetFirstValue(eye.BWaveMkV).HasValue;
+        return (eye.AWaveMs?.Any(v => v.HasValue) ?? false)
+            || (eye.AWaveMkV?.Any(v => v.HasValue) ?? false)
+            || (eye.BWaveMs?.Any(v => v.HasValue) ?? false)
+            || (eye.BWaveMkV?.Any(v => v.HasValue) ?? false);
     }
 
     private static long InchesToEmus(double inches) => (long)(inches * 914400);

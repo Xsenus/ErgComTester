@@ -282,9 +282,95 @@ public class RenderingSupportTests
 
                         var resolved = ResolveRelationshipTarget(target);
                         Assert.NotNull(archive.GetEntry(resolved));
+        }
+    }
+
+    [Fact]
+    public void ClientWordReportShowsPlaceholdersWhenOnlySentinelsProvided()
+    {
+        var outputPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".docx");
+        try
+        {
+            var patient = new ErgPatient
+            {
+                PatientId = 5,
+                Animal = AnimalKind.Dog,
+                TestDateTime = "03.03.2024 10:00",
+                TotalNumTests = 1,
+                Tests =
+                {
+                    new ErgTest
+                    {
+                        TestName = "Flash",
+                        GraphNumPoints = 5,
+                        GraphDt = 1,
+                        GraphDiscrPerMkV = 1,
+                        GraphFlashPosition = 2,
+                        GraphXValueStep = 1,
+                        GraphXLineStep = 1,
+                        GraphXScaleMin = 0,
+                        GraphXScaleMax = 4,
+                        GraphYValueStep = 1,
+                        GraphYLineStep = 1,
+                        GraphYScaleMin = -2,
+                        GraphYScaleMax = 2,
+                        AWaveExists = true,
+                        AWaveMsNormalMin = 1,
+                        AWaveMsNormalMax = 3,
+                        AWaveMkVNormalMin = 5,
+                        AWaveMkVNormalMax = 15,
+                        BWaveMsNormalMin = 5,
+                        BWaveMsNormalMax = 7,
+                        BWaveMkVNormalMin = 20,
+                        BWaveMkVNormalMax = 40,
+                        RightEye = new EyeData
+                        {
+                            QualityIndex = 2,
+                            GraphCount = 1,
+                            AWaveMs = new ushort?[] { byte.MaxValue },
+                            AWaveMkV = new uint?[] { ushort.MaxValue },
+                            BWaveMs = new ushort?[] { byte.MaxValue },
+                            BWaveMkV = new uint?[] { ushort.MaxValue },
+                            GraphsNormalized = new[] { Enumerable.Range(0, 5).Select(i => 0.0).ToArray() }
+                        },
+                        LeftEye = new EyeData
+                        {
+                            QualityIndex = 2,
+                            GraphCount = 1,
+                            AWaveMs = new ushort?[] { byte.MaxValue },
+                            AWaveMkV = new uint?[] { ushort.MaxValue },
+                            BWaveMs = new ushort?[] { byte.MaxValue },
+                            BWaveMkV = new uint?[] { ushort.MaxValue },
+                            GraphsNormalized = new[] { Enumerable.Range(0, 5).Select(i => 0.0).ToArray() }
+                        }
                     }
                 }
+            };
+
+            var deviceInfo = new CommonInfo
+            {
+                ReportName = "Placeholder check",
+                DeviceName = "ERG-100",
+                SoftwareRev = "2.3"
+            };
+
+            ErgReportBuilder.BuildPatientWordReport(patient, outputPath, deviceInfo, "Клиника");
+
+            using var document = WordprocessingDocument.Open(outputPath, false);
+            var text = document.MainDocumentPart?.Document?.InnerText;
+
+            Assert.Contains("Замер #1", text);
+            Assert.Contains("— —", text);
+        }
+        finally
+        {
+            if (File.Exists(outputPath))
+            {
+                File.Delete(outputPath);
             }
+        }
+    }
+}
 
             using var document = WordprocessingDocument.Open(outputPath, false);
             var validator = new OpenXmlValidator();
