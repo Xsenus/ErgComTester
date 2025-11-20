@@ -784,10 +784,9 @@ public static class ErgReportBuilder
 
     private static WaveDisplay BuildWaveDisplay(ErgTest test, EyeData eye, WaveKind wave)
     {
-        int valueCount = DetermineValueCount(eye);
         var measurement = wave == WaveKind.A
-            ? new WaveMeasurement(GetFirstValue(eye.AWaveMs, valueCount), GetFirstValue(eye.AWaveMkV, valueCount))
-            : new WaveMeasurement(GetFirstValue(eye.BWaveMs, valueCount), GetFirstValue(eye.BWaveMkV, valueCount));
+            ? new WaveMeasurement(GetFirstValue(eye.AWaveMs), GetFirstValue(eye.AWaveMkV))
+            : new WaveMeasurement(GetFirstValue(eye.BWaveMs), GetFirstValue(eye.BWaveMkV));
 
         var msNorm = wave == WaveKind.A
             ? FormatRange(test.AWaveMsNormalMin, test.AWaveMsNormalMax)
@@ -796,8 +795,8 @@ public static class ErgReportBuilder
             ? FormatRange(test.AWaveMkVNormalMin, test.AWaveMkVNormalMax)
             : FormatRange(test.BWaveMkVNormalMin, test.BWaveMkVNormalMax);
 
-        var msText = FormatPrimaryLatency(measurement.Ms);
-        var mkvText = FormatPrimaryAmplitude(measurement.MkV);
+        var msText = FormatPrimaryMeasurement(measurement.Ms, "мс");
+        var mkvText = FormatPrimaryMeasurement(measurement.MkV, "мкВ");
 
         return new WaveDisplay(eye.IsFlat, msText, mkvText, msNorm, mkvNorm);
     }
@@ -1609,10 +1608,7 @@ public static class ErgReportBuilder
 
     private static int DetermineValueCount(EyeData eye)
     {
-        if (eye.ValueCount.HasValue && eye.ValueCount.Value > 0)
-            return eye.ValueCount.Value;
-
-        int count = 0;
+        int count = eye.ValueCount ?? 0;
         count = Math.Max(count, eye.AWaveMs?.Length ?? 0);
         count = Math.Max(count, eye.AWaveMkV?.Length ?? 0);
         count = Math.Max(count, eye.BWaveMs?.Length ?? 0);
@@ -1812,8 +1808,8 @@ public static class ErgReportBuilder
         if (eye.QualityIndex.HasValue && eye.QualityIndex.Value == 0)
             return false;
 
-        // ValueCount can be zero even when arrays contain sentinel placeholders,
-        // so rely on the actual measurement slots instead of the raw field.
+        if (eye.ValueCount.HasValue && eye.ValueCount.Value == 0)
+            return false;
 
         if (eye.GraphCount == 0)
             return false;
@@ -1932,65 +1928,36 @@ public static class ErgReportBuilder
 
     private static string FormatWaveMs(ushort? value)
     {
-        if (IsMissingLatencyValue(value))
+        if (!value.HasValue)
             return MissingMeasurementText;
 
-        return $"{value!.Value} мс";
+        if (value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
+            return MissingMeasurementText;
+
+        return $"{value.Value} мс";
     }
 
     private static string FormatWaveMkV(uint? value)
     {
-        if (IsMissingAmplitudeValue(value))
+        if (!value.HasValue)
             return MissingMeasurementText;
 
-        return $"{value!.Value} мкВ";
-    }
-
-    private static string FormatPrimaryLatency(double? value)
-    {
-        if (IsMissingLatencyValue(value))
+        if (value.Value == ushort.MaxValue)
             return MissingMeasurementText;
 
-        return $"{Math.Round(value!.Value):0} мс";
+        return $"{value.Value} мкВ";
     }
 
-    private static string FormatPrimaryAmplitude(double? value)
-    {
-        if (IsMissingAmplitudeValue(value))
-            return MissingMeasurementText;
-
-        return $"{Math.Round(value!.Value):0} мкВ";
-    }
-
-    private static bool IsMissingLatencyValue(ushort? value)
-        => !value.HasValue || value.Value == byte.MaxValue || value.Value == ushort.MaxValue;
-
-    private static bool IsMissingLatencyValue(double? value)
+    private static string FormatPrimaryMeasurement(double? value, string unit)
     {
         if (!value.HasValue)
-            return true;
+            return MissingMeasurementText;
 
-        double actual = value.Value;
-        if (double.IsNaN(actual) || double.IsInfinity(actual))
-            return true;
+        double rounded = Math.Round(value.Value);
+        if (Math.Abs(rounded - byte.MaxValue) < 0.5 || Math.Abs(rounded - ushort.MaxValue) < 0.5)
+            return MissingMeasurementText;
 
-        return Math.Abs(actual - byte.MaxValue) < 0.5
-            || Math.Abs(actual - ushort.MaxValue) < 0.5;
-    }
-
-    private static bool IsMissingAmplitudeValue(uint? value)
-        => !value.HasValue || value.Value == ushort.MaxValue;
-
-    private static bool IsMissingAmplitudeValue(double? value)
-    {
-        if (!value.HasValue)
-            return true;
-
-        double actual = value.Value;
-        if (double.IsNaN(actual) || double.IsInfinity(actual))
-            return true;
-
-        return Math.Abs(actual - ushort.MaxValue) < 0.5;
+        return $"{rounded:0} {unit}";
     }
 
     private static string? FormatMeasurement(EyeData eye, int index)
@@ -2008,6 +1975,12 @@ public static class ErgReportBuilder
         var aMkV = index < aMkVArray.Length ? aMkVArray[index] : null;
         var bMs = index < bMsArray.Length ? bMsArray[index] : null;
         var bMkV = index < bMkVArray.Length ? bMkVArray[index] : null;
+
+        bool hasA = aMs.HasValue || aMkV.HasValue;
+        bool hasB = bMs.HasValue || bMkV.HasValue;
+
+        if (!hasA && !hasB)
+            return null;
 
         return $"a: {FormatWaveMs(aMs)}, {FormatWaveMkV(aMkV)}\n" +
                $"b: {FormatWaveMs(bMs)}, {FormatWaveMkV(bMkV)}";
@@ -2101,51 +2074,42 @@ public static class ErgReportBuilder
         }
     }
 
-    private static double? GetFirstValue(ushort?[]? values, int? maxCount)
+    private static double? GetFirstValue(ushort?[]? values)
     {
         if (values == null)
             return null;
 
-        int limit = DetermineIterationLimit(values.Length, maxCount);
-        for (int i = 0; i < limit; i++)
+        foreach (var value in values)
         {
-            var value = values[i];
-            if (IsMissingLatencyValue(value))
+            if (!value.HasValue)
                 continue;
 
-            return value!.Value;
+            if (value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
+                continue;
+
+            return value.Value;
         }
 
         return null;
     }
 
-    private static double? GetFirstValue(uint?[]? values, int? maxCount)
+    private static double? GetFirstValue(uint?[]? values)
     {
         if (values == null)
             return null;
 
-        int limit = DetermineIterationLimit(values.Length, maxCount);
-        for (int i = 0; i < limit; i++)
+        foreach (var value in values)
         {
-            var value = values[i];
-            if (IsMissingAmplitudeValue(value))
+            if (!value.HasValue)
                 continue;
 
-            return value!.Value;
+            if (value.Value == ushort.MaxValue)
+                continue;
+
+            return value.Value;
         }
 
         return null;
-    }
-
-    private static int DetermineIterationLimit(int length, int? maxCount)
-    {
-        if (!maxCount.HasValue)
-            return length;
-
-        if (maxCount.Value <= 0)
-            return 0;
-
-        return Math.Min(length, maxCount.Value);
     }
 
     private static IEnumerable<string> GetImageExtensions(IReadOnlyCollection<ZipArchiveEntry> entries)
@@ -2190,12 +2154,10 @@ public static class ErgReportBuilder
         if (display.IsFlat)
             return false;
 
-        bool hasMsValue = !string.IsNullOrWhiteSpace(display.MsValue);
-        bool hasMkVValue = !string.IsNullOrWhiteSpace(display.MkVValue);
-        bool hasMsNorm = FormatNormForClient(display.MsNorm) != null;
-        bool hasMkVNorm = FormatNormForClient(display.MkVNorm) != null;
-
-        return !hasMsValue && !hasMkVValue && !hasMsNorm && !hasMkVNorm;
+        return display.MsValue == "—"
+            && display.MkVValue == "—"
+            && FormatNormForClient(display.MsNorm) == null
+            && FormatNormForClient(display.MkVNorm) == null;
     }
 
     private static bool IsWithinAxis(double value, double min, double max)
