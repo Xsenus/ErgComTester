@@ -45,7 +45,7 @@ public static class ErgReportBuilder
     private const float GraphRenderDpi = GraphImagePixelWidth / GraphImageTargetWidthInches;
     private const double HeaderLineSpacingPoints = 2d;
     private const double HeaderTitleSpacingPoints = 12d;
-    private const string MissingMeasurementText = "— —";
+    private const string MissingMeasurementText = "- -";
 
     private static SKTypeface? _skTypeface;
 
@@ -1940,10 +1940,13 @@ public static class ErgReportBuilder
 
     private static string FormatWaveMkV(uint? value)
     {
-        if (IsMissingAmplitudeValue(value))
+        if (!value.HasValue)
             return MissingMeasurementText;
 
-        return $"{value!.Value} мкВ";
+        if (IsMissingAmplitudeValue((double?)value.Value))
+            return MissingMeasurementText;
+
+        return $"{value.Value} мкВ";
     }
 
     private static string FormatPrimaryLatency(double? value)
@@ -1970,16 +1973,12 @@ public static class ErgReportBuilder
         if (!value.HasValue)
             return true;
 
-        double actual = value.Value;
-        if (double.IsNaN(actual) || double.IsInfinity(actual))
-            return true;
+        double rounded = Math.Round(value.Value);
 
-        return Math.Abs(actual - byte.MaxValue) < 0.5
-            || Math.Abs(actual - ushort.MaxValue) < 0.5;
+        return Math.Abs(rounded) < 0.5
+               || Math.Abs(rounded - byte.MaxValue) < 0.5
+               || Math.Abs(rounded - ushort.MaxValue) < 0.5;
     }
-
-    private static bool IsMissingAmplitudeValue(uint? value)
-        => !value.HasValue || value.Value == ushort.MaxValue;
 
     private static bool IsMissingAmplitudeValue(double? value)
     {
@@ -1990,8 +1989,79 @@ public static class ErgReportBuilder
         if (double.IsNaN(actual) || double.IsInfinity(actual))
             return true;
 
+        // 65535 – типичное «битое» значение (ushort.MaxValue) после конвертации
         return Math.Abs(actual - ushort.MaxValue) < 0.5;
     }
+
+
+    //private static string FormatWaveMs(ushort? value)
+    //{
+    //    if (IsMissingLatencyValue(value))
+    //        return MissingMeasurementText;
+
+    //    if (value.Value == 0 || value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
+    //        return MissingMeasurementText;
+
+    //    return $"{value!.Value} мкВ";
+    //}
+
+    //private static string FormatWaveMkV(uint? value)
+    //{
+    //    if (!value.HasValue)
+    //        return MissingMeasurementText;
+
+    //    if (value.Value == ushort.MaxValue)
+    //        if (value.Value == 0 || value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
+    //            return MissingMeasurementText;
+
+    //    return $"{value.Value} мкВ";
+    //}
+
+    //private static string FormatPrimaryLatency(double? value)
+    //{
+    //    if (IsMissingLatencyValue(value))
+    //        return MissingMeasurementText;
+
+    //    if (value.Value == 0 || value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
+    //        return MissingMeasurementText;
+
+    //    return $"{Math.Round(value!.Value):0} мкВ";
+    //}
+
+    //private static string FormatPrimaryAmplitude(double? value)
+    //{
+    //    if (IsMissingAmplitudeValue(value))
+    //        return MissingMeasurementText;
+
+    //    return $"{Math.Round(value!.Value):0} мкВ";
+    //}
+
+    //private static bool IsMissingLatencyValue(ushort? value)
+    //    => !value.HasValue || value.Value == byte.MaxValue || value.Value == ushort.MaxValue;
+
+    //private static bool IsMissingLatencyValue(double? value)
+    //{
+    //    if (!value.HasValue)
+    //        return true;
+
+    //    double rounded = Math.Round(value.Value);
+
+    //    return Math.Abs(rounded) < 0.5
+    //           || Math.Abs(rounded - byte.MaxValue) < 0.5
+    //           || Math.Abs(rounded - ushort.MaxValue) < 0.5;
+    //}
+
+    //private static bool IsMissingAmplitudeValue(double? value)
+    //{
+    //    if (!value.HasValue)
+    //        return true;
+
+    //    double actual = value.Value;
+    //    if (double.IsNaN(actual) || double.IsInfinity(actual))
+    //        return true;
+
+    //    return Math.Abs(actual - ushort.MaxValue) < 0.5;
+    //}
 
     private static string? FormatMeasurement(EyeData eye, int index)
     {
@@ -2119,7 +2189,7 @@ public static class ErgReportBuilder
             if (IsMissingLatencyValue(value))
                 continue;
 
-            return value!.Value;
+            return value.Value;
         }
 
         return null;
@@ -2137,7 +2207,7 @@ public static class ErgReportBuilder
             if (IsMissingAmplitudeValue(value))
                 continue;
 
-            return value!.Value;
+            return value.Value;
         }
 
         return null;
@@ -2186,11 +2256,10 @@ public static class ErgReportBuilder
 
     private static bool HasEyeMeasurementValues(EyeData eye)
     {
-        int valueCount = eye.ValueCount ?? DetermineValueCount(eye);
-        return GetFirstValue(eye.AWaveMs, valueCount).HasValue
-            || GetFirstValue(eye.AWaveMkV, valueCount).HasValue
-            || GetFirstValue(eye.BWaveMs, valueCount).HasValue
-            || GetFirstValue(eye.BWaveMkV, valueCount).HasValue;
+        return (eye.AWaveMs?.Any(v => v.HasValue) ?? false)
+            || (eye.AWaveMkV?.Any(v => v.HasValue) ?? false)
+            || (eye.BWaveMs?.Any(v => v.HasValue) ?? false)
+            || (eye.BWaveMkV?.Any(v => v.HasValue) ?? false);
     }
 
     private static long InchesToEmus(double inches) => (long)(inches * 914400);
