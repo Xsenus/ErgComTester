@@ -1934,7 +1934,7 @@ public static class ErgReportBuilder
         if (!value.HasValue)
             return MissingMeasurementText;
 
-        if (value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
+        if (value.Value == 0 || value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
             return MissingMeasurementText;
 
         return $"{value.Value} мс";
@@ -1945,7 +1945,7 @@ public static class ErgReportBuilder
         if (!value.HasValue)
             return MissingMeasurementText;
 
-        if (value.Value == ushort.MaxValue)
+        if (value.Value == 0 || value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
             return MissingMeasurementText;
 
         return $"{value.Value} мкВ";
@@ -1957,7 +1957,9 @@ public static class ErgReportBuilder
             return MissingMeasurementText;
 
         double rounded = Math.Round(value.Value);
-        if (Math.Abs(rounded - byte.MaxValue) < 0.5 || Math.Abs(rounded - ushort.MaxValue) < 0.5)
+        if (Math.Abs(rounded) < 0.5
+            || Math.Abs(rounded - byte.MaxValue) < 0.5
+            || Math.Abs(rounded - ushort.MaxValue) < 0.5)
             return MissingMeasurementText;
 
         return $"{rounded:0} {unit}";
@@ -2087,9 +2089,6 @@ public static class ErgReportBuilder
             if (!value.HasValue)
                 continue;
 
-            if (value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
-                continue;
-
             return value.Value;
         }
 
@@ -2104,9 +2103,6 @@ public static class ErgReportBuilder
         foreach (var value in values)
         {
             if (!value.HasValue)
-                continue;
-
-            if (value.Value == ushort.MaxValue)
                 continue;
 
             return value.Value;
@@ -2147,10 +2143,10 @@ public static class ErgReportBuilder
 
     private static bool HasEyeMeasurementValues(EyeData eye)
     {
-        return GetFirstValue(eye.AWaveMs).HasValue
-            || GetFirstValue(eye.AWaveMkV).HasValue
-            || GetFirstValue(eye.BWaveMs).HasValue
-            || GetFirstValue(eye.BWaveMkV).HasValue;
+        return (eye.AWaveMs?.Any(v => v.HasValue) ?? false)
+            || (eye.AWaveMkV?.Any(v => v.HasValue) ?? false)
+            || (eye.BWaveMs?.Any(v => v.HasValue) ?? false)
+            || (eye.BWaveMkV?.Any(v => v.HasValue) ?? false);
     }
 
     private static long InchesToEmus(double inches) => (long)(inches * 914400);
@@ -3727,6 +3723,12 @@ public static class ErgReportBuilder
         {
             if (_graphics == null)
                 return rect.Left + rect.Width / 2f;
+
+            if (IsMissingMeasurementString(text))
+            {
+                _graphics.DrawString(MissingMeasurementText, _valueFont, Brushes.Black, rect, _formatCenter);
+                return rect.Left + rect.Width / 2f;
+            }
 
             if (text == "FLAT")
             {
