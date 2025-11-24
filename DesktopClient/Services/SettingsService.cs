@@ -34,15 +34,47 @@ public sealed class SettingsService
 
         if (File.Exists(SettingsPath))
         {
-            var fs = File.OpenRead(SettingsPath);
+            string json = string.Empty;
             try
             {
-                var loaded = await JsonSerializer
-                    .DeserializeAsync<AppSettings>(fs, JsonOptions)
-                    .ConfigureAwait(false);
+                json = await File.ReadAllTextAsync(SettingsPath).ConfigureAwait(false);
+            }
+            catch
+            {
+                // ignore read errors and fall back to defaults below
+            }
+
+            var autoUpdaterPropertyPresent = false;
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                try
+                {
+                    using var document = JsonDocument.Parse(json);
+                    foreach (var property in document.RootElement.EnumerateObject())
+                    {
+                        if (string.Equals(property.Name, "autoUpdaterEnabled", StringComparison.OrdinalIgnoreCase))
+                        {
+                            autoUpdaterPropertyPresent = true;
+                            break;
+                        }
+                    }
+                }
+                catch
+                {
+                    // ignore parse errors and fall back to defaults below
+                }
+            }
+
+            try
+            {
+                var loaded = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
                 if (loaded != null)
                 {
                     _settings = loaded;
+                    if (!autoUpdaterPropertyPresent)
+                    {
+                        saveRequired = true;
+                    }
                 }
                 else
                 {
@@ -50,9 +82,10 @@ public sealed class SettingsService
                     saveRequired = true;
                 }
             }
-            finally
+            catch
             {
-                await fs.DisposeAsync().ConfigureAwait(false);
+                _settings = new AppSettings();
+                saveRequired = true;
             }
         }
         else
@@ -270,6 +303,16 @@ public sealed class SettingsService
             {
                 _settings.SaveRawPatientFiles = saveRaw;
                 applied.Add($"SaveRawPatientFiles={(saveRaw ? 1 : 0)}");
+                changed = true;
+            }
+        }
+
+        if (TryReadBool(root, "AutoUpdaterEnabled", out var autoUpdaterEnabled))
+        {
+            if (_settings.AutoUpdaterEnabled != autoUpdaterEnabled)
+            {
+                _settings.AutoUpdaterEnabled = autoUpdaterEnabled;
+                applied.Add($"AutoUpdaterEnabled={(autoUpdaterEnabled ? 1 : 0)}");
                 changed = true;
             }
         }
