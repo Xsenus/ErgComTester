@@ -64,7 +64,7 @@ dotnet publish DesktopClient/MicroluxErgConnect.Desktop.csproj -c Release -r win
 
 ## Первоначальная настройка
 
-При первом запуске настольный клиент создаёт файл `settings.json` в каталоге `%AppData%/MicroluxErgConnect/` и заполняет его значениями по умолчанию. Чтобы подготовить рабочее место до старта программы (например, на новом компьютере), рядом с `MicroluxErgConnect.Desktop.exe` можно разместить файл `start_settings.json`. Он будет считан один раз при запуске; поддерживаются параметры из [`DesktopClient/start_settings.sample.json`](DesktopClient/start_settings.sample.json). Так можно заранее задать альтернативный путь к отчётам:
+При первом запуске настольный клиент создаёт файл `settings.json` в каталоге `%AppData%/MicroluxErgConnect/` и заполняет его значениями по умолчанию. Чтобы подготовить рабочее место до старта программы (например, на новом компьютере), рядом с `MicroluxErgConnect.Desktop.exe` можно разместить файл `start_settings.json`. Он будет считан один раз при запуске (ищется как в рабочем каталоге, так и рядом с фактическим исполняемым файлом — работает и для self-contained/single-file сборок); поддерживаются параметры из [`DesktopClient/start_settings.sample.json`](DesktopClient/start_settings.sample.json). Так можно заранее задать альтернативный путь к отчётам:
 
 ```json
 {
