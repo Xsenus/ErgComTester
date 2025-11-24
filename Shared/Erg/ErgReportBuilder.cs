@@ -1935,10 +1935,18 @@ public static class ErgReportBuilder
         if (IsMissingLatencyValue(value))
             return MissingMeasurementText;
 
-        if (value.Value == 0 || value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
+        return $"{value!.Value} мс";
+    }
+
+    private static string FormatWaveMkV(uint? value)
+    {
+        if (!value.HasValue)
             return MissingMeasurementText;
 
-        return $"{value!.Value} мкВ";
+        if (IsMissingAmplitudeValue((double?)value.Value))
+            return MissingMeasurementText;
+
+        return $"{value.Value} мкВ";
     }
 
     private static string FormatPrimaryLatency(double? value)
@@ -1946,7 +1954,12 @@ public static class ErgReportBuilder
         if (IsMissingLatencyValue(value))
             return MissingMeasurementText;
 
-        if (value.Value == 0 || value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
+        return $"{Math.Round(value!.Value):0} мс";
+    }
+
+    private static string FormatPrimaryAmplitude(double? value)
+    {
+        if (IsMissingAmplitudeValue(value))
             return MissingMeasurementText;
 
         return $"{Math.Round(value!.Value):0} мкВ";
@@ -1961,10 +1974,11 @@ public static class ErgReportBuilder
             return true;
 
         double rounded = Math.Round(value.Value);
-        if (Math.Abs(rounded) < 0.5
-            || Math.Abs(rounded - byte.MaxValue) < 0.5
-            || Math.Abs(rounded - ushort.MaxValue) < 0.5)
-            return MissingMeasurementText;
+
+        return Math.Abs(rounded) < 0.5
+               || Math.Abs(rounded - byte.MaxValue) < 0.5
+               || Math.Abs(rounded - ushort.MaxValue) < 0.5;
+    }
 
     private static bool IsMissingAmplitudeValue(double? value)
     {
@@ -1975,8 +1989,79 @@ public static class ErgReportBuilder
         if (double.IsNaN(actual) || double.IsInfinity(actual))
             return true;
 
+        // 65535 – типичное «битое» значение (ushort.MaxValue) после конвертации
         return Math.Abs(actual - ushort.MaxValue) < 0.5;
     }
+
+
+    //private static string FormatWaveMs(ushort? value)
+    //{
+    //    if (IsMissingLatencyValue(value))
+    //        return MissingMeasurementText;
+
+    //    if (value.Value == 0 || value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
+    //        return MissingMeasurementText;
+
+    //    return $"{value!.Value} мкВ";
+    //}
+
+    //private static string FormatWaveMkV(uint? value)
+    //{
+    //    if (!value.HasValue)
+    //        return MissingMeasurementText;
+
+    //    if (value.Value == ushort.MaxValue)
+    //        if (value.Value == 0 || value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
+    //            return MissingMeasurementText;
+
+    //    return $"{value.Value} мкВ";
+    //}
+
+    //private static string FormatPrimaryLatency(double? value)
+    //{
+    //    if (IsMissingLatencyValue(value))
+    //        return MissingMeasurementText;
+
+    //    if (value.Value == 0 || value.Value == byte.MaxValue || value.Value == ushort.MaxValue)
+    //        return MissingMeasurementText;
+
+    //    return $"{Math.Round(value!.Value):0} мкВ";
+    //}
+
+    //private static string FormatPrimaryAmplitude(double? value)
+    //{
+    //    if (IsMissingAmplitudeValue(value))
+    //        return MissingMeasurementText;
+
+    //    return $"{Math.Round(value!.Value):0} мкВ";
+    //}
+
+    //private static bool IsMissingLatencyValue(ushort? value)
+    //    => !value.HasValue || value.Value == byte.MaxValue || value.Value == ushort.MaxValue;
+
+    //private static bool IsMissingLatencyValue(double? value)
+    //{
+    //    if (!value.HasValue)
+    //        return true;
+
+    //    double rounded = Math.Round(value.Value);
+
+    //    return Math.Abs(rounded) < 0.5
+    //           || Math.Abs(rounded - byte.MaxValue) < 0.5
+    //           || Math.Abs(rounded - ushort.MaxValue) < 0.5;
+    //}
+
+    //private static bool IsMissingAmplitudeValue(double? value)
+    //{
+    //    if (!value.HasValue)
+    //        return true;
+
+    //    double actual = value.Value;
+    //    if (double.IsNaN(actual) || double.IsInfinity(actual))
+    //        return true;
+
+    //    return Math.Abs(actual - ushort.MaxValue) < 0.5;
+    //}
 
     private static string? FormatMeasurement(EyeData eye, int index)
     {
