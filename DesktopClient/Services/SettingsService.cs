@@ -211,9 +211,28 @@ public sealed class SettingsService
 
     private StartSettingsImportResult TryImportStartSettings()
     {
+        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var baseDir = AppContext.BaseDirectory ?? Environment.CurrentDirectory;
-        var path = Path.Combine(baseDir, "start_settings.json");
-        if (!File.Exists(path))
+        candidates.Add(baseDir);
+
+        var processDir = Path.GetDirectoryName(Environment.ProcessPath);
+        if (!string.IsNullOrWhiteSpace(processDir))
+        {
+            candidates.Add(processDir);
+        }
+
+        string? path = null;
+        foreach (var candidate in candidates)
+        {
+            var candidatePath = Path.Combine(candidate, "start_settings.json");
+            if (File.Exists(candidatePath))
+            {
+                path = candidatePath;
+                break;
+            }
+        }
+
+        if (path is null)
         {
             return StartSettingsImportResult.NotFound;
         }
