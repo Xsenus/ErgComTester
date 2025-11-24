@@ -45,7 +45,7 @@ public static class ErgReportBuilder
     private const float GraphRenderDpi = GraphImagePixelWidth / GraphImageTargetWidthInches;
     private const double HeaderLineSpacingPoints = 2d;
     private const double HeaderTitleSpacingPoints = 12d;
-    private const string MissingMeasurementText = "— —";
+    private const string MissingMeasurementText = "- -";
 
     private static SKTypeface? _skTypeface;
 
@@ -2156,8 +2156,8 @@ public static class ErgReportBuilder
         if (display.IsFlat)
             return false;
 
-        return display.MsValue == "—"
-            && display.MkVValue == "—"
+        return IsMissingMeasurementString(display.MsValue)
+            && IsMissingMeasurementString(display.MkVValue)
             && FormatNormForClient(display.MsNorm) == null
             && FormatNormForClient(display.MkVNorm) == null;
     }

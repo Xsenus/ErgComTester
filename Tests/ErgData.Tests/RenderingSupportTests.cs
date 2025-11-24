@@ -360,7 +360,7 @@ public class RenderingSupportTests
             var text = document.MainDocumentPart?.Document?.InnerText;
 
             Assert.Contains("Замер #1", text);
-            Assert.Contains("— —", text);
+            Assert.Contains("- -", text);
         }
         finally
         {
@@ -447,7 +447,7 @@ public class RenderingSupportTests
             var text = string.Concat(document.MainDocumentPart!.Document.Body!.Descendants<DocumentFormat.OpenXml.Wordprocessing.Text>()
                 .Select(t => t.Text));
 
-            Assert.Contains("— —", text);
+            Assert.Contains("- -", text);
         }
         finally
         {
@@ -532,7 +532,7 @@ public class RenderingSupportTests
             using var document = WordprocessingDocument.Open(outputPath, false);
             var text = document.MainDocumentPart!.Document.InnerText;
 
-            Assert.Contains("— —", text);
+            Assert.Contains("- -", text);
             Assert.DoesNotContain("255 мс", text);
             Assert.DoesNotContain("65535 мкВ", text);
         }
